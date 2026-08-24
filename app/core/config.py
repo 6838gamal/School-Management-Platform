@@ -1,11 +1,7 @@
 """Application configuration loaded from environment variables."""
 import os
 from functools import lru_cache
-from typing import Literal, Optional
-
-from dotenv import load_dotenv
-
-load_dotenv()  # تحميل من .env في حالة وجوده (محلياً)
+from typing import Literal
 
 
 class Settings:
@@ -35,6 +31,7 @@ class Settings:
         "DATABASE_URL",
         "postgresql+asyncpg://sms_user:sms_password@localhost:5432/sms_db"
     )
+    DATABASE_SSL: bool = os.getenv("DATABASE_SSL", "False").lower() == "true"  # ✅ جديد
     DATABASE_POOL_SIZE: int = int(os.getenv("DATABASE_POOL_SIZE", "10"))
     DATABASE_MAX_OVERFLOW: int = int(os.getenv("DATABASE_MAX_OVERFLOW", "20"))
     DATABASE_ECHO: bool = os.getenv("DATABASE_ECHO", "False").lower() == "true"
