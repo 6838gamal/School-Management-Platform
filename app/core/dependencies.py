@@ -19,7 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.exceptions import ForbiddenException, UnauthorizedException
 from app.core.security import decode_session
-from app.models.academics import School
+from app.models.schools import School
 from app.models.users import User
 
 # ------------------------------------------------------------------
