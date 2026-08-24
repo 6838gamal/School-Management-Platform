@@ -1,5 +1,5 @@
 """Attendance schemas."""
-from pydantic import Field
+from pydantic import BaseModel, Field
 
 from app.schemas.common import ORMBase
 
