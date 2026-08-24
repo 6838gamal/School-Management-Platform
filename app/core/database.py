@@ -10,12 +10,24 @@ from sqlalchemy.orm import DeclarativeBase
 
 from app.core.config import settings
 
+# إعدادات SSL - asyncpg يقبل ssl وليس sslmode
+connect_args = {}
+if settings.DATABASE_SSL:
+    connect_args["ssl"] = True
+
+# التحقق من استخدام asyncpg
+if "asyncpg" not in settings.DATABASE_URL:
+    raise ValueError(
+        f"❌ DATABASE_URL must use asyncpg driver. Current: {settings.DATABASE_URL}"
+    )
+
 engine = create_async_engine(
     settings.DATABASE_URL,
     echo=settings.DATABASE_ECHO,
     pool_size=settings.DATABASE_POOL_SIZE,
     max_overflow=settings.DATABASE_MAX_OVERFLOW,
     pool_pre_ping=True,
+    connect_args=connect_args,  # ✅ إعدادات SSL
 )
 
 async_session_factory = async_sessionmaker(
