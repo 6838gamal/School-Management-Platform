@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="{{ current_user and 'ar' or 'ar' }}" dir="rtl" class="{% if request.cookies.get('theme') == 'dark' %}dark{% endif %}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}{{ title or 'نظام إدارة المدارس' }}{% endblock %} — نظام إدارة المدارس</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: { 50:'#eff6ff',100:'#dbeafe',200:'#bfdbfe',300:'#93c5fd',400:'#60a5fa',500:'#3b82f6',600:'#2563eb',700:'#1d4ed8',800:'#1e40af',900:'#1e3a8a' },
+                        success: { 50:'#f0fdf4',500:'#22c55e',600:'#16a34a',700:'#15803d' },
+                        warning: { 50:'#fffbeb',500:'#f59e0b',600:'#d97706' },
+                        danger:  { 50:'#fef2f2',500:'#ef4444',600:'#dc2626' },
+                    },
+                    fontFamily: {
+                        sans: ['Cairo', 'system-ui', 'sans-serif'],
+                    },
+                },
+            },
+        };
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/app.css">
+    <link rel="icon" href="/static/images/favicon.svg" type="image/svg+xml">
+    {% block head %}{% endblock %}
+</head>
+<body class="bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-200 font-sans antialiased">
+    {% block body %}{% endblock %}
+    <script src="/static/js/app.js"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

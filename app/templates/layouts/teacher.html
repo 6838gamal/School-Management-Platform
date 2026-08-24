@@ -1,0 +1,31 @@
+{% extends "base/dashboard_base.html" %}
+{% block sidebar %}
+{% set nav_items = [
+    {'url': '/dashboard', 'label': 'لوحة التحكم', 'icon': 'home'},
+    {'url': '/schedules', 'label': 'جدولي', 'icon': 'calendar', 'perm': 'schedules.view'},
+    {'url': '/students', 'label': 'طلابي', 'icon': 'users', 'perm': 'students.view'},
+    {'url': '/attendance', 'label': 'الحضور', 'icon': 'clipboard-check', 'perm': 'attendance.view'},
+    {'url': '/homework', 'label': 'الواجبات', 'icon': 'book-open', 'perm': 'homework.view'},
+    {'url': '/grades', 'label': 'الدرجات', 'icon': 'award', 'perm': 'grades.view'},
+    {'url': '/activities', 'label': 'الأنشطة', 'icon': 'trophy', 'perm': 'activities.view'},
+    {'url': '/notifications', 'label': 'الإشعارات', 'icon': 'bell', 'perm': 'notifications.view'},
+] %}
+<aside id="sidebar" class="w-64 bg-white dark:bg-slate-800 border-l border-slate-200 dark:border-slate-700 fixed lg:static inset-y-0 right-0 z-50 transform translate-x-full lg:translate-x-0 transition-transform overflow-y-auto pt-16 lg:pt-0">
+    <nav class="p-3 space-y-1">
+        {% for item in nav_items %}
+            {% if not item.perm or can(item.perm) %}
+            <a href="{{ item.url }}" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors
+                {% if request.url.path == item.url %}bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300{% else %}text-slate-600 dark:text-slate-300{% endif %}">
+                <span class="w-5 h-5 flex-shrink-0">{{ item.label[0] }}</span>
+                {{ item.label }}
+            </a>
+            {% endif %}
+        {% endfor %}
+    </nav>
+    <div class="p-3 border-t border-slate-200 dark:border-slate-700 mt-4">
+        <form method="POST" action="/logout">
+            <button type="submit" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-danger-600 hover:bg-danger-50 dark:hover:bg-danger-900/20">تسجيل الخروج</button>
+        </form>
+    </div>
+</aside>
+{% endblock %}

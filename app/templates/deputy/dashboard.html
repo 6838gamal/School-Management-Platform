@@ -1,0 +1,20 @@
+{% extends "layouts/deputy.html" %}
+{% block content %}
+<div class="space-y-6">
+    <h1 class="text-2xl font-bold text-slate-800 dark:text-white">لوحة تحكم الوكيل</h1>
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div class="bg-white dark:bg-slate-800 rounded-xl p-5 border border-slate-100 dark:border-slate-700">
+            <p class="text-slate-400 text-sm">إجمالي المعلمين</p>
+            <p class="text-3xl font-bold text-slate-800 dark:text-white">{{ stats.total_teachers }}</p>
+        </div>
+        <div class="bg-white dark:bg-slate-800 rounded-xl p-5 border border-slate-100 dark:border-slate-700">
+            <p class="text-slate-400 text-sm">الغائبون اليوم</p>
+            <p class="text-3xl font-bold text-danger-600">{{ stats.absent_teachers }}</p>
+        </div>
+        <div class="bg-white dark:bg-slate-800 rounded-xl p-5 border border-slate-100 dark:border-slate-700">
+            <p class="text-slate-400 text-sm">الحصص المتأثرة</p>
+            <p class="text-3xl font-bold text-warning-600">{{ stats.affected_lessons }}</p>
+        </div>
+    </div>
+</div>
+{% endblock %}

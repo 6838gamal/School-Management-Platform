@@ -1,0 +1,29 @@
+{% extends "layouts/director.html" %}
+{% block content %}
+<div class="space-y-6">
+    <div class="flex items-center justify-between">
+        <div><h1 class="text-2xl font-bold text-slate-800 dark:text-white">المعلمون</h1><p class="text-slate-400 text-sm mt-1">{{ total }} معلم</p></div>
+        {% if can('teachers.create') %}<a href="/teachers/new" class="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg text-sm font-semibold">+ إضافة معلم</a>{% endif %}
+    </div>
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 overflow-hidden">
+        <div class="overflow-x-auto"><table class="w-full text-sm">
+            <thead class="bg-slate-50 dark:bg-slate-700/50 text-slate-500 dark:text-slate-300"><tr>
+                <th class="text-right p-3 font-medium">الرقم</th><th class="text-right p-3 font-medium">الاسم</th><th class="text-right p-3 font-medium">التخصص</th><th class="text-right p-3 font-medium">الهاتف</th><th class="text-right p-3 font-medium">الحالة</th>
+            </tr></thead>
+            <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
+                {% for t in teachers %}
+                <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/30">
+                    <td class="p-3 font-mono text-xs">{{ t.employee_number }}</td>
+                    <td class="p-3"><a href="/teachers/{{ t.id }}" class="text-primary-600 hover:underline font-medium">{{ t.full_name }}</a></td>
+                    <td class="p-3">{{ t.specialization or '—' }}</td>
+                    <td class="p-3">{{ t.phone or '—' }}</td>
+                    <td class="p-3">{% if t.is_active %}<span class="px-2 py-0.5 text-xs rounded-full bg-success-50 text-success-600">نشط</span>{% else %}<span class="px-2 py-0.5 text-xs rounded-full bg-danger-50 text-danger-600">معطل</span>{% endif %}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="5" class="p-8 text-center text-slate-400">لا يوجد معلمون.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table></div>
+    </div>
+</div>
+{% endblock %}

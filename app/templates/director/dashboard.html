@@ -1,0 +1,79 @@
+{% extends "layouts/director.html" %}
+{% block content %}
+<div class="space-y-6">
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-bold text-slate-800 dark:text-white">لوحة تحكم المدير</h1>
+            <p class="text-slate-400 text-sm mt-1">نظرة عامة على المدرسة</p>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="bg-white dark:bg-slate-800 rounded-xl p-5 border border-slate-100 dark:border-slate-700">
+            <div class="flex items-center justify-between mb-3">
+                <span class="text-3xl">👥</span><span class="text-success-600 text-sm font-semibold">+{{ stats.total_students }}</span>
+            </div>
+            <p class="text-slate-400 text-sm">إجمالي الطلاب</p>
+            <p class="text-2xl font-bold text-slate-800 dark:text-white">{{ stats.total_students }}</p>
+        </div>
+        <div class="bg-white dark:bg-slate-800 rounded-xl p-5 border border-slate-100 dark:border-slate-700">
+            <div class="flex items-center justify-between mb-3">
+                <span class="text-3xl">👨‍🏫</span><span class="text-primary-600 text-sm font-semibold">{{ stats.total_teachers }}</span>
+            </div>
+            <p class="text-slate-400 text-sm">إجمالي المعلمين</p>
+            <p class="text-2xl font-bold text-slate-800 dark:text-white">{{ stats.total_teachers }}</p>
+        </div>
+        <div class="bg-white dark:bg-slate-800 rounded-xl p-5 border border-slate-100 dark:border-slate-700">
+            <div class="flex items-center justify-between mb-3">
+                <span class="text-3xl">📚</span>
+            </div>
+            <p class="text-slate-400 text-sm">الشعب الدراسية</p>
+            <p class="text-2xl font-bold text-slate-800 dark:text-white">{{ stats.total_sections }}</p>
+        </div>
+        <div class="bg-white dark:bg-slate-800 rounded-xl p-5 border border-slate-100 dark:border-slate-700">
+            <div class="flex items-center justify-between mb-3">
+                <span class="text-3xl">📖</span>
+            </div>
+            <p class="text-slate-400 text-sm">المواد</p>
+            <p class="text-2xl font-bold text-slate-800 dark:text-white">{{ stats.total_subjects }}</p>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div class="bg-white dark:bg-slate-800 rounded-xl p-5 border border-slate-100 dark:border-slate-700 lg:col-span-2">
+            <h3 class="font-semibold text-slate-700 dark:text-slate-200 mb-4">الحضور اليوم</h3>
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div class="text-center p-3 bg-success-50 rounded-lg"><p class="text-2xl font-bold text-success-600">{{ stats.attendance_today.present }}</p><p class="text-xs text-slate-400">حاضر</p></div>
+                <div class="text-center p-3 bg-danger-50 rounded-lg"><p class="text-2xl font-bold text-danger-600">{{ stats.attendance_today.absent }}</p><p class="text-xs text-slate-400">غائب</p></div>
+                <div class="text-center p-3 bg-warning-50 rounded-lg"><p class="text-2xl font-bold text-warning-600">{{ stats.attendance_today.late }}</p><p class="text-xs text-slate-400">متأخر</p></div>
+                <div class="text-center p-3 bg-slate-100 rounded-lg"><p class="text-2xl font-bold text-slate-600">{{ stats.attendance_today.excused }}</p><p class="text-xs text-slate-400">بعذر</p></div>
+            </div>
+            <div class="mt-4 p-3 bg-primary-50 rounded-lg flex items-center justify-between">
+                <span class="text-sm text-slate-600">نسبة الحضور</span>
+                <span class="text-lg font-bold text-primary-600">{{ stats.attendance_today.rate }}%</span>
+            </div>
+        </div>
+        <div class="bg-white dark:bg-slate-800 rounded-xl p-5 border border-slate-100 dark:border-slate-700">
+            <h3 class="font-semibold text-slate-700 dark:text-slate-200 mb-4">المعلمون الغائبون</h3>
+            <div class="space-y-2">
+                <div class="flex items-center justify-between p-3 bg-danger-50 rounded-lg">
+                    <span class="text-sm">الغائبون اليوم</span>
+                    <span class="font-bold text-danger-600">{{ stats.absent_teachers_count }}</span>
+                </div>
+                <div class="flex items-center justify-between p-3 bg-warning-50 rounded-lg">
+                    <span class="text-sm">الحصص المتأثرة</span>
+                    <span class="font-bold text-warning-600">{{ stats.affected_lessons }}</span>
+                </div>
+                <div class="flex items-center justify-between p-3 bg-primary-50 rounded-lg">
+                    <span class="text-sm">الأنشطة القادمة</span>
+                    <span class="font-bold text-primary-600">{{ stats.upcoming_activities }}</span>
+                </div>
+                <div class="flex items-center justify-between p-3 bg-slate-100 rounded-lg">
+                    <span class="text-sm">إشعارات غير مقروءة</span>
+                    <span class="font-bold text-slate-600">{{ stats.unread_notifications }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

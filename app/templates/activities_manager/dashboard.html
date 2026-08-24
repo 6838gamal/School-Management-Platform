@@ -1,0 +1,20 @@
+{% extends "layouts/activities_manager.html" %}
+{% block content %}
+<div class="space-y-6">
+    <h1 class="text-2xl font-bold text-slate-800 dark:text-white">لوحة تحكم مسؤول الأنشطة</h1>
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="bg-white dark:bg-slate-800 rounded-xl p-5 border border-slate-100 dark:border-slate-700">
+            <p class="text-slate-400 text-sm">إجمالي الأنشطة</p><p class="text-3xl font-bold text-slate-800 dark:text-white">{{ stats.total_activities }}</p>
+        </div>
+        <div class="bg-white dark:bg-slate-800 rounded-xl p-5 border border-slate-100 dark:border-slate-700">
+            <p class="text-slate-400 text-sm">أنشطة قادمة</p><p class="text-3xl font-bold text-primary-600">{{ stats.upcoming_activities }}</p>
+        </div>
+        <div class="bg-white dark:bg-slate-800 rounded-xl p-5 border border-slate-100 dark:border-slate-700">
+            <p class="text-slate-400 text-sm">أنشطة جارية</p><p class="text-3xl font-bold text-success-600">{{ stats.ongoing_activities }}</p>
+        </div>
+        <div class="bg-white dark:bg-slate-800 rounded-xl p-5 border border-slate-100 dark:border-slate-700">
+            <p class="text-slate-400 text-sm">ملاحظات سلوكية</p><p class="text-3xl font-bold text-warning-600">{{ stats.recent_behavior_count }}</p>
+        </div>
+    </div>
+</div>
+{% endblock %}

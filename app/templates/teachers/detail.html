@@ -1,0 +1,28 @@
+{% extends "layouts/director.html" %}
+{% block content %}
+<div class="space-y-6">
+    <a href="/teachers" class="text-slate-400 hover:text-slate-600">&larr; العودة</a>
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-6">
+        <h1 class="text-2xl font-bold text-slate-800 dark:text-white">{{ teacher.full_name }}</h1>
+        <p class="text-slate-400 text-sm mt-1">رقم الموظف: {{ teacher.employee_number }}</p>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-6">
+            <div><p class="text-xs text-slate-400">التخصص</p><p class="font-medium">{{ teacher.specialization or '—' }}</p></div>
+            <div><p class="text-xs text-slate-400">المؤهل</p><p class="font-medium">{{ teacher.qualification or '—' }}</p></div>
+            <div><p class="text-xs text-slate-400">الهاتف</p><p class="font-medium">{{ teacher.phone or '—' }}</p></div>
+            <div><p class="text-xs text-slate-400">البريد</p><p class="font-medium">{{ teacher.email or '—' }}</p></div>
+            <div><p class="text-xs text-slate-400">تاريخ التعيين</p><p class="font-medium">{{ teacher.hire_date or '—' }}</p></div>
+        </div>
+    </div>
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-6">
+        <h3 class="font-semibold text-slate-700 dark:text-slate-200 mb-4">التكليفات</h3>
+        <div class="space-y-3">
+            {% for a in teacher.assignments %}
+            <div class="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-700/30 rounded-lg">
+                <span class="text-sm">مادة: {{ a.subject_id[:8] }} — شعبة: {{ a.section_id[:8] }}</span>
+                <span class="text-xs {% if a.status == 'active' %}text-success-600{% else %}text-slate-400{% endif %}">{{ a.status }}</span>
+            </div>
+            {% else %}<p class="text-slate-400 text-sm">لا يوجد تكليفات.</p>{% endfor %}
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,39 @@
+{% extends "layouts/director.html" %}
+{% block content %}
+<div class="space-y-6">
+    <h1 class="text-2xl font-bold text-slate-800 dark:text-white">الهيكل الأكاديمي</h1>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-6">
+            <h3 class="font-semibold text-slate-700 dark:text-slate-200 mb-4">الأعوام الدراسية</h3>
+            <div class="space-y-2">{% for y in data.years %}<div class="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-700/30 rounded-lg"><span class="text-sm font-medium">{{ y.name }}</span>{% if y.is_current %}<span class="text-xs px-2 py-0.5 bg-primary-50 text-primary-600 rounded-full">حالي</span>{% endif %}</div>{% endfor %}</div>
+        </div>
+        <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-6">
+            <h3 class="font-semibold text-slate-700 dark:text-slate-200 mb-4">المواد</h3>
+            <div class="space-y-2">{% for s in data.subjects %}<div class="p-3 bg-slate-50 dark:bg-slate-700/30 rounded-lg text-sm">{{ s.name }}</div>{% else %}<p class="text-slate-400 text-sm">لا توجد مواد.</p>{% endfor %}</div>
+        </div>
+        <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-6">
+            <h3 class="font-semibold text-slate-700 dark:text-slate-200 mb-4">الشعب</h3>
+            <div class="space-y-2">{% for s in data.sections %}<div class="p-3 bg-slate-50 dark:bg-slate-700/30 rounded-lg text-sm">{{ s.name }}</div>{% else %}<p class="text-slate-400 text-sm">لا توجد شعب.</p>{% endfor %}</div>
+        </div>
+        <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-6">
+            <h3 class="font-semibold text-slate-700 dark:text-slate-200 mb-4">الفصول (الحصص)</h3>
+            <div class="space-y-2">{% for p in data.periods %}<div class="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-700/30 rounded-lg text-sm"><span>{{ p.name }}</span><span class="text-xs text-slate-400">ترتيب: {{ p.order }}</span></div>{% else %}<p class="text-slate-400 text-sm">لا توجد فصول.</p>{% endfor %}</div>
+        </div>
+    </div>
+    {% if can('academics.create') %}
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-6">
+        <h3 class="font-semibold text-slate-700 dark:text-slate-200 mb-4">إضافة عنصر جديد</h3>
+        <div class="flex flex-wrap gap-3">
+            <button onclick="showModal('year-modal')" class="bg-primary-50 text-primary-600 px-4 py-2 rounded-lg text-sm font-medium">عام دراسي</button>
+            <button onclick="showModal('stage-modal')" class="bg-primary-50 text-primary-600 px-4 py-2 rounded-lg text-sm font-medium">مرحلة</button>
+            <button onclick="showModal('grade-modal')" class="bg-primary-50 text-primary-600 px-4 py-2 rounded-lg text-sm font-medium">صف</button>
+            <button onclick="showModal('section-modal')" class="bg-primary-50 text-primary-600 px-4 py-2 rounded-lg text-sm font-medium">شعبة</button>
+            <button onclick="showModal('subject-modal')" class="bg-primary-50 text-primary-600 px-4 py-2 rounded-lg text-sm font-medium">مادة</button>
+            <button onclick="showModal('room-modal')" class="bg-primary-50 text-primary-600 px-4 py-2 rounded-lg text-sm font-medium">قاعة</button>
+            <button onclick="showModal('period-modal')" class="bg-primary-50 text-primary-600 px-4 py-2 rounded-lg text-sm font-medium">فصل</button>
+        </div>
+    </div>
+    {% endif %}
+</div>
+<script src="/static/js/academics.js"></script>
+{% endblock %}

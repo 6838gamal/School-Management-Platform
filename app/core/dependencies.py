@@ -1,0 +1,215 @@
+"""
+FastAPI dependencies: session user, school scope, permission enforcement.
+
+The ``current_user`` dependency decodes the session cookie, loads the user
+with their roles and permissions, and attaches the active school context.
+All downstream services rely on these dependencies — routes never access
+the database directly.
+"""
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Annotated, Any
+
+from fastapi import Depends, Request
+from fastapi.responses import RedirectResponse
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.database import get_db
+from app.core.exceptions import ForbiddenException, UnauthorizedException
+from app.core.security import decode_session
+from app.models.academics import School
+from app.models.users import User
+
+# ------------------------------------------------------------------
+# Session context
+# ------------------------------------------------------------------
+
+
+@dataclass
+class CurrentUser:
+    """Resolved user context shared with every protected route."""
+
+    id: str
+    email: str
+    full_name: str
+    school_id: str | None
+    roles: list[str]
+    permissions: set[str]
+    user: User  # underlying ORM object
+
+    @property
+    def primary_role(self) -> str:
+        return self.roles[0] if self.roles else "guest"
+
+    @property
+    def role_label(self) -> str:
+        from app.core.permissions import ROLE_LABELS
+
+        return ROLE_LABELS.get(self.primary_role, {}).get("ar", self.primary_role)
+
+    def has_permission(self, key: str) -> bool:
+        return key in self.permissions
+
+    def has_any_permission(self, *keys: str) -> bool:
+        return any(k in self.permissions for k in keys)
+
+    def has_all_permissions(self, *keys: str) -> bool:
+        return all(k in self.permissions for k in keys)
+
+
+# ------------------------------------------------------------------
+# Cookie helpers
+# ------------------------------------------------------------------
+
+
+def _read_session_cookie(request: Request) -> dict[str, Any] | None:
+    token = request.cookies.get("sms_session")
+    if not token:
+        return None
+    return decode_session(token)
+
+
+# ------------------------------------------------------------------
+# Core dependencies
+# ------------------------------------------------------------------
+
+
+async def get_current_user(
+    request: Request,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> CurrentUser | None:
+    """Resolve the current user from the session cookie. Returns None if no session."""
+    payload = _read_session_cookie(request)
+    if not payload:
+        return None
+
+    user_id = payload.get("uid")
+    if not user_id:
+        return None
+
+    result = await db.execute(
+        select(User).where(User.id == user_id)
+    )
+    user = result.scalar_one_or_none()
+    if not user or not user.is_active:
+        return None
+
+    # Load roles + permissions via relationship (lazy-loaded in async)
+    roles: list[str] = []
+    permissions: set[str] = set()
+    for ur in user.user_roles:
+        role = ur.role
+        roles.append(role.key)
+        for rp in role.role_permissions:
+            permissions.add(rp.permission.key)
+
+    if not roles:
+        roles = ["guest"]
+
+    return CurrentUser(
+        id=str(user.id),
+        email=user.email,
+        full_name=user.full_name,
+        school_id=str(user.school_id) if user.school_id else None,
+        roles=roles,
+        permissions=permissions,
+        user=user,
+    )
+
+
+async def require_user(
+    current: Annotated[CurrentUser | None, Depends(get_current_user)],
+) -> CurrentUser:
+    """Require an authenticated user or raise UnauthorizedException."""
+    if current is None:
+        raise UnauthorizedException()
+    return current
+
+
+async def require_school_context(
+    current: Annotated[CurrentUser, Depends(require_user)],
+) -> str:
+    """Require that the user belongs to a school. Returns the school id."""
+    if not current.school_id:
+        raise ForbiddenException("المستخدم غير مرتبط بمدرسة")
+    return current.school_id
+
+
+# ------------------------------------------------------------------
+# Permission dependency factory
+# ------------------------------------------------------------------
+
+
+def require_permission(*keys: str):
+    """Dependency that enforces the user has ALL of the given permissions."""
+
+    async def _checker(
+        current: Annotated[CurrentUser, Depends(require_user)],
+    ) -> CurrentUser:
+        missing = [k for k in keys if k not in current.permissions]
+        if missing:
+            raise ForbiddenException(f"صلاحيات مطلوبة: {', '.join(missing)}")
+        return current
+
+    return _checker
+
+
+def require_any_permission(*keys: str):
+    """Dependency that enforces the user has at least one of the given permissions."""
+
+    async def _checker(
+        current: Annotated[CurrentUser, Depends(require_user)],
+    ) -> CurrentUser:
+        if not any(k in current.permissions for k in keys):
+            raise ForbiddenException(f"صلاحية مطلوبة (إحدى): {', '.join(keys)}")
+        return current
+
+    return _checker
+
+
+# ------------------------------------------------------------------
+# Template-friendly globals
+# ------------------------------------------------------------------
+
+
+async def template_context(request: Request) -> dict[str, Any]:
+    """Build the standard template context with user + permissions.
+
+    This is used by web routes that render Jinja2 templates. It makes
+    ``current_user`` and ``can()`` available in every template without
+    repeating boilerplate.
+    """
+    ctx: dict[str, Any] = {"request": request}
+    user: CurrentUser | None = None
+    try:
+        db_gen = get_db()
+        db = await anext(db_gen)
+        try:
+            user = await get_current_user(request, db)
+        finally:
+            await db.aclose()
+    except Exception:
+        user = None
+
+    if user:
+        ctx["current_user"] = {
+            "id": user.id,
+            "email": user.email,
+            "full_name": user.full_name,
+            "school_id": user.school_id,
+            "primary_role": user.primary_role,
+            "role_label": user.role_label,
+            "roles": user.roles,
+        }
+        ctx["permissions"] = user.permissions
+        ctx["can"] = lambda k: k in user.permissions
+        ctx["can_any"] = lambda *ks: any(k in user.permissions for k in ks)
+    else:
+        ctx["current_user"] = None
+        ctx["permissions"] = set()
+        ctx["can"] = lambda k: False
+        ctx["can_any"] = lambda *ks: False
+
+    return ctx

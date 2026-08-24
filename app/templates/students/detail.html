@@ -1,0 +1,40 @@
+{% extends "layouts/director.html" %}
+{% block content %}
+<div class="space-y-6">
+    <div class="flex items-center gap-3">
+        <a href="/students" class="text-slate-400 hover:text-slate-600">&larr; العودة</a>
+    </div>
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-6">
+        <div class="flex items-start justify-between">
+            <div>
+                <h1 class="text-2xl font-bold text-slate-800 dark:text-white">{{ student.full_name }}</h1>
+                <p class="text-slate-400 text-sm mt-1">رقم: {{ student.student_number }}</p>
+            </div>
+            {% if can('students.update') %}
+            <a href="/students/{{ student.id }}/edit" class="text-primary-600 text-sm font-medium hover:underline">تعديل</a>
+            {% endif %}
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-6">
+            <div><p class="text-xs text-slate-400">الجنس</p><p class="font-medium">{{ student.gender or '—' }}</p></div>
+            <div><p class="text-xs text-slate-400">تاريخ الميلاد</p><p class="font-medium">{{ student.birth_date or '—' }}</p></div>
+            <div><p class="text-xs text-slate-400">الرقم الوطني</p><p class="font-medium">{{ student.national_id or '—' }}</p></div>
+            <div><p class="text-xs text-slate-400">ولي الأمر</p><p class="font-medium">{{ student.guardian_name or '—' }}</p></div>
+            <div><p class="text-xs text-slate-400">هاتف ولي الأمر</p><p class="font-medium">{{ student.guardian_phone or '—' }}</p></div>
+            <div><p class="text-xs text-slate-400">العنوان</p><p class="font-medium">{{ student.address or '—' }}</p></div>
+        </div>
+    </div>
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-6">
+        <h3 class="font-semibold text-slate-700 dark:text-slate-200 mb-4">سجل التسجيل</h3>
+        <div class="space-y-3">
+            {% for e in student.enrollments %}
+            <div class="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-700/30 rounded-lg">
+                <div><span class="text-sm font-medium">{{ e.status }}</span><span class="text-xs text-slate-400 mr-2">من {{ e.enrolled_at }}</span></div>
+                <span class="text-xs text-slate-400">شعبة: {{ e.section_id[:8] }}</span>
+            </div>
+            {% else %}
+            <p class="text-slate-400 text-sm">لا يوجد سجل تسجيل.</p>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endblock %}
