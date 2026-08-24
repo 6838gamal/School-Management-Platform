@@ -1,6 +1,6 @@
 """Grade models: Assessment (definition) and GradeRecord (student score)."""
 from sqlalchemy import ForeignKey, Numeric, String, UniqueConstraint
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship  # ✅ تمت إضافة relationship
 
 from app.models._mixins import TimestampMixin, UUIDPkMixin
 
