@@ -2,10 +2,11 @@
 from sqlalchemy import Boolean, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app.core.database import Base
 from app.models._mixins import TimestampMixin, UUIDPkMixin
 
 
-class School(UUIDPkMixin, TimestampMixin):
+class School(UUIDPkMixin, TimestampMixin, Base):
     __tablename__ = "schools"
 
     name: Mapped[str] = mapped_column(String(255), nullable=False)
