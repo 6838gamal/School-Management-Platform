@@ -3,6 +3,7 @@ from sqlalchemy import Boolean, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models._mixins import TimestampMixin, UUIDPkMixin
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 
 class Notification(UUIDPkMixin, TimestampMixin):
