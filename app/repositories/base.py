@@ -1,4 +1,11 @@
 """Base repository with generic CRUD operations."""
+
+from __future__ import annotations
+
+"""Base repository with generic CRUD operations."""
+from typing import Any, Generic, TypeVar
+# ... باقي الكود
+
 from typing import Any, Generic, TypeVar
 
 from sqlalchemy import func, select
