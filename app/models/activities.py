@@ -1,6 +1,6 @@
 """Activity and ActivityParticipant models."""
 from sqlalchemy import Boolean, Date, ForeignKey, Integer, String
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship  # ✅ تمت إضافة relationship
 
 from app.models._mixins import TimestampMixin, UUIDPkMixin
 
