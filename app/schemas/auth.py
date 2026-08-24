@@ -1,5 +1,5 @@
 """Auth and user management schemas."""
-from pydantic import EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field  # ✅ تمت إضافة BaseModel
 
 from app.schemas.common import ORMBase
 
