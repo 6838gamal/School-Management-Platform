@@ -2,10 +2,11 @@
 from sqlalchemy import ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app.core.database import Base  # ✅ أضف هذا الاستيراد
 from app.models._mixins import TimestampMixin, UUIDPkMixin
 
 
-class ReportLink(UUIDPkMixin, TimestampMixin):
+class ReportLink(UUIDPkMixin, TimestampMixin, Base):  # ✅ أضف Base
     """Secure share link for a generated report."""
     __tablename__ = "report_links"
 
@@ -22,7 +23,7 @@ class ReportLink(UUIDPkMixin, TimestampMixin):
     is_active: Mapped[bool] = mapped_column(default=True)
 
 
-class AuditLog(UUIDPkMixin, TimestampMixin):
+class AuditLog(UUIDPkMixin, TimestampMixin, Base):  # ✅ أضف Base
     __tablename__ = "audit_logs"
 
     school_id: Mapped[str | None] = mapped_column(
@@ -36,3 +37,10 @@ class AuditLog(UUIDPkMixin, TimestampMixin):
     entity_id: Mapped[str | None] = mapped_column(String(36))
     details: Mapped[str | None] = mapped_column(Text)  # JSON
     ip_address: Mapped[str | None] = mapped_column(String(45))
+
+
+# ✅ أضف هذا في نهاية الملف
+__all__ = [
+    "ReportLink",
+    "AuditLog"
+]
