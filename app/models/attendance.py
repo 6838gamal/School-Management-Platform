@@ -2,10 +2,11 @@
 from sqlalchemy import ForeignKey, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app.core.database import Base  # ✅ أضف هذا الاستيراد
 from app.models._mixins import TimestampMixin, UUIDPkMixin
 
 
-class StudentAttendance(UUIDPkMixin, TimestampMixin):
+class StudentAttendance(UUIDPkMixin, TimestampMixin, Base):  # ✅ أضف Base
     __tablename__ = "student_attendance"
     __table_args__ = (
         UniqueConstraint("student_id", "date", "period_id", name="uq_student_att_day_period"),
@@ -34,7 +35,7 @@ class StudentAttendance(UUIDPkMixin, TimestampMixin):
     )
 
 
-class TeacherAttendance(UUIDPkMixin, TimestampMixin):
+class TeacherAttendance(UUIDPkMixin, TimestampMixin, Base):  # ✅ أضف Base
     __tablename__ = "teacher_attendance"
     __table_args__ = (
         UniqueConstraint("teacher_id", "date", name="uq_teacher_att_day"),
@@ -52,3 +53,10 @@ class TeacherAttendance(UUIDPkMixin, TimestampMixin):
     recorded_by: Mapped[str | None] = mapped_column(
         String(36), ForeignKey("users.id", ondelete="SET NULL")
     )
+
+
+# ✅ أضف هذا في نهاية الملف
+__all__ = [
+    "StudentAttendance",
+    "TeacherAttendance"
+]
