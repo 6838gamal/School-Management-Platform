@@ -1,11 +1,12 @@
 """Activity and ActivityParticipant models."""
 from sqlalchemy import Boolean, Date, ForeignKey, Integer, String
-from sqlalchemy.orm import Mapped, mapped_column, relationship  # ✅ تمت إضافة relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.core.database import Base  # ✅ أضف هذا الاستيراد
 from app.models._mixins import TimestampMixin, UUIDPkMixin
 
 
-class Activity(UUIDPkMixin, TimestampMixin):
+class Activity(UUIDPkMixin, TimestampMixin, Base):  # ✅ أضف Base
     __tablename__ = "activities"
 
     school_id: Mapped[str] = mapped_column(
@@ -28,7 +29,7 @@ class Activity(UUIDPkMixin, TimestampMixin):
     )
 
 
-class ActivityParticipant(UUIDPkMixin, TimestampMixin):
+class ActivityParticipant(UUIDPkMixin, TimestampMixin, Base):  # ✅ أضف Base
     __tablename__ = "activity_participants"
 
     activity_id: Mapped[str] = mapped_column(
@@ -42,3 +43,10 @@ class ActivityParticipant(UUIDPkMixin, TimestampMixin):
     note: Mapped[str | None] = mapped_column(String(500))
 
     activity: Mapped["Activity"] = relationship("Activity", back_populates="participants")
+
+
+# ✅ أضف هذا في نهاية الملف
+__all__ = [
+    "Activity",
+    "ActivityParticipant"
+]
