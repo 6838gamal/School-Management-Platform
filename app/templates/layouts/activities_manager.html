@@ -1,28 +1,74 @@
 {% extends "base/dashboard_base.html" %}
+
 {% block sidebar %}
 {% set nav_items = [
-    {'url': '/dashboard', 'label': 'لوحة التحكم', 'icon': 'home'},
-    {'url': '/activities', 'label': 'الأنشطة', 'icon': 'trophy', 'perm': 'activities.view'},
-    {'url': '/students', 'label': 'الطلاب', 'icon': 'users', 'perm': 'students.view'},
-    {'url': '/behavior', 'label': 'السلوك', 'icon': 'message-square', 'perm': 'behavior.view'},
-    {'url': '/reports', 'label': 'التقارير', 'icon': 'file-text', 'perm': 'reports.view'},
-    {'url': '/notifications', 'label': 'الإشعارات', 'icon': 'bell', 'perm': 'notifications.view'},
+    {'url': '/dashboard', 'label': 'لوحة التحكم', 'icon': '📊', 'perm': None},
+    {'url': '/director/dashboard', 'label': 'لوحة المدير', 'icon': '👨‍💼', 'perm': None, 'role': 'director'},
+    {'url': '/deputy/dashboard', 'label': 'لوحة الوكيل', 'icon': '👨‍🏫', 'perm': None, 'role': 'deputy'},
+    {'url': '/activities/dashboard', 'label': 'لوحة الأنشطة', 'icon': '🎯', 'perm': None, 'role': 'activities_manager'},
+    {'url': '/teacher/dashboard', 'label': 'لوحة المعلم', 'icon': '📚', 'perm': None, 'role': 'teacher'},
+    {'url': '/students', 'label': 'الطلاب', 'icon': '👨‍🎓', 'perm': 'students.view'},
+    {'url': '/teachers', 'label': 'المعلمين', 'icon': '👨‍🏫', 'perm': 'teachers.view'},
+    {'url': '/academics', 'label': 'الهيكل الأكاديمي', 'icon': '📚', 'perm': 'academics.view'},
+    {'url': '/attendance', 'label': 'الحضور', 'icon': '✅', 'perm': 'attendance.view'},
+    {'url': '/grades', 'label': 'الدرجات', 'icon': '📝', 'perm': 'grades.view'},
+    {'url': '/schedules', 'label': 'الجداول', 'icon': '📅', 'perm': 'schedules.view'},
+    {'url': '/homework', 'label': 'الواجبات', 'icon': '📖', 'perm': 'homework.view'},
+    {'url': '/activities', 'label': 'الأنشطة', 'icon': '🏆', 'perm': 'activities.view'},
+    {'url': '/behavior', 'label': 'السلوك', 'icon': '💬', 'perm': 'behavior.view'},
+    {'url': '/notifications', 'label': 'الإشعارات', 'icon': '🔔', 'perm': 'notifications.view'},
+    {'url': '/reports', 'label': 'التقارير', 'icon': '📊', 'perm': 'reports.view'},
+    {'url': '/settings', 'label': 'الإعدادات', 'icon': '⚙️', 'perm': 'settings.view'},
 ] %}
-<aside id="sidebar" class="w-64 bg-white dark:bg-slate-800 border-l border-slate-200 dark:border-slate-700 fixed lg:static inset-y-0 right-0 z-50 transform translate-x-full lg:translate-x-0 transition-transform overflow-y-auto pt-16 lg:pt-0">
+
+<aside id="sidebar" class="w-64 bg-white dark:bg-slate-800 border-l border-slate-200 dark:border-slate-700 fixed lg:static inset-y-0 right-0 z-50 transform translate-x-full lg:translate-x-0 transition-transform overflow-y-auto pt-16 lg:pt-0 h-screen">
     <nav class="p-3 space-y-1">
         {% for item in nav_items %}
-            {% if not item.perm or can(item.perm) %}
-            <a href="{{ item.url }}" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors
+            {% set show = True %}
+            
+            {# التحقق من الصلاحية #}
+            {% if item.perm and not can(item.perm) %}
+                {% set show = False %}
+            {% endif %}
+            
+            {# التحقق من الدور #}
+            {% if item.role and current_user %}
+                {% if not current_user.has_role(item.role) %}
+                    {% set show = False %}
+                {% endif %}
+            {% endif %}
+            
+            {% if show %}
+            <a href="{{ item.url }}" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors group
                 {% if request.url.path == item.url %}bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300{% else %}text-slate-600 dark:text-slate-300{% endif %}">
-                <span class="w-5 h-5 flex-shrink-0">{{ item.label[0] }}</span>
+                <span class="w-6 h-6 flex-shrink-0 text-lg">{{ item.icon }}</span>
                 {{ item.label }}
+                {% if request.url.path == item.url %}
+                <span class="mr-auto w-1.5 h-8 rounded-full bg-primary-500"></span>
+                {% endif %}
             </a>
             {% endif %}
         {% endfor %}
     </nav>
+    
     <div class="p-3 border-t border-slate-200 dark:border-slate-700 mt-4">
+        <div class="mb-3 px-3 py-2 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
+            <div class="text-xs text-slate-500 dark:text-slate-400">الدور الحالي</div>
+            <div class="text-sm font-medium text-slate-800 dark:text-white">
+                {% if current_user %}
+                    {% set role_names = current_user.get_role_names() %}
+                    {{ role_names|join(', ') if role_names else 'لا يوجد دور' }}
+                {% else %}
+                    زائر
+                {% endif %}
+            </div>
+        </div>
+        
         <form method="POST" action="/logout">
-            <button type="submit" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-danger-600 hover:bg-danger-50 dark:hover:bg-danger-900/20">تسجيل الخروج</button>
+            <button type="submit" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+                <span class="w-6 h-6 flex-shrink-0 text-lg">🚪</span>
+                تسجيل الخروج
+            </button>
         </form>
     </div>
 </aside>
