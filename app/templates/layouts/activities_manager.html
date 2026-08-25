@@ -44,7 +44,13 @@
             <div class="flex items-center gap-3">
                 <div class="w-9 h-9 rounded-full bg-gradient-to-br from-primary-400 to-primary-600 dark:from-primary-500 dark:to-primary-700 text-white flex items-center justify-center text-sm font-bold shadow-sm">
                     {% if current_user %}
-                        {{ current_user.full_name[0] if current_user.full_name else '?' }}
+                        {% if current_user is mapping %}
+                            {# إذا كان current_user قاموس #}
+                            {{ current_user.get('full_name', '?')[0] if current_user.get('full_name') else '?' }}
+                        {% else %}
+                            {# إذا كان current_user كائن #}
+                            {{ current_user.full_name[0] if current_user.full_name else '?' }}
+                        {% endif %}
                     {% else %}
                         ?
                     {% endif %}
@@ -53,8 +59,19 @@
                     <div class="text-[10px] uppercase tracking-wider text-slate-400 dark:text-slate-500 font-semibold">الدور الحالي</div>
                     <div class="text-sm font-medium text-slate-700 dark:text-slate-200 truncate">
                         {% if current_user %}
-                            {% set role_names = current_user.get_role_names() %}
-                            {{ role_names|join('، ') if role_names else 'لا يوجد دور' }}
+                            {% if current_user is mapping %}
+                                {# إذا كان قاموس - استخراج الأدوار كمفتاح #}
+                                {% set role_names = current_user.get('roles', []) %}
+                                {{ role_names|join('، ') if role_names else 'لا يوجد دور' }}
+                            {% else %}
+                                {# إذا كان كائن - استدعاء الدالة مع التحقق #}
+                                {% if current_user.get_role_names is defined %}
+                                    {% set role_names = current_user.get_role_names() %}
+                                {% else %}
+                                    {% set role_names = [] %}
+                                {% endif %}
+                                {{ role_names|join('، ') if role_names else 'لا يوجد دور' }}
+                            {% endif %}
                         {% else %}
                             زائر
                         {% endif %}
@@ -65,6 +82,7 @@
         
         <!-- زر تسجيل الخروج -->
         <form method="POST" action="/logout">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() if csrf_token is defined else '' }}">
             <button type="submit" class="group w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all duration-200">
                 <span class="text-lg transition-transform duration-200 group-hover:scale-110">🚪</span>
                 <span>تسجيل الخروج</span>
