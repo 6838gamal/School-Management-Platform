@@ -26,10 +26,18 @@ def _serializer() -> URLSafeTimedSerializer:
 
 
 def hash_password(raw: str) -> str:
+    """Hash a password using bcrypt with automatic truncation to 72 bytes."""
+    # bcrypt limit is 72 bytes
+    if len(raw.encode('utf-8')) > 72:
+        raw = raw[:72]
     return pwd_context.hash(raw)
 
 
 def verify_password(raw: str, hashed: str) -> bool:
+    """Verify a password against its hash with automatic truncation to 72 bytes."""
+    # bcrypt limit is 72 bytes
+    if len(raw.encode('utf-8')) > 72:
+        raw = raw[:72]
     return pwd_context.verify(raw, hashed)
 
 
