@@ -8,7 +8,7 @@
         <p class="text-slate-400 mt-2">أدخل بياناتك للوصول إلى النظام</p>
     </div>
 
-    <!-- عرض رسائل الخطأ من FastAPI -->
+    <!-- عرض رسائل الخطأ -->
     {% if error %}
     <div class="mb-4 p-3 rounded-lg bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-400 text-sm">
         {{ error }}
@@ -28,7 +28,7 @@
             <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <!-- مدير -->
                 <label class="relative cursor-pointer">
-                    <input type="radio" name="role" value="admin" class="peer sr-only" {% if role == 'admin' %}checked{% endif %}>
+                    <input type="radio" name="role" value="admin" class="peer sr-only" {% if selected_role == 'admin' %}checked{% endif %}>
                     <div class="p-3 rounded-lg border-2 border-slate-200 dark:border-slate-600 peer-checked:border-primary-500 peer-checked:bg-primary-50 dark:peer-checked:bg-primary-900/20 transition-all hover:border-primary-300">
                         <div class="text-center">
                             <div class="text-2xl mb-1">👨‍💼</div>
@@ -39,7 +39,7 @@
 
                 <!-- وكيل -->
                 <label class="relative cursor-pointer">
-                    <input type="radio" name="role" value="vice_principal" class="peer sr-only" {% if role == 'vice_principal' %}checked{% endif %}>
+                    <input type="radio" name="role" value="vice_principal" class="peer sr-only" {% if selected_role == 'vice_principal' %}checked{% endif %}>
                     <div class="p-3 rounded-lg border-2 border-slate-200 dark:border-slate-600 peer-checked:border-primary-500 peer-checked:bg-primary-50 dark:peer-checked:bg-primary-900/20 transition-all hover:border-primary-300">
                         <div class="text-center">
                             <div class="text-2xl mb-1">👨‍🏫</div>
@@ -50,7 +50,7 @@
 
                 <!-- مسؤول الأنشطة -->
                 <label class="relative cursor-pointer">
-                    <input type="radio" name="role" value="activities_officer" class="peer sr-only" {% if role == 'activities_officer' %}checked{% endif %}>
+                    <input type="radio" name="role" value="activities_officer" class="peer sr-only" {% if selected_role == 'activities_officer' %}checked{% endif %}>
                     <div class="p-3 rounded-lg border-2 border-slate-200 dark:border-slate-600 peer-checked:border-primary-500 peer-checked:bg-primary-50 dark:peer-checked:bg-primary-900/20 transition-all hover:border-primary-300">
                         <div class="text-center">
                             <div class="text-2xl mb-1">🎯</div>
@@ -61,7 +61,7 @@
 
                 <!-- معلم -->
                 <label class="relative cursor-pointer">
-                    <input type="radio" name="role" value="teacher" class="peer sr-only" {% if role == 'teacher' %}checked{% endif %}>
+                    <input type="radio" name="role" value="teacher" class="peer sr-only" {% if selected_role == 'teacher' %}checked{% endif %}>
                     <div class="p-3 rounded-lg border-2 border-slate-200 dark:border-slate-600 peer-checked:border-primary-500 peer-checked:bg-primary-50 dark:peer-checked:bg-primary-900/20 transition-all hover:border-primary-300">
                         <div class="text-center">
                             <div class="text-2xl mb-1">📚</div>
