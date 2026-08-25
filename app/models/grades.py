@@ -1,11 +1,12 @@
 """Grade models: Assessment (definition) and GradeRecord (student score)."""
 from sqlalchemy import ForeignKey, Numeric, String, UniqueConstraint
-from sqlalchemy.orm import Mapped, mapped_column, relationship  # ✅ تمت إضافة relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.core.database import Base  # ✅ أضف هذا الاستيراد
 from app.models._mixins import TimestampMixin, UUIDPkMixin
 
 
-class Assessment(UUIDPkMixin, TimestampMixin):
+class Assessment(UUIDPkMixin, TimestampMixin, Base):  # ✅ أضف Base
     """An assessment definition: exam, quiz, assignment, homework, participation, activity."""
     __tablename__ = "assessments"
 
@@ -38,7 +39,7 @@ class Assessment(UUIDPkMixin, TimestampMixin):
     )
 
 
-class GradeRecord(UUIDPkMixin, TimestampMixin):
+class GradeRecord(UUIDPkMixin, TimestampMixin, Base):  # ✅ أضف Base
     __tablename__ = "grade_records"
     __table_args__ = (
         UniqueConstraint("assessment_id", "student_id", name="uq_grade_assessment_student"),
@@ -60,3 +61,10 @@ class GradeRecord(UUIDPkMixin, TimestampMixin):
     )
 
     assessment: Mapped["Assessment"] = relationship("Assessment", back_populates="grade_records")
+
+
+# ✅ أضف هذا في نهاية الملف
+__all__ = [
+    "Assessment",
+    "GradeRecord"
+]
