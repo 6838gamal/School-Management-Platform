@@ -12,8 +12,9 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from app.core.config import settings
-from app.core.database import engine, Base
+from app.core.database import engine, Base, get_db
 from app.core.exceptions import register_exception_handlers, set_templates
+from app.core.seed import seed_database
 from app.routes.api.v1.auth import router as api_auth_router
 from app.routes.api.v1.modules import (
     academics_router as api_academics,
@@ -60,6 +61,15 @@ async def lifespan(app: FastAPI):
     
     # تعيين القوالب
     set_templates(templates)
+    
+    # إضافة البيانات التجريبية
+    try:
+        async for db in get_db():
+            await seed_database(db)
+            break
+        print("✅ Seed data added successfully!")
+    except Exception as e:
+        print(f"⚠️ Warning: Could not seed database: {e}")
     
     yield
     
