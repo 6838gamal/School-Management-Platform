@@ -38,26 +38,52 @@ async def dashboard_router(
     db: AsyncSession = Depends(get_db),
     ctx: dict = Depends(template_context),
 ):
+    """التوجيه إلى لوحة التحكم المناسبة حسب دور المستخدم"""
     service = DashboardService(db)
+    
+    # الحصول على الدور الأساسي للمستخدم
     role = user.primary_role
+    
+    # التوجيه حسب الدور
     if role == "director":
         stats = await service.director_stats(user.school_id, user.id)
         return templates.TemplateResponse(
             "director/dashboard.html",
-            {**ctx, "title": "لوحة تحكم المدير", "stats": stats},
+            {
+                **ctx, 
+                "title": "لوحة تحكم المدير",
+                "stats": stats,
+                "role_name": "مدير",
+                "role_icon": "👨‍💼"
+            },
         )
+    
     elif role == "deputy":
         stats = await service.deputy_stats(user.school_id, user.id)
         return templates.TemplateResponse(
             "deputy/dashboard.html",
-            {**ctx, "title": "لوحة تحكم الوكيل", "stats": stats},
+            {
+                **ctx, 
+                "title": "لوحة تحكم الوكيل",
+                "stats": stats,
+                "role_name": "وكيل",
+                "role_icon": "👨‍🏫"
+            },
         )
+    
     elif role == "activities_manager":
         stats = await service.activities_manager_stats(user.school_id, user.id)
         return templates.TemplateResponse(
             "activities_manager/dashboard.html",
-            {**ctx, "title": "لوحة تحكم مسؤول الأنشطة", "stats": stats},
+            {
+                **ctx, 
+                "title": "لوحة تحكم مسؤول الأنشطة",
+                "stats": stats,
+                "role_name": "مسؤول أنشطة",
+                "role_icon": "🎯"
+            },
         )
+    
     elif role == "teacher":
         from app.repositories.teachers import TeacherRepository
         teacher_repo = TeacherRepository(db)
@@ -66,6 +92,59 @@ async def dashboard_router(
         stats = await service.teacher_stats(user.school_id, teacher_id, user.id)
         return templates.TemplateResponse(
             "teacher/dashboard.html",
-            {**ctx, "title": "لوحة تحكم المعلم", "stats": stats},
+            {
+                **ctx, 
+                "title": "لوحة تحكم المعلم",
+                "stats": stats,
+                "role_name": "معلم",
+                "role_icon": "📚"
+            },
         )
+    
+    # إذا كان الدور غير معروف
     raise ForbiddenException("دور غير معروف")
+
+
+# مسارات مباشرة لكل دور (للوصول المباشر)
+@router.get("/director/dashboard")
+async def director_dashboard_redirect(
+    request: Request,
+    user: CurrentUser = Depends(require_user),
+):
+    """إعادة توجيه إلى لوحة تحكم المدير"""
+    if user.primary_role != "director":
+        raise ForbiddenException("هذه الصفحة مخصصة للمدير فقط")
+    return RedirectResponse("/dashboard", status_code=302)
+
+
+@router.get("/deputy/dashboard")
+async def deputy_dashboard_redirect(
+    request: Request,
+    user: CurrentUser = Depends(require_user),
+):
+    """إعادة توجيه إلى لوحة تحكم الوكيل"""
+    if user.primary_role != "deputy":
+        raise ForbiddenException("هذه الصفحة مخصصة للوكيل فقط")
+    return RedirectResponse("/dashboard", status_code=302)
+
+
+@router.get("/activities/dashboard")
+async def activities_dashboard_redirect(
+    request: Request,
+    user: CurrentUser = Depends(require_user),
+):
+    """إعادة توجيه إلى لوحة تحكم مسؤول الأنشطة"""
+    if user.primary_role != "activities_manager":
+        raise ForbiddenException("هذه الصفحة مخصصة لمسؤول الأنشطة فقط")
+    return RedirectResponse("/dashboard", status_code=302)
+
+
+@router.get("/teacher/dashboard")
+async def teacher_dashboard_redirect(
+    request: Request,
+    user: CurrentUser = Depends(require_user),
+):
+    """إعادة توجيه إلى لوحة تحكم المعلم"""
+    if user.primary_role != "teacher":
+        raise ForbiddenException("هذه الصفحة مخصصة للمعلم فقط")
+    return RedirectResponse("/dashboard", status_code=302)
