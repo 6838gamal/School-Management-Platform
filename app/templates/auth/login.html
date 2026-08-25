@@ -10,68 +10,83 @@
 
     <!-- عرض رسائل الخطأ -->
     {% if error %}
-    <div class="mb-4 p-3 rounded-lg bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-400 text-sm">
-        {{ error }}
+    <div class="mb-4 p-3 rounded-lg bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-400 text-sm flex items-start">
+        <span class="ml-2">⚠️</span>
+        <span>{{ error }}</span>
     </div>
     {% endif %}
 
     {% if success %}
-    <div class="mb-4 p-3 rounded-lg bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-400 text-sm">
-        {{ success }}
+    <div class="mb-4 p-3 rounded-lg bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-400 text-sm flex items-start">
+        <span class="ml-2">✅</span>
+        <span>{{ success }}</span>
     </div>
     {% endif %}
 
-    <form method="POST" action="/login" class="space-y-4">
+    <form method="POST" action="/login" class="space-y-4" id="loginForm">
         <!-- حقل اختيار الدور -->
         <div>
             <label class="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-2">اختر دورك</label>
             <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <!-- مدير -->
-                <label class="relative cursor-pointer">
-                    <input type="radio" name="role" value="admin" class="peer sr-only" {% if selected_role == 'admin' %}checked{% endif %}>
-                    <div class="p-3 rounded-lg border-2 border-slate-200 dark:border-slate-600 peer-checked:border-primary-500 peer-checked:bg-primary-50 dark:peer-checked:bg-primary-900/20 transition-all hover:border-primary-300">
+                <label class="relative cursor-pointer group">
+                    <input type="radio" name="role" value="director" class="peer sr-only" {% if selected_role == 'director' %}checked{% endif %}>
+                    <div class="p-3 rounded-lg border-2 border-slate-200 dark:border-slate-600 peer-checked:border-primary-500 peer-checked:bg-primary-50 dark:peer-checked:bg-primary-900/20 transition-all hover:border-primary-300 group-hover:scale-105 transform duration-200">
                         <div class="text-center">
                             <div class="text-2xl mb-1">👨‍💼</div>
                             <div class="text-xs font-medium text-slate-700 dark:text-slate-300">مدير</div>
+                            <div class="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">صلاحيات كاملة</div>
                         </div>
                     </div>
                 </label>
 
                 <!-- وكيل -->
-                <label class="relative cursor-pointer">
+                <label class="relative cursor-pointer group">
                     <input type="radio" name="role" value="vice_principal" class="peer sr-only" {% if selected_role == 'vice_principal' %}checked{% endif %}>
-                    <div class="p-3 rounded-lg border-2 border-slate-200 dark:border-slate-600 peer-checked:border-primary-500 peer-checked:bg-primary-50 dark:peer-checked:bg-primary-900/20 transition-all hover:border-primary-300">
+                    <div class="p-3 rounded-lg border-2 border-slate-200 dark:border-slate-600 peer-checked:border-primary-500 peer-checked:bg-primary-50 dark:peer-checked:bg-primary-900/20 transition-all hover:border-primary-300 group-hover:scale-105 transform duration-200">
                         <div class="text-center">
                             <div class="text-2xl mb-1">👨‍🏫</div>
                             <div class="text-xs font-medium text-slate-700 dark:text-slate-300">وكيل</div>
+                            <div class="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">إدارة أكاديمية</div>
                         </div>
                     </div>
                 </label>
 
                 <!-- مسؤول الأنشطة -->
-                <label class="relative cursor-pointer">
+                <label class="relative cursor-pointer group">
                     <input type="radio" name="role" value="activities_officer" class="peer sr-only" {% if selected_role == 'activities_officer' %}checked{% endif %}>
-                    <div class="p-3 rounded-lg border-2 border-slate-200 dark:border-slate-600 peer-checked:border-primary-500 peer-checked:bg-primary-50 dark:peer-checked:bg-primary-900/20 transition-all hover:border-primary-300">
+                    <div class="p-3 rounded-lg border-2 border-slate-200 dark:border-slate-600 peer-checked:border-primary-500 peer-checked:bg-primary-50 dark:peer-checked:bg-primary-900/20 transition-all hover:border-primary-300 group-hover:scale-105 transform duration-200">
                         <div class="text-center">
                             <div class="text-2xl mb-1">🎯</div>
                             <div class="text-xs font-medium text-slate-700 dark:text-slate-300">مسؤول أنشطة</div>
+                            <div class="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">إدارة الفعاليات</div>
                         </div>
                     </div>
                 </label>
 
                 <!-- معلم -->
-                <label class="relative cursor-pointer">
+                <label class="relative cursor-pointer group">
                     <input type="radio" name="role" value="teacher" class="peer sr-only" {% if selected_role == 'teacher' %}checked{% endif %}>
-                    <div class="p-3 rounded-lg border-2 border-slate-200 dark:border-slate-600 peer-checked:border-primary-500 peer-checked:bg-primary-50 dark:peer-checked:bg-primary-900/20 transition-all hover:border-primary-300">
+                    <div class="p-3 rounded-lg border-2 border-slate-200 dark:border-slate-600 peer-checked:border-primary-500 peer-checked:bg-primary-50 dark:peer-checked:bg-primary-900/20 transition-all hover:border-primary-300 group-hover:scale-105 transform duration-200">
                         <div class="text-center">
                             <div class="text-2xl mb-1">📚</div>
                             <div class="text-xs font-medium text-slate-700 dark:text-slate-300">معلم</div>
+                            <div class="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">تدريس وإدارة صف</div>
                         </div>
                     </div>
                 </label>
             </div>
+            
+            <!-- تذكير للمستخدمين متعددي الأدوار -->
+            <div class="mt-3 p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg border border-slate-200 dark:border-slate-600">
+                <div class="flex items-center text-xs text-slate-500 dark:text-slate-400">
+                    <span class="ml-1">💡</span>
+                    <span>إذا كان لديك أكثر من دور، اختر الدور المناسب للجلسة الحالية</span>
+                </div>
+            </div>
         </div>
         
+        <!-- البريد الإلكتروني -->
         <div>
             <label for="email" class="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">البريد الإلكتروني</label>
             <input type="email" id="email" name="email" required autocomplete="email" 
@@ -79,6 +94,7 @@
                    placeholder="admin@school.edu" aria-label="البريد الإلكتروني" value="{{ email or '' }}">
         </div>
         
+        <!-- كلمة المرور -->
         <div>
             <label for="password" class="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">كلمة المرور</label>
             <input type="password" id="password" name="password" required autocomplete="current-password" 
@@ -86,6 +102,7 @@
                    placeholder="••••••••" aria-label="كلمة المرور">
         </div>
         
+        <!-- تذكرني ونسيت كلمة المرور -->
         <div class="flex items-center justify-between">
             <label class="flex items-center cursor-pointer">
                 <input type="checkbox" name="remember" class="rounded border-slate-300 text-primary-600 focus:ring-primary-500">
@@ -94,12 +111,14 @@
             <a href="/forgot-password" class="text-sm text-primary-600 hover:text-primary-700">نسيت كلمة المرور؟</a>
         </div>
         
-        <button type="submit" id="loginBtn" class="w-full bg-primary-600 hover:bg-primary-700 text-white font-semibold py-2.5 rounded-lg transition-colors disabled:opacity-70">
+        <!-- زر تسجيل الدخول -->
+        <button type="submit" id="loginBtn" class="w-full bg-primary-600 hover:bg-primary-700 text-white font-semibold py-2.5 rounded-lg transition-colors disabled:opacity-70 disabled:cursor-not-allowed">
             <span id="btnText">دخول</span>
             <span id="btnLoader" class="hidden">⏳ جاري...</span>
         </button>
     </form>
 
+    <!-- رابط التسجيل -->
     <div class="mt-6 text-center text-sm">
         <span class="text-slate-500 dark:text-slate-400">ليس لديك حساب؟</span>
         <a href="/register" class="text-primary-600 hover:text-primary-700 font-medium mr-1">تسجيل مدرسة جديدة</a>
@@ -107,22 +126,80 @@
 </div>
 
 <script>
-// عرض الدور المحدد في وحدة التحكم
-document.querySelectorAll('input[name="role"]').forEach(radio => {
-    radio.addEventListener('change', function() {
-        console.log('الدور المحدد:', this.value);
+document.addEventListener('DOMContentLoaded', function() {
+    // عرض الدور المحدد في وحدة التحكم
+    const roleRadios = document.querySelectorAll('input[name="role"]');
+    roleRadios.forEach(radio => {
+        radio.addEventListener('change', function() {
+            const roleLabels = {
+                'director': 'مدير',
+                'vice_principal': 'وكيل',
+                'activities_officer': 'مسؤول أنشطة',
+                'teacher': 'معلم'
+            };
+            console.log('📌 الدور المحدد:', roleLabels[this.value] || this.value);
+        });
     });
-});
 
-// تعطيل الزر أثناء الإرسال
-document.querySelector('form').addEventListener('submit', function() {
-    const btn = document.getElementById('loginBtn');
-    const text = document.getElementById('btnText');
-    const loader = document.getElementById('btnLoader');
-    
-    text.classList.add('hidden');
-    loader.classList.remove('hidden');
-    btn.disabled = true;
+    // تعطيل الزر أثناء الإرسال
+    const form = document.getElementById('loginForm');
+    form.addEventListener('submit', function(event) {
+        // التحقق من اختيار دور
+        const selectedRole = document.querySelector('input[name="role"]:checked');
+        if (!selectedRole) {
+            event.preventDefault();
+            // عرض رسالة تنبيه
+            const alertDiv = document.createElement('div');
+            alertDiv.className = 'mb-4 p-3 rounded-lg bg-yellow-100 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-400 text-sm flex items-start';
+            alertDiv.innerHTML = '<span class="ml-2">⚠️</span><span>يرجى اختيار دورك قبل تسجيل الدخول</span>';
+            
+            // إزالة أي تنبيه سابق
+            const existingAlert = document.querySelector('.bg-yellow-100');
+            if (existingAlert) existingAlert.remove();
+            
+            // إضافة التنبيه قبل النموذج
+            const formContainer = document.querySelector('form');
+            formContainer.parentNode.insertBefore(alertDiv, formContainer);
+            
+            // تمرير إلى الأعلى
+            alertDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            
+            // إخفاء التنبيه بعد 5 ثواني
+            setTimeout(() => {
+                alertDiv.style.transition = 'opacity 0.5s';
+                alertDiv.style.opacity = '0';
+                setTimeout(() => alertDiv.remove(), 500);
+            }, 5000);
+            
+            return false;
+        }
+        
+        // تعطيل الزر
+        const btn = document.getElementById('loginBtn');
+        const text = document.getElementById('btnText');
+        const loader = document.getElementById('btnLoader');
+        
+        text.classList.add('hidden');
+        loader.classList.remove('hidden');
+        btn.disabled = true;
+        btn.classList.add('opacity-70');
+    });
+
+    // إضافة تأثير hover للبطاقات
+    document.querySelectorAll('.group').forEach(group => {
+        group.addEventListener('mouseenter', function() {
+            this.querySelector('div').classList.add('shadow-md');
+        });
+        group.addEventListener('mouseleave', function() {
+            this.querySelector('div').classList.remove('shadow-md');
+        });
+    });
+
+    // تحديد الدور الأول افتراضياً إذا لم يكن هناك اختيار
+    const firstRadio = document.querySelector('input[name="role"]');
+    if (firstRadio && !document.querySelector('input[name="role"]:checked')) {
+        firstRadio.checked = true;
+    }
 });
 </script>
 {% endblock %}
