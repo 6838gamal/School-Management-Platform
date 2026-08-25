@@ -8,10 +8,11 @@ without losing history.
 from sqlalchemy import Boolean, Date, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.core.database import Base  # ✅ أضف هذا الاستيراد
 from app.models._mixins import TimestampMixin, UUIDPkMixin
 
 
-class Student(UUIDPkMixin, TimestampMixin):
+class Student(UUIDPkMixin, TimestampMixin, Base):  # ✅ أضف Base
     __tablename__ = "students"
 
     school_id: Mapped[str] = mapped_column(
@@ -35,7 +36,7 @@ class Student(UUIDPkMixin, TimestampMixin):
     )
 
 
-class StudentEnrollment(UUIDPkMixin, TimestampMixin):
+class StudentEnrollment(UUIDPkMixin, TimestampMixin, Base):  # ✅ أضف Base
     """Tracks a student's placement in a section for a given academic year."""
     __tablename__ = "student_enrollments"
     __table_args__ = (
@@ -59,3 +60,10 @@ class StudentEnrollment(UUIDPkMixin, TimestampMixin):
     ended_at: Mapped[str | None] = mapped_column(String(20))
 
     student: Mapped["Student"] = relationship("Student", back_populates="enrollments")
+
+
+# ✅ أضف هذا في نهاية الملف
+__all__ = [
+    "Student",
+    "StudentEnrollment"
+]
