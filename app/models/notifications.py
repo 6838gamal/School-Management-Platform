@@ -1,12 +1,12 @@
 """Notification models: notifications and per-recipient delivery records."""
 from sqlalchemy import Boolean, ForeignKey, String, Text
-from sqlalchemy.orm import Mapped, mapped_column
-
-from app.models._mixins import TimestampMixin, UUIDPkMixin
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.core.database import Base  # ✅ أضف هذا الاستيراد
+from app.models._mixins import TimestampMixin, UUIDPkMixin
 
-class Notification(UUIDPkMixin, TimestampMixin):
+
+class Notification(UUIDPkMixin, TimestampMixin, Base):  # ✅ أضف Base
     __tablename__ = "notifications"
 
     school_id: Mapped[str] = mapped_column(
@@ -26,7 +26,7 @@ class Notification(UUIDPkMixin, TimestampMixin):
     )
 
 
-class NotificationRecipient(UUIDPkMixin, TimestampMixin):
+class NotificationRecipient(UUIDPkMixin, TimestampMixin, Base):  # ✅ أضف Base
     __tablename__ = "notification_recipients"
 
     notification_id: Mapped[str] = mapped_column(
@@ -39,3 +39,10 @@ class NotificationRecipient(UUIDPkMixin, TimestampMixin):
     read_at: Mapped[str | None] = mapped_column(String(20))
 
     notification: Mapped["Notification"] = relationship("Notification", back_populates="recipients")
+
+
+# ✅ أضف هذا في نهاية الملف
+__all__ = [
+    "Notification",
+    "NotificationRecipient"
+]
