@@ -7,17 +7,19 @@ from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 
 from app.core.config import settings
 
-_serializer: URLSafeTimedSerializer | None = None
+# متغير لحمل الـ serializer
+_serializer_instance: URLSafeTimedSerializer | None = None
 
 
-def _serializer() -> URLSafeTimedSerializer:
-    global _serializer
-    if _serializer is None:
-        _serializer = URLSafeTimedSerializer(
+def _get_serializer() -> URLSafeTimedSerializer:
+    """Get or create the session serializer instance."""
+    global _serializer_instance
+    if _serializer_instance is None:
+        _serializer_instance = URLSafeTimedSerializer(
             settings.SECRET_KEY,
             salt="sms-session",
         )
-    return _serializer
+    return _serializer_instance
 
 
 def hash_password(raw: str) -> str:
@@ -44,15 +46,14 @@ def verify_password(raw: str, hashed: str) -> bool:
 
 def encode_session(payload: dict[str, Any], max_age: int | None = None) -> str:
     """Sign a session payload into a tamper-proof token for the cookie."""
-    age = max_age if max_age is not None else settings.SESSION_MAX_AGE
-    return _serializer().dumps(payload)
+    return _get_serializer().dumps(payload)
 
 
 def decode_session(token: str, max_age: int | None = None) -> dict[str, Any] | None:
     """Verify and decode a session token. Returns None if invalid/expired."""
     age = max_age if max_age is not None else settings.SESSION_MAX_AGE
     try:
-        return _serializer().loads(token, max_age=age)
+        return _get_serializer().loads(token, max_age=age)
     except (BadSignature, SignatureExpired):
         return None
 
