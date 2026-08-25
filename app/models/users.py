@@ -8,10 +8,11 @@ keys defined in ``app.core.permissions``.
 from sqlalchemy import Boolean, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.core.database import Base  # ✅ أضف هذا الاستيراد
 from app.models._mixins import TimestampMixin, UUIDPkMixin
 
 
-class Role(UUIDPkMixin, TimestampMixin):
+class Role(UUIDPkMixin, TimestampMixin, Base):  # ✅ أضف Base
     __tablename__ = "roles"
 
     school_id: Mapped[str | None] = mapped_column(
@@ -36,7 +37,7 @@ class Role(UUIDPkMixin, TimestampMixin):
     )
 
 
-class Permission(UUIDPkMixin, TimestampMixin):
+class Permission(UUIDPkMixin, TimestampMixin, Base):  # ✅ أضف Base
     __tablename__ = "permissions"
 
     key: Mapped[str] = mapped_column(String(100), unique=True, nullable=False, index=True)
@@ -51,7 +52,7 @@ class Permission(UUIDPkMixin, TimestampMixin):
     )
 
 
-class RolePermission(UUIDPkMixin, TimestampMixin):
+class RolePermission(UUIDPkMixin, TimestampMixin, Base):  # ✅ أضف Base
     __tablename__ = "role_permissions"
 
     role_id: Mapped[str] = mapped_column(
@@ -65,7 +66,7 @@ class RolePermission(UUIDPkMixin, TimestampMixin):
     permission: Mapped["Permission"] = relationship("Permission", back_populates="role_permissions", lazy="selectin")
 
 
-class User(UUIDPkMixin, TimestampMixin):
+class User(UUIDPkMixin, TimestampMixin, Base):  # ✅ أضف Base
     __tablename__ = "users"
 
     school_id: Mapped[str | None] = mapped_column(
@@ -87,7 +88,7 @@ class User(UUIDPkMixin, TimestampMixin):
     )
 
 
-class UserRole(UUIDPkMixin, TimestampMixin):
+class UserRole(UUIDPkMixin, TimestampMixin, Base):  # ✅ أضف Base
     __tablename__ = "user_roles"
 
     user_id: Mapped[str] = mapped_column(
@@ -99,3 +100,13 @@ class UserRole(UUIDPkMixin, TimestampMixin):
 
     user: Mapped["User"] = relationship("User", back_populates="user_roles")
     role: Mapped["Role"] = relationship("Role", back_populates="user_roles", lazy="selectin")
+
+
+# ✅ أضف هذا في نهاية الملف
+__all__ = [
+    "User",
+    "Role",
+    "Permission",
+    "UserRole",
+    "RolePermission"
+]
