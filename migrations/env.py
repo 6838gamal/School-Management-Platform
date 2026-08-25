@@ -9,18 +9,35 @@ from alembic import context
 
 from app.core.config import settings
 from app.core.database import Base
-from app.models import *  # noqa: F401, F403  — register all models
 
+# استيراد جميع النماذج للتأكد من تسجيلها في Base.metadata
+from app.models.users import User, Role, Permission, UserRole, RolePermission
+from app.models.schools import School
+from app.models.academics import AcademicYear, Class, Subject, Teacher, Student
+from app.models.activities import Activity, ActivityParticipant
+from app.models.attendance import Attendance
+from app.models.grades import Grade
+from app.models.homework import Homework, HomeworkSubmission
+from app.models.behavior import BehaviorRecord
+from app.models.notifications import Notification
+from app.models.reports import Report
+
+# إعداد التكوين
 config = context.config
+
+# تعيين عنوان قاعدة البيانات من الإعدادات
 config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
 
+# إعداد التسجيل
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
+# هدف Alembic - جميع النماذج مسجلة هنا
 target_metadata = Base.metadata
 
 
 def run_migrations_offline() -> None:
+    """تشغيل الترحيلات في وضع غير متصل."""
     url = config.get_main_option("sqlalchemy.url")
     context.configure(
         url=url,
@@ -33,24 +50,29 @@ def run_migrations_offline() -> None:
 
 
 def do_run_migrations(connection: Connection) -> None:
+    """تشغيل الترحيلات مع اتصال متزامن."""
     context.configure(connection=connection, target_metadata=target_metadata)
     with context.begin_transaction():
         context.run_migrations()
 
 
-def run_migrations_online() -> None:
+async def run_async_migrations() -> None:
+    """تشغيل الترحيلات بشكل غير متزامن."""
     connectable = async_engine_from_config(
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
     )
 
-    async def _run() -> None:
-        async with connectable.connect() as connection:
-            await connection.run_sync(do_run_migrations)
-        await connectable.dispose()
+    async with connectable.connect() as connection:
+        await connection.run_sync(do_run_migrations)
 
-    asyncio.run(_run())
+    await connectable.dispose()
+
+
+def run_migrations_online() -> None:
+    """تشغيل الترحيلات في وضع متصل."""
+    asyncio.run(run_async_migrations())
 
 
 if context.is_offline_mode():
