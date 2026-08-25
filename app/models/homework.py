@@ -2,10 +2,11 @@
 from sqlalchemy import Boolean, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app.core.database import Base  # ✅ أضف هذا الاستيراد
 from app.models._mixins import TimestampMixin, UUIDPkMixin
 
 
-class Homework(UUIDPkMixin, TimestampMixin):
+class Homework(UUIDPkMixin, TimestampMixin, Base):  # ✅ أضف Base
     __tablename__ = "homework"
 
     school_id: Mapped[str] = mapped_column(
@@ -27,7 +28,7 @@ class Homework(UUIDPkMixin, TimestampMixin):
     max_score: Mapped[float] = mapped_column(default=10.0)
 
 
-class HomeworkSubmission(UUIDPkMixin, TimestampMixin):
+class HomeworkSubmission(UUIDPkMixin, TimestampMixin, Base):  # ✅ أضف Base
     __tablename__ = "homework_submissions"
     __table_args__ = (
         # one submission per student per homework
@@ -43,3 +44,10 @@ class HomeworkSubmission(UUIDPkMixin, TimestampMixin):
     submitted_at: Mapped[str | None] = mapped_column(String(20))
     score: Mapped[float | None] = mapped_column()
     note: Mapped[str | None] = mapped_column(String(500))
+
+
+# ✅ أضف هذا في نهاية الملف
+__all__ = [
+    "Homework",
+    "HomeworkSubmission"
+]
