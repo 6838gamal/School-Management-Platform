@@ -1,0 +1,45 @@
+{% extends "layouts/director.html" %}
+{% block content %}
+<div class="space-y-6">
+    <div class="flex items-center justify-between">
+        <div><h1 class="text-2xl font-bold text-slate-800 dark:text-white">الدرجات</h1><p class="text-slate-400 text-sm mt-1">إدارة التقييمات والدرجات</p></div>
+        {% if can('grades.create') %}
+        <button id="create-assessment-btn" class="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg text-sm font-semibold">+ تقييم جديد</button>
+        {% endif %}
+    </div>
+
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-6">
+        <div id="grades-table">
+            <div class="empty-state">
+                <p>اختر شعبة وتقييم لعرض أو إدخال الدرجات.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal-backdrop" id="assessment-modal">
+    <div class="modal-box p-6">
+        <h3 class="font-semibold text-lg mb-4">إنشاء تقييم جديد</h3>
+        <form class="space-y-3">
+            <input name="section_id" placeholder="Section ID" required class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
+            <input name="subject_id" placeholder="Subject ID" required class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
+            <input name="title" placeholder="عنوان التقييم" required class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
+            <select name="assessment_type" class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none">
+                <option value="exam">اختبار</option><option value="quiz">قصير</option><option value="assignment">واجب</option><option value="homework">تكليف</option><option value="activity">نشاط</option><option value="participation">مشاركة</option>
+            </select>
+            <div class="grid grid-cols-3 gap-3">
+                <input name="max_score" type="number" placeholder="الدرجة العظمى" value="100" class="px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
+                <input name="passing_score" type="number" placeholder="الدرجة الناجحة" value="50" class="px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
+                <input name="weight" type="number" step="0.1" placeholder="الوزن" value="1.0" class="px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
+            </div>
+            <input type="date" name="date" class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
+            <div class="flex gap-2 pt-2">
+                <button type="button" onclick="closeModal('assessment-modal')" class="flex-1 bg-slate-100 dark:bg-slate-700 px-4 py-2 rounded-lg text-sm font-medium">إلغاء</button>
+                <button type="submit" class="flex-1 bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg text-sm font-semibold">إنشاء</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script src="/static/js/grades.js"></script>
+{% endblock %}

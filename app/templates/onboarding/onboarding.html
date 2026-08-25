@@ -1,0 +1,120 @@
+{% extends "layouts/director.html" %}
+{% block content %}
+<div class="space-y-6 max-w-4xl">
+    <div>
+        <h1 class="text-2xl font-bold text-slate-800 dark:text-white">تهيئة المدرسة</h1>
+        <p class="text-slate-400 text-sm mt-1">أكمل بيانات مدرستك للبدء. يمكنك تخطي أي خطوة واستكمالها لاحقًا.</p>
+    </div>
+
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-6">
+        <div class="flex items-center gap-4 mb-6">
+            <div class="flex items-center gap-2 text-sm">
+                <span class="w-8 h-8 rounded-full bg-primary-600 text-white flex items-center justify-center font-semibold">1</span>
+                <span class="font-medium text-slate-700 dark:text-slate-200">الأعوام الدراسية</span>
+            </div>
+            <div class="flex-1 border-t border-slate-200 dark:border-slate-600"></div>
+            <div class="flex items-center gap-2 text-sm">
+                <span class="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-600 text-slate-500 flex items-center justify-center font-semibold">2</span>
+                <span class="font-medium text-slate-400">المراحل والصفوف</span>
+            </div>
+            <div class="flex-1 border-t border-slate-200 dark:border-slate-600"></div>
+            <div class="flex items-center gap-2 text-sm">
+                <span class="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-600 text-slate-500 flex items-center justify-center font-semibold">3</span>
+                <span class="font-medium text-slate-400">المواد والشعب</span>
+            </div>
+        </div>
+
+        <div class="space-y-6">
+            <div>
+                <h3 class="font-semibold text-slate-700 dark:text-slate-200 mb-3">الأعوام الدراسية الحالية</h3>
+                <div class="space-y-2">
+                    {% for y in data.years %}
+                    <div class="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-700/30 rounded-lg">
+                        <span class="text-sm font-medium">{{ y.name }}</span>
+                        {% if y.is_current %}<span class="text-xs px-2 py-0.5 bg-primary-50 text-primary-600 rounded-full">حالي</span>{% endif %}
+                    </div>
+                    {% else %}
+                    <p class="text-slate-400 text-sm">لا توجد أعوام دراسية بعد.</p>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div>
+                <h3 class="font-semibold text-slate-700 dark:text-slate-200 mb-3">إضافة عام دراسي</h3>
+                <form id="onboarding-year-form" class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <input name="name" placeholder="مثال: 2026-2027" required class="px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
+                    <input type="date" name="start_date" required class="px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
+                    <input type="date" name="end_date" required class="px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
+                    <button type="submit" class="sm:col-span-3 bg-primary-600 hover:bg-primary-700 text-white px-4 py-2.5 rounded-lg text-sm font-semibold">إضافة العام</button>
+                </form>
+            </div>
+
+            <div>
+                <h3 class="font-semibold text-slate-700 dark:text-slate-200 mb-3">المراحل</h3>
+                <div class="space-y-2 mb-3">
+                    {% for s in data.stages %}
+                    <div class="p-3 bg-slate-50 dark:bg-slate-700/30 rounded-lg text-sm">{{ s.name }}</div>
+                    {% else %}
+                    <p class="text-slate-400 text-sm">لا توجد مراحل بعد.</p>
+                    {% endfor %}
+                </div>
+                {% if data.years %}
+                <form id="onboarding-stage-form" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <input type="hidden" name="year_id" value="{{ data.years[0].id }}">
+                    <input name="name" placeholder="مثال: المرحلة الابتدائية" required class="px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
+                    <input name="name_en" placeholder="Primary Stage" class="px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
+                    <button type="submit" class="sm:col-span-2 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 px-4 py-2.5 rounded-lg text-sm font-semibold">إضافة مرحلة</button>
+                </form>
+                {% endif %}
+            </div>
+
+            <div>
+                <h3 class="font-semibold text-slate-700 dark:text-slate-200 mb-3">المواد</h3>
+                <div class="space-y-2 mb-3">
+                    {% for s in data.subjects %}
+                    <div class="p-3 bg-slate-50 dark:bg-slate-700/30 rounded-lg text-sm">{{ s.name }}</div>
+                    {% else %}
+                    <p class="text-slate-400 text-sm">لا توجد مواد بعد.</p>
+                    {% endfor %}
+                </div>
+                <form id="onboarding-subject-form" class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <input name="name" placeholder="مثال: الرياضيات" required class="px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
+                    <input name="code" placeholder="رمز المادة" class="px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
+                    <button type="submit" class="bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 px-4 py-2.5 rounded-lg text-sm font-semibold">إضافة مادة</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="flex items-center justify-between">
+        <a href="/dashboard" class="text-slate-400 hover:text-slate-600 text-sm">تخطي الآن</a>
+        <a href="/dashboard" class="bg-primary-600 hover:bg-primary-700 text-white px-6 py-2.5 rounded-lg font-semibold transition-colors">الانتقال للوحة التحكم</a>
+    </div>
+</div>
+
+<script>
+document.getElementById('onboarding-year-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const body = {};
+    for (const [k, v] of fd.entries()) { if (v) body[k] = v; }
+    body.is_current = true;
+    try { await apiFetch('/api/v1/academics/years', { method: 'POST', body }); showToast('تم إضافة العام الدراسي', 'success'); setTimeout(() => location.reload(), 800); } catch (_) {}
+});
+document.getElementById('onboarding-stage-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const body = {};
+    for (const [k, v] of fd.entries()) { if (v) body[k] = v; }
+    body.order = 0;
+    try { await apiFetch('/api/v1/academics/stages', { method: 'POST', body }); showToast('تم إضافة المرحلة', 'success'); setTimeout(() => location.reload(), 800); } catch (_) {}
+});
+document.getElementById('onboarding-subject-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const body = {};
+    for (const [k, v] of fd.entries()) { if (v) body[k] = v; }
+    try { await apiFetch('/api/v1/academics/subjects', { method: 'POST', body }); showToast('تم إضافة المادة', 'success'); setTimeout(() => location.reload(), 800); } catch (_) {}
+});
+</script>
+{% endblock %}

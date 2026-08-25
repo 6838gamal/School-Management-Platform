@@ -1,0 +1,46 @@
+{% extends "layouts/director.html" %}
+{% block content %}
+<div class="space-y-6">
+    <div class="flex items-center justify-between">
+        <div><h1 class="text-2xl font-bold text-slate-800 dark:text-white">الواجبات</h1><p class="text-slate-400 text-sm mt-1">إدارة الواجبات والتكليفات</p></div>
+        {% if can('homework.create') %}
+        <button onclick="showModal('homework-modal')" class="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg text-sm font-semibold">+ واجب جديد</button>
+        {% endif %}
+    </div>
+
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-6">
+        <div class="empty-state">
+            <p>لا توجد واجبات بعد. ابدأ بإنشاء واجب جديد.</p>
+        </div>
+    </div>
+</div>
+
+<div class="modal-backdrop" id="homework-modal">
+    <div class="modal-box p-6">
+        <h3 class="font-semibold text-lg mb-4">إنشاء واجب جديد</h3>
+        <form id="homework-form" class="space-y-3">
+            <input name="section_id" placeholder="Section ID" required class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
+            <input name="subject_id" placeholder="Subject ID" required class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
+            <input name="teacher_id" placeholder="Teacher ID" required class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
+            <input name="title" placeholder="عنوان الواجب" required class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
+            <textarea name="description" placeholder="الوصف" rows="3" class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500"></textarea>
+            <input type="date" name="due_date" required class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
+            <div class="flex gap-2 pt-2">
+                <button type="button" onclick="closeModal('homework-modal')" class="flex-1 bg-slate-100 dark:bg-slate-700 px-4 py-2 rounded-lg text-sm font-medium">إلغاء</button>
+                <button type="submit" class="flex-1 bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg text-sm font-semibold">إنشاء</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+document.getElementById('homework-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const body = {};
+    for (const [k, v] of fd.entries()) { if (v) body[k] = v; }
+    body.is_graded = false; body.max_score = 10;
+    try { await apiFetch('/api/v1/homework', { method: 'POST', body }); showToast('تم إنشاء الواجب', 'success'); closeModal('homework-modal'); setTimeout(() => location.reload(), 800); } catch (_) {}
+});
+</script>
+{% endblock %}

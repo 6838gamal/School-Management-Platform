@@ -1,0 +1,40 @@
+{% extends "layouts/director.html" %}
+{% block content %}
+<div class="space-y-6">
+    <div class="flex items-center justify-between">
+        <div><h1 class="text-2xl font-bold text-slate-800 dark:text-white">الحضور والغياب</h1><p class="text-slate-400 text-sm mt-1">حالة الحضور اليوم</p></div>
+        {% if can('attendance.create') %}
+        <button id="mark-all-present" class="bg-success-600 hover:bg-success-700 text-white px-4 py-2 rounded-lg text-sm font-semibold">تسجيل الكل حاضر</button>
+        {% endif %}
+    </div>
+
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div class="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-100 dark:border-slate-700 text-center">
+            <p class="text-2xl font-bold text-success-600">{{ summary.present or 0 }}</p><p class="text-xs text-slate-400">حاضر</p>
+        </div>
+        <div class="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-100 dark:border-slate-700 text-center">
+            <p class="text-2xl font-bold text-danger-600">{{ summary.absent or 0 }}</p><p class="text-xs text-slate-400">غائب</p>
+        </div>
+        <div class="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-100 dark:border-slate-700 text-center">
+            <p class="text-2xl font-bold text-warning-600">{{ summary.late or 0 }}</p><p class="text-xs text-slate-400">متأخر</p>
+        </div>
+        <div class="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-100 dark:border-slate-700 text-center">
+            <p class="text-2xl font-bold text-slate-600">{{ summary.excused or 0 }}</p><p class="text-xs text-slate-400">بعذر</p>
+        </div>
+    </div>
+
+    {% if absent_teachers %}
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-6">
+        <h3 class="font-semibold text-slate-700 dark:text-slate-200 mb-3">المعلمون الغائبون اليوم</h3>
+        <div class="space-y-2">
+            {% for t in absent_teachers %}
+            <div class="flex items-center justify-between p-3 bg-danger-50 rounded-lg">
+                <span class="text-sm font-medium">{{ t.teacher_id[:8] }}</span>
+                <span class="text-xs text-danger-600">{{ t.status }}</span>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
