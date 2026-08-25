@@ -8,11 +8,11 @@ keys defined in ``app.core.permissions``.
 from sqlalchemy import Boolean, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.core.database import Base  # ✅ أضف هذا الاستيراد
+from app.core.database import Base
 from app.models._mixins import TimestampMixin, UUIDPkMixin
 
 
-class Role(UUIDPkMixin, TimestampMixin, Base):  # ✅ أضف Base
+class Role(UUIDPkMixin, TimestampMixin, Base):
     __tablename__ = "roles"
 
     school_id: Mapped[str | None] = mapped_column(
@@ -37,7 +37,7 @@ class Role(UUIDPkMixin, TimestampMixin, Base):  # ✅ أضف Base
     )
 
 
-class Permission(UUIDPkMixin, TimestampMixin, Base):  # ✅ أضف Base
+class Permission(UUIDPkMixin, TimestampMixin, Base):
     __tablename__ = "permissions"
 
     key: Mapped[str] = mapped_column(String(100), unique=True, nullable=False, index=True)
@@ -52,7 +52,7 @@ class Permission(UUIDPkMixin, TimestampMixin, Base):  # ✅ أضف Base
     )
 
 
-class RolePermission(UUIDPkMixin, TimestampMixin, Base):  # ✅ أضف Base
+class RolePermission(UUIDPkMixin, TimestampMixin, Base):
     __tablename__ = "role_permissions"
 
     role_id: Mapped[str] = mapped_column(
@@ -66,7 +66,7 @@ class RolePermission(UUIDPkMixin, TimestampMixin, Base):  # ✅ أضف Base
     permission: Mapped["Permission"] = relationship("Permission", back_populates="role_permissions", lazy="selectin")
 
 
-class User(UUIDPkMixin, TimestampMixin, Base):  # ✅ أضف Base
+class User(UUIDPkMixin, TimestampMixin, Base):
     __tablename__ = "users"
 
     school_id: Mapped[str | None] = mapped_column(
@@ -87,8 +87,28 @@ class User(UUIDPkMixin, TimestampMixin, Base):  # ✅ أضف Base
         lazy="selectin",
     )
 
+    def get_role_keys(self) -> list[str]:
+        """الحصول على مفاتيح الأدوار للمستخدم"""
+        return [ur.role.key for ur in self.user_roles]
 
-class UserRole(UUIDPkMixin, TimestampMixin, Base):  # ✅ أضف Base
+    def get_role_names(self) -> list[str]:
+        """الحصول على أسماء الأدوار للمستخدم (بالعربية)"""
+        return [ur.role.name_ar for ur in self.user_roles]
+
+    def has_role(self, role_key: str) -> bool:
+        """التحقق من أن المستخدم لديه دور معين"""
+        return role_key in self.get_role_keys()
+
+    def has_permission(self, permission_key: str) -> bool:
+        """التحقق من أن المستخدم لديه صلاحية معينة"""
+        for ur in self.user_roles:
+            for rp in ur.role.role_permissions:
+                if rp.permission.key == permission_key:
+                    return True
+        return False
+
+
+class UserRole(UUIDPkMixin, TimestampMixin, Base):
     __tablename__ = "user_roles"
 
     user_id: Mapped[str] = mapped_column(
@@ -102,7 +122,6 @@ class UserRole(UUIDPkMixin, TimestampMixin, Base):  # ✅ أضف Base
     role: Mapped["Role"] = relationship("Role", back_populates="user_roles", lazy="selectin")
 
 
-# ✅ أضف هذا في نهاية الملف
 __all__ = [
     "User",
     "Role",
