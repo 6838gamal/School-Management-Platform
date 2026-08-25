@@ -12,6 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from app.core.config import settings
+from app.core.database import engine, Base
 from app.core.exceptions import register_exception_handlers, set_templates
 from app.routes.api.v1.auth import router as api_auth_router
 from app.routes.api.v1.modules import (
@@ -48,8 +49,20 @@ templates = Jinja2Templates(directory="app/templates")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    """Lifespan context manager for startup and shutdown events."""
+    # إنشاء الجداول في قاعدة البيانات عند بدء التشغيل
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    print("✅ Database tables created successfully!")
+    
+    # تعيين القوالب
     set_templates(templates)
+    
     yield
+    
+    # إغلاق اتصال قاعدة البيانات عند الإيقاف
+    await engine.dispose()
+    print("✅ Database connection closed.")
 
 
 app = FastAPI(
