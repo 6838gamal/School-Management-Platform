@@ -1,5 +1,5 @@
 """Auth and user management schemas."""
-from pydantic import BaseModel, EmailStr, Field  # ✅ تمت إضافة BaseModel
+from pydantic import BaseModel, EmailStr, Field
 
 from app.schemas.common import ORMBase
 
@@ -14,12 +14,12 @@ class RegisterSchoolRequest(BaseModel):
     school_code: str = Field(..., min_length=2, max_length=50)
     director_name: str = Field(..., min_length=2, max_length=255)
     director_email: EmailStr
-    director_password: str = Field(..., min_length=8)
+    director_password: str = Field(..., min_length=8, max_length=72)  # ✅ أضف max_length=72
 
 
 class UserCreate(BaseModel):
     email: EmailStr
-    password: str = Field(..., min_length=8)
+    password: str = Field(..., min_length=8, max_length=72)  # ✅ أضف max_length=72
     full_name: str
     phone: str | None = None
     role_key: str = "teacher"
