@@ -25,15 +25,35 @@ async def login_submit(
     request: Request,
     email: str = Form(...),
     password: str = Form(...),
+    role: str = Form(...),  # إضافة حقل الدور
+    remember: bool = Form(False),
     db: AsyncSession = Depends(get_db),
 ):
     service = AuthService(db)
+    
+    # محاولة تسجيل الدخول
     result = await service.login(email, password)
+    
+    # التحقق من أن الدور المحدد يتطابق مع دور المستخدم
+    if result.get("role") != role:
+        return templates.TemplateResponse(
+            "auth/login.html",
+            {
+                "request": request,
+                "title": "تسجيل الدخول",
+                "error": f"⚠️ الدور المحدد غير صحيح. دورك الحقيقي هو: {result.get('role_display', result.get('role'))}",
+                "email": email,
+                "selected_role": role,
+                "current_user": None,
+            }
+        )
+    
+    # إنشاء رد مع توكن
     resp = RedirectResponse("/dashboard", status_code=302)
     resp.set_cookie(
         key=settings.SESSION_COOKIE_NAME,
         value=result["token"],
-        max_age=settings.SESSION_MAX_AGE,
+        max_age=settings.SESSION_MAX_AGE * 7 if remember else settings.SESSION_MAX_AGE,  # تذكرني لـ 7 أيام
         httponly=settings.SESSION_HTTPONLY,
         secure=settings.SESSION_SECURE,
         samesite=settings.SESSION_SAMESITE,
