@@ -14,18 +14,18 @@ class UserRepository(BaseRepository[User]):
 
     async def get_by_email(self, email: str) -> User | None:
         result = await self.db.execute(
-            select(self.model)  # ✅ استخدم self.model بدلاً من User
-            .where(self.model.email == email)
-            .options(selectinload(self.model.user_roles))
+            select(User)  # ✅ استخدم User مباشرة
+            .where(User.email == email)
+            .options(selectinload(User.user_roles))
         )
         return result.scalar_one_or_none()
 
     async def get_with_roles(self, id: str) -> User | None:
         result = await self.db.execute(
-            select(self.model)
-            .where(self.model.id == id)
+            select(User)  # ✅ استخدم User مباشرة
+            .where(User.id == id)
             .options(
-                selectinload(self.model.user_roles)
+                selectinload(User.user_roles)
                 .selectinload(UserRole.role)
                 .selectinload(Role.role_permissions)
                 .selectinload(RolePermission.permission)
@@ -42,10 +42,10 @@ class RoleRepository(BaseRepository[Role]):
 
     async def list_by_school(self, school_id: str) -> list[Role]:
         result = await self.db.execute(
-            select(self.model)
-            .where(self.model.school_id == school_id)
+            select(Role)  # ✅ استخدم Role مباشرة
+            .where(Role.school_id == school_id)
             .options(
-                selectinload(self.model.role_permissions)
+                selectinload(Role.role_permissions)
                 .selectinload(RolePermission.permission)
             )
         )
@@ -53,7 +53,7 @@ class RoleRepository(BaseRepository[Role]):
 
     async def get_by_key(self, school_id: str, key: str) -> Role | None:
         result = await self.db.execute(
-            select(self.model).where(self.model.school_id == school_id, self.model.key == key)
+            select(Role).where(Role.school_id == school_id, Role.key == key)
         )
         return result.scalar_one_or_none()
 
@@ -73,11 +73,11 @@ class PermissionRepository(BaseRepository[Permission]):
     model = Permission
 
     async def get_by_key(self, key: str) -> Permission | None:
-        result = await self.db.execute(select(self.model).where(self.model.key == key))
+        result = await self.db.execute(select(Permission).where(Permission.key == key))
         return result.scalar_one_or_none()
 
     async def get_all_dict(self) -> dict[str, Permission]:
-        result = await self.db.execute(select(self.model))
+        result = await self.db.execute(select(Permission))
         return {p.key: p for p in result.scalars().all()}
 
 
@@ -86,9 +86,9 @@ class UserRoleRepository(BaseRepository[UserRole]):
 
     async def assign(self, user_id: str, role_id: str) -> UserRole:
         existing = await self.db.execute(
-            select(self.model).where(
-                self.model.user_id == user_id,
-                self.model.role_id == role_id
+            select(UserRole).where(
+                UserRole.user_id == user_id,
+                UserRole.role_id == role_id
             )
         )
         obj = existing.scalar_one_or_none()
