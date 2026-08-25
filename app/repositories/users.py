@@ -14,15 +14,22 @@ class UserRepository(BaseRepository[User]):
 
     async def get_by_email(self, email: str) -> User | None:
         result = await self.db.execute(
-            select(User).where(User.email == email).options(selectinload(User.user_roles))
+            select(self.model)  # ✅ استخدم self.model بدلاً من User
+            .where(self.model.email == email)
+            .options(selectinload(self.model.user_roles))
         )
         return result.scalar_one_or_none()
 
     async def get_with_roles(self, id: str) -> User | None:
         result = await self.db.execute(
-            select(User)
-            .where(User.id == id)
-            .options(selectinload(User.user_roles).selectinload(UserRole.role).selectinload(Role.role_permissions).selectinload(RolePermission.permission))
+            select(self.model)
+            .where(self.model.id == id)
+            .options(
+                selectinload(self.model.user_roles)
+                .selectinload(UserRole.role)
+                .selectinload(Role.role_permissions)
+                .selectinload(RolePermission.permission)
+            )
         )
         return result.scalar_one_or_none()
 
@@ -35,15 +42,18 @@ class RoleRepository(BaseRepository[Role]):
 
     async def list_by_school(self, school_id: str) -> list[Role]:
         result = await self.db.execute(
-            select(Role)
-            .where(Role.school_id == school_id)
-            .options(selectinload(Role.role_permissions).selectinload(RolePermission.permission))
+            select(self.model)
+            .where(self.model.school_id == school_id)
+            .options(
+                selectinload(self.model.role_permissions)
+                .selectinload(RolePermission.permission)
+            )
         )
         return list(result.scalars().all())
 
     async def get_by_key(self, school_id: str, key: str) -> Role | None:
         result = await self.db.execute(
-            select(Role).where(Role.school_id == school_id, Role.key == key)
+            select(self.model).where(self.model.school_id == school_id, self.model.key == key)
         )
         return result.scalar_one_or_none()
 
@@ -63,11 +73,11 @@ class PermissionRepository(BaseRepository[Permission]):
     model = Permission
 
     async def get_by_key(self, key: str) -> Permission | None:
-        result = await self.db.execute(select(Permission).where(Permission.key == key))
+        result = await self.db.execute(select(self.model).where(self.model.key == key))
         return result.scalar_one_or_none()
 
     async def get_all_dict(self) -> dict[str, Permission]:
-        result = await self.db.execute(select(Permission))
+        result = await self.db.execute(select(self.model))
         return {p.key: p for p in result.scalars().all()}
 
 
@@ -76,7 +86,10 @@ class UserRoleRepository(BaseRepository[UserRole]):
 
     async def assign(self, user_id: str, role_id: str) -> UserRole:
         existing = await self.db.execute(
-            select(UserRole).where(UserRole.user_id == user_id, UserRole.role_id == role_id)
+            select(self.model).where(
+                self.model.user_id == user_id,
+                self.model.role_id == role_id
+            )
         )
         obj = existing.scalar_one_or_none()
         if obj:
