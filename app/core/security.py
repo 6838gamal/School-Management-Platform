@@ -2,15 +2,10 @@
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+import bcrypt
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
-from passlib.context import CryptContext
 
 from app.core.config import settings
-
-pwd_context = CryptContext(
-    schemes=[settings.PASSWORD_HASH_SCHEME],
-    deprecated="auto",
-)
 
 _serializer: URLSafeTimedSerializer | None = None
 
@@ -30,7 +25,11 @@ def hash_password(raw: str) -> str:
     # bcrypt limit is 72 bytes
     if len(raw.encode('utf-8')) > 72:
         raw = raw[:72]
-    return pwd_context.hash(raw)
+    
+    # Hash the password using bcrypt
+    salt = bcrypt.gensalt()
+    hashed = bcrypt.hashpw(raw.encode('utf-8'), salt)
+    return hashed.decode('utf-8')
 
 
 def verify_password(raw: str, hashed: str) -> bool:
@@ -38,7 +37,9 @@ def verify_password(raw: str, hashed: str) -> bool:
     # bcrypt limit is 72 bytes
     if len(raw.encode('utf-8')) > 72:
         raw = raw[:72]
-    return pwd_context.verify(raw, hashed)
+    
+    # Verify the password
+    return bcrypt.checkpw(raw.encode('utf-8'), hashed.encode('utf-8'))
 
 
 def encode_session(payload: dict[str, Any], max_age: int | None = None) -> str:
