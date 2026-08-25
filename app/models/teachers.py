@@ -8,10 +8,11 @@ preserving history when assignments change.
 from sqlalchemy import Boolean, ForeignKey, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.core.database import Base  # ✅ أضف هذا الاستيراد
 from app.models._mixins import TimestampMixin, UUIDPkMixin
 
 
-class Teacher(UUIDPkMixin, TimestampMixin):
+class Teacher(UUIDPkMixin, TimestampMixin, Base):  # ✅ أضف Base
     __tablename__ = "teachers"
 
     school_id: Mapped[str] = mapped_column(
@@ -38,7 +39,7 @@ class Teacher(UUIDPkMixin, TimestampMixin):
     )
 
 
-class TeacherAssignment(UUIDPkMixin, TimestampMixin):
+class TeacherAssignment(UUIDPkMixin, TimestampMixin, Base):  # ✅ أضف Base
     """Tracks a teacher's assignment to a subject + section for a year."""
     __tablename__ = "teacher_assignments"
     __table_args__ = (
@@ -65,3 +66,10 @@ class TeacherAssignment(UUIDPkMixin, TimestampMixin):
     ended_at: Mapped[str | None] = mapped_column(String(20))
 
     teacher: Mapped["Teacher"] = relationship("Teacher", back_populates="assignments")
+
+
+# ✅ أضف هذا في نهاية الملف
+__all__ = [
+    "Teacher",
+    "TeacherAssignment"
+]
