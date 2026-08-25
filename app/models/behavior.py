@@ -2,10 +2,11 @@
 from sqlalchemy import ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app.core.database import Base  # ✅ أضف هذا الاستيراد
 from app.models._mixins import TimestampMixin, UUIDPkMixin
 
 
-class BehaviorCategory(UUIDPkMixin, TimestampMixin):
+class BehaviorCategory(UUIDPkMixin, TimestampMixin, Base):  # ✅ أضف Base
     __tablename__ = "behavior_categories"
     __table_args__ = ()
 
@@ -18,7 +19,7 @@ class BehaviorCategory(UUIDPkMixin, TimestampMixin):
     default_severity: Mapped[int] = mapped_column(Integer, default=1)  # 1-5
 
 
-class BehaviorRecord(UUIDPkMixin, TimestampMixin):
+class BehaviorRecord(UUIDPkMixin, TimestampMixin, Base):  # ✅ أضف Base
     __tablename__ = "behavior_records"
 
     school_id: Mapped[str] = mapped_column(
@@ -39,3 +40,10 @@ class BehaviorRecord(UUIDPkMixin, TimestampMixin):
     recorded_by: Mapped[str | None] = mapped_column(
         String(36), ForeignKey("users.id", ondelete="SET NULL")
     )
+
+
+# ✅ أضف هذا في نهاية الملف
+__all__ = [
+    "BehaviorCategory",
+    "BehaviorRecord"
+]
