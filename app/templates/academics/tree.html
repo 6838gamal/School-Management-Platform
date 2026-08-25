@@ -1,0 +1,38 @@
+{% extends "layouts/director.html" %}
+{% block content %}
+<div class="space-y-6">
+    <div class="flex items-center justify-between">
+        <div><h1 class="text-2xl font-bold text-slate-800 dark:text-white">الشجرة الأكاديمية</h1><p class="text-slate-400 text-sm mt-1">الهيكل الكامل للمدرسة</p></div>
+    </div>
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-6">
+        {% for stage in tree %}
+        <div class="mb-6">
+            <h3 class="font-semibold text-primary-700 dark:text-primary-300 mb-3 flex items-center gap-2">
+                <span class="w-6 h-6 rounded-full bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center text-xs">{{ loop.index }}</span>
+                {{ stage.name }}
+            </h3>
+            <div class="pr-8 space-y-4">
+                {% for grade in stage.grades %}
+                <div>
+                    <h4 class="font-medium text-slate-600 dark:text-slate-300 mb-2 text-sm">{{ grade.name }}</h4>
+                    <div class="pr-8 flex flex-wrap gap-2">
+                        {% for section in grade.sections %}
+                        <span class="px-3 py-1.5 bg-slate-100 dark:bg-slate-700/50 rounded-lg text-xs font-medium text-slate-600 dark:text-slate-300">{{ section.name }} <span class="text-slate-400">({{ section.capacity }})</span></span>
+                        {% else %}
+                        <span class="text-xs text-slate-400">لا توجد شعب</span>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% else %}
+                <p class="text-slate-400 text-sm">لا توجد صفوف</p>
+                {% endfor %}
+            </div>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <p>لا توجد بيانات أكاديمية بعد. ابدأ بإضافة المراحل والصفوف.</p>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}
