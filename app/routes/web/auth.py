@@ -7,10 +7,19 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.dependencies import template_context
+from app.core.exceptions import UnauthorizedException
 from app.services.auth_service import AuthService
 
 router = APIRouter(prefix="", tags=["auth"])
 templates = Jinja2Templates(directory="app/templates")
+
+# قاموس عرض الأدوار
+ROLE_DISPLAY = {
+    "director": "مدير",
+    "vice_principal": "وكيل",
+    "activities_officer": "مسؤول أنشطة",
+    "teacher": "معلم"
+}
 
 
 @router.get("/login")
@@ -25,40 +34,88 @@ async def login_submit(
     request: Request,
     email: str = Form(...),
     password: str = Form(...),
-    role: str = Form(...),  # إضافة حقل الدور
+    role: str = Form(...),
     remember: bool = Form(False),
     db: AsyncSession = Depends(get_db),
 ):
     service = AuthService(db)
     
-    # محاولة تسجيل الدخول
-    result = await service.login(email, password)
-    
-    # التحقق من أن الدور المحدد يتطابق مع دور المستخدم
-    if result.get("role") != role:
+    try:
+        # تسجيل الدخول والحصول على بيانات المستخدم
+        result = await service.login(email, password)
+        
+        # التحقق من أن المستخدم لديه الدور المحدد
+        user_roles = result["user"]["roles"]
+        if role not in user_roles:
+            # عرض الأدوار المتاحة للمستخدم
+            available_roles = [ROLE_DISPLAY.get(r, r) for r in user_roles]
+            roles_text = "، ".join(available_roles)
+            
+            return templates.TemplateResponse(
+                "auth/login.html",
+                {
+                    "request": request,
+                    "title": "تسجيل الدخول",
+                    "error": f"⚠️ الدور '{ROLE_DISPLAY.get(role, role)}' غير متاح لهذا الحساب. الأدوار المتاحة: {roles_text}",
+                    "email": email,
+                    "selected_role": role,
+                    "current_user": None,
+                }
+            )
+        
+        # إنشاء رد مع توكن
+        resp = RedirectResponse("/dashboard", status_code=302)
+        
+        # تحديد مدة انتهاء الجلسة
+        max_age = settings.SESSION_MAX_AGE
+        if remember:
+            max_age = max_age * 7  # 7 أيام إذا اختار "تذكرني"
+        
+        resp.set_cookie(
+            key=settings.SESSION_COOKIE_NAME,
+            value=result["token"],
+            max_age=max_age,
+            httponly=settings.SESSION_HTTPONLY,
+            secure=settings.SESSION_SECURE,
+            samesite=settings.SESSION_SAMESITE,
+        )
+        
+        # إضافة الدور المختار في الجلسة (يمكن استخدامه للتوجيه)
+        resp.set_cookie(
+            key="selected_role",
+            value=role,
+            max_age=max_age,
+            httponly=True,
+            secure=settings.SESSION_SECURE,
+            samesite=settings.SESSION_SAMESITE,
+        )
+        
+        return resp
+        
+    except UnauthorizedException as e:
         return templates.TemplateResponse(
             "auth/login.html",
             {
                 "request": request,
                 "title": "تسجيل الدخول",
-                "error": f"⚠️ الدور المحدد غير صحيح. دورك الحقيقي هو: {result.get('role_display', result.get('role'))}",
+                "error": str(e),
                 "email": email,
                 "selected_role": role,
                 "current_user": None,
             }
         )
-    
-    # إنشاء رد مع توكن
-    resp = RedirectResponse("/dashboard", status_code=302)
-    resp.set_cookie(
-        key=settings.SESSION_COOKIE_NAME,
-        value=result["token"],
-        max_age=settings.SESSION_MAX_AGE * 7 if remember else settings.SESSION_MAX_AGE,  # تذكرني لـ 7 أيام
-        httponly=settings.SESSION_HTTPONLY,
-        secure=settings.SESSION_SECURE,
-        samesite=settings.SESSION_SAMESITE,
-    )
-    return resp
+    except Exception as e:
+        return templates.TemplateResponse(
+            "auth/login.html",
+            {
+                "request": request,
+                "title": "تسجيل الدخول",
+                "error": "حدث خطأ غير متوقع. يرجى المحاولة مرة أخرى",
+                "email": email,
+                "selected_role": role,
+                "current_user": None,
+            }
+        )
 
 
 @router.get("/register")
@@ -80,27 +137,52 @@ async def register_submit(
 ):
     from app.schemas.auth import RegisterSchoolRequest
     service = AuthService(db)
-    result = await service.register_school(
-        RegisterSchoolRequest(
-            school_name=school_name,
-            school_code=school_code,
-            director_name=director_name,
-            director_email=director_email,
-            director_password=director_password,
+    try:
+        result = await service.register_school(
+            RegisterSchoolRequest(
+                school_name=school_name,
+                school_code=school_code,
+                director_name=director_name,
+                director_email=director_email,
+                director_password=director_password,
+            )
         )
-    )
-    # Auto-login
-    login_result = await service.login(director_email, director_password)
-    resp = RedirectResponse("/onboarding", status_code=302)
-    resp.set_cookie(
-        key=settings.SESSION_COOKIE_NAME,
-        value=login_result["token"],
-        max_age=settings.SESSION_MAX_AGE,
-        httponly=settings.SESSION_HTTPONLY,
-        secure=settings.SESSION_SECURE,
-        samesite=settings.SESSION_SAMESITE,
-    )
-    return resp
+        
+        # تسجيل الدخول التلقائي
+        login_result = await service.login(director_email, director_password)
+        resp = RedirectResponse("/onboarding", status_code=302)
+        resp.set_cookie(
+            key=settings.SESSION_COOKIE_NAME,
+            value=login_result["token"],
+            max_age=settings.SESSION_MAX_AGE,
+            httponly=settings.SESSION_HTTPONLY,
+            secure=settings.SESSION_SECURE,
+            samesite=settings.SESSION_SAMESITE,
+        )
+        # تعيين دور المدير
+        resp.set_cookie(
+            key="selected_role",
+            value="director",
+            max_age=settings.SESSION_MAX_AGE,
+            httponly=True,
+            secure=settings.SESSION_SECURE,
+            samesite=settings.SESSION_SAMESITE,
+        )
+        return resp
+        
+    except Exception as e:
+        return templates.TemplateResponse(
+            "auth/register.html",
+            {
+                "request": request,
+                "title": "تسجيل مدرسة جديدة",
+                "error": str(e),
+                "school_name": school_name,
+                "school_code": school_code,
+                "director_name": director_name,
+                "director_email": director_email,
+            }
+        )
 
 
 @router.get("/forgot-password")
@@ -117,4 +199,5 @@ async def reset_password_page(request: Request, ctx: dict = Depends(template_con
 async def logout(request: Request):
     resp = RedirectResponse("/login", status_code=302)
     resp.delete_cookie(settings.SESSION_COOKIE_NAME)
+    resp.delete_cookie("selected_role")
     return resp
