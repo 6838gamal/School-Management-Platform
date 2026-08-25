@@ -12,7 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from app.core.config import settings
-from app.core.database import engine, Base, get_db
+from app.core.database import engine, get_db
 from app.core.exceptions import register_exception_handlers, set_templates
 from app.core.seed import seed_database
 from app.routes.api.v1.auth import router as api_auth_router
@@ -51,25 +51,22 @@ templates = Jinja2Templates(directory="app/templates")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Lifespan context manager for startup and shutdown events."""
-    # إنشاء الجداول في قاعدة البيانات عند بدء التشغيل
-    try:
-        async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
-        print("✅ Database tables created successfully!")
-    except Exception as e:
-        print(f"❌ Error creating tables: {e}")
+    print("🚀 Starting application...")
+    print(f"📊 Database: {settings.DATABASE_URL}")
+    print("ℹ️  Use 'alembic upgrade head' to apply migrations")
     
     # تعيين القوالب
     set_templates(templates)
     
-    # إضافة البيانات التجريبية
+    # ✅ إضافة البيانات التجريبية (إذا كانت الجداول موجودة)
     try:
         async for db in get_db():
             await seed_database(db)
             break
-        print("✅ Seed data added successfully!")
+        print("✅ Seed data checked/added successfully!")
     except Exception as e:
         print(f"⚠️ Warning: Could not seed database: {e}")
+        print("   Make sure to run: alembic upgrade head first")
     
     yield
     
