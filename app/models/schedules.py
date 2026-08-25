@@ -2,10 +2,11 @@
 from sqlalchemy import Boolean, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.core.database import Base  # ✅ أضف هذا الاستيراد
 from app.models._mixins import TimestampMixin, UUIDPkMixin
 
 
-class Schedule(UUIDPkMixin, TimestampMixin):
+class Schedule(UUIDPkMixin, TimestampMixin, Base):  # ✅ أضف Base
     """A named schedule grid for a section (or teacher view)."""
     __tablename__ = "schedules"
 
@@ -26,7 +27,7 @@ class Schedule(UUIDPkMixin, TimestampMixin):
     )
 
 
-class ScheduleEntry(UUIDPkMixin, TimestampMixin):
+class ScheduleEntry(UUIDPkMixin, TimestampMixin, Base):  # ✅ أضف Base
     """A single lesson in the weekly grid."""
     __tablename__ = "schedule_entries"
     __table_args__ = (
@@ -57,3 +58,10 @@ class ScheduleEntry(UUIDPkMixin, TimestampMixin):
     )
 
     schedule: Mapped["Schedule"] = relationship("Schedule", back_populates="entries")
+
+
+# ✅ أضف هذا في نهاية الملف
+__all__ = [
+    "Schedule",
+    "ScheduleEntry"
+]
