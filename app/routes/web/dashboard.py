@@ -71,6 +71,7 @@ async def dashboard_router(
             },
         )
     
+    # ✅ تغيير من activities_manager إلى activities
     elif role == "activities":
         stats = await service.activities_manager_stats(user.school_id, user.id)
         return templates.TemplateResponse(
@@ -128,13 +129,14 @@ async def deputy_dashboard_redirect(
     return RedirectResponse("/dashboard", status_code=302)
 
 
+# ✅ تغيير من activities_manager إلى activities
 @router.get("/activities/dashboard")
 async def activities_dashboard_redirect(
     request: Request,
     user: CurrentUser = Depends(require_user),
 ):
     """إعادة توجيه إلى لوحة تحكم مسؤول الأنشطة"""
-    if user.primary_role != "activities_manager":
+    if user.primary_role != "activities":
         raise ForbiddenException("هذه الصفحة مخصصة لمسؤول الأنشطة فقط")
     return RedirectResponse("/dashboard", status_code=302)
 
