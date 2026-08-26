@@ -7,6 +7,49 @@
         <p class="text-slate-400 mt-2">اختر نوع المستخدم وأكمل بيانات التسجيل</p>
     </div>
 
+    <!-- ============================================ -->
+    <!-- عرض رسائل النجاح والخطأ -->
+    <!-- ============================================ -->
+
+    {% if error %}
+    <div id="alert-message" class="mb-4 p-4 rounded-lg bg-red-100 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 text-sm flex items-start">
+        <span class="ml-2 text-xl">❌</span>
+        <div class="flex-1">
+            <div class="font-bold mb-1">فشل التسجيل</div>
+            <div>{{ error }}</div>
+        </div>
+        <button type="button" onclick="this.parentElement.remove()" class="text-red-500 hover:text-red-700 mr-2">
+            ✕
+        </button>
+    </div>
+    {% endif %}
+
+    {% if success %}
+    <div id="alert-message" class="mb-4 p-4 rounded-lg bg-green-100 dark:bg-green-900/30 border border-green-200 dark:border-green-800 text-green-700 dark:text-green-400 text-sm flex items-start">
+        <span class="ml-2 text-xl">✅</span>
+        <div class="flex-1">
+            <div class="font-bold mb-1">تم التسجيل بنجاح!</div>
+            <div>{{ success }}</div>
+        </div>
+        <button type="button" onclick="this.parentElement.remove()" class="text-green-500 hover:text-green-700 mr-2">
+            ✕
+        </button>
+    </div>
+    {% endif %}
+
+    {% if warning %}
+    <div id="alert-message" class="mb-4 p-4 rounded-lg bg-yellow-100 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-800 text-yellow-700 dark:text-yellow-400 text-sm flex items-start">
+        <span class="ml-2 text-xl">⚠️</span>
+        <div class="flex-1">
+            <div class="font-bold mb-1">تنبيه</div>
+            <div>{{ warning }}</div>
+        </div>
+        <button type="button" onclick="this.parentElement.remove()" class="text-yellow-500 hover:text-yellow-700 mr-2">
+            ✕
+        </button>
+    </div>
+    {% endif %}
+
     <!-- Tabs -->
     <div class="flex border-b border-slate-200 dark:border-slate-600 mb-6">
         <button type="button" class="tab-btn flex-1 py-2 text-sm font-medium text-slate-500 hover:text-primary-600 border-b-2 border-transparent hover:border-primary-300 transition-colors" data-tab="director">
@@ -30,11 +73,11 @@
             <div class="grid grid-cols-2 gap-3">
                 <div class="col-span-2">
                     <label class="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">اسم المدرسة</label>
-                    <input type="text" name="school_name" required class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none">
+                    <input type="text" name="school_name" required value="{{ school_name or '' }}" class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none">
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">رمز المدرسة</label>
-                    <input type="text" name="school_code" required class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none">
+                    <input type="text" name="school_code" required value="{{ school_code or '' }}" class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none">
                 </div>
             </div>
         </div>
@@ -43,20 +86,19 @@
             <div class="space-y-3">
                 <div>
                     <label class="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">الرقم الوظيفي</label>
-                    <input type="text" name="director_number" required class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none">
+                    <input type="text" name="director_number" required value="{{ director_number or '' }}" class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none">
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">الاسم الكامل</label>
-                    <input type="text" name="director_name" required class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none">
+                    <input type="text" name="director_name" required value="{{ director_name or '' }}" class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none">
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">البريد الإلكتروني</label>
-                    <input type="email" name="director_email" required class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none">
+                    <input type="email" name="director_email" required value="{{ director_email or '' }}" class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none">
                 </div>
-                <!-- ✅ إضافة رقم الجوال -->
                 <div>
                     <label class="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">رقم الجوال</label>
-                    <input type="tel" name="director_phone" required class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none" placeholder="05xxxxxxxx">
+                    <input type="tel" name="director_phone" required value="{{ director_phone or '' }}" class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none" placeholder="05xxxxxxxx">
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">كلمة المرور (8 أحرف على الأقل)</label>
@@ -74,20 +116,19 @@
             <div class="space-y-3">
                 <div>
                     <label class="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">الرقم الوظيفي</label>
-                    <input type="text" name="agent_number" required class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none">
+                    <input type="text" name="agent_number" required value="{{ agent_number or '' }}" class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none">
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">الاسم الكامل</label>
-                    <input type="text" name="agent_name" required class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none">
+                    <input type="text" name="agent_name" required value="{{ agent_name or '' }}" class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none">
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">البريد الإلكتروني</label>
-                    <input type="email" name="agent_email" required class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none">
+                    <input type="email" name="agent_email" required value="{{ agent_email or '' }}" class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none">
                 </div>
-                <!-- ✅ إضافة رقم الجوال -->
                 <div>
                     <label class="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">رقم الجوال</label>
-                    <input type="tel" name="agent_phone" required class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none" placeholder="05xxxxxxxx">
+                    <input type="tel" name="agent_phone" required value="{{ agent_phone or '' }}" class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none" placeholder="05xxxxxxxx">
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">كلمة المرور (8 أحرف على الأقل)</label>
@@ -95,7 +136,7 @@
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">رمز المدرسة (للانضمام)</label>
-                    <input type="text" name="school_code" required class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none" placeholder="أدخل رمز المدرسة">
+                    <input type="text" name="school_code" required value="{{ school_code or '' }}" class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none" placeholder="أدخل رمز المدرسة">
                 </div>
             </div>
         </div>
@@ -109,20 +150,19 @@
             <div class="space-y-3">
                 <div>
                     <label class="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">الرقم الوظيفي</label>
-                    <input type="text" name="activity_number" required class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none">
+                    <input type="text" name="activity_number" required value="{{ activity_number or '' }}" class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none">
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">الاسم الكامل</label>
-                    <input type="text" name="activity_name" required class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none">
+                    <input type="text" name="activity_name" required value="{{ activity_name or '' }}" class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none">
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">البريد الإلكتروني</label>
-                    <input type="email" name="activity_email" required class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none">
+                    <input type="email" name="activity_email" required value="{{ activity_email or '' }}" class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none">
                 </div>
-                <!-- ✅ إضافة رقم الجوال -->
                 <div>
                     <label class="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">رقم الجوال</label>
-                    <input type="tel" name="activity_phone" required class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none" placeholder="05xxxxxxxx">
+                    <input type="tel" name="activity_phone" required value="{{ activity_phone or '' }}" class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none" placeholder="05xxxxxxxx">
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">كلمة المرور (8 أحرف على الأقل)</label>
@@ -130,7 +170,7 @@
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">رمز المدرسة (للانضمام)</label>
-                    <input type="text" name="school_code" required class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none" placeholder="أدخل رمز المدرسة">
+                    <input type="text" name="school_code" required value="{{ school_code or '' }}" class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none" placeholder="أدخل رمز المدرسة">
                 </div>
             </div>
         </div>
@@ -144,20 +184,19 @@
             <div class="space-y-3">
                 <div>
                     <label class="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">الرقم الوظيفي</label>
-                    <input type="text" name="teacher_number" required class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none">
+                    <input type="text" name="teacher_number" required value="{{ teacher_number or '' }}" class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none">
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">الاسم الكامل</label>
-                    <input type="text" name="teacher_name" required class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none">
+                    <input type="text" name="teacher_name" required value="{{ teacher_name or '' }}" class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none">
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">البريد الإلكتروني</label>
-                    <input type="email" name="teacher_email" required class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none">
+                    <input type="email" name="teacher_email" required value="{{ teacher_email or '' }}" class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none">
                 </div>
-                <!-- ✅ إضافة رقم الجوال -->
                 <div>
                     <label class="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">رقم الجوال</label>
-                    <input type="tel" name="teacher_phone" required class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none" placeholder="05xxxxxxxx">
+                    <input type="tel" name="teacher_phone" required value="{{ teacher_phone or '' }}" class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none" placeholder="05xxxxxxxx">
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">كلمة المرور (8 أحرف على الأقل)</label>
@@ -165,11 +204,11 @@
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">رمز المدرسة (للانضمام)</label>
-                    <input type="text" name="school_code" required class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none" placeholder="أدخل رمز المدرسة">
+                    <input type="text" name="school_code" required value="{{ school_code or '' }}" class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none" placeholder="أدخل رمز المدرسة">
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">المادة الدراسية</label>
-                    <input type="text" name="subject" class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none" placeholder="مثال: رياضيات">
+                    <input type="text" name="subject" value="{{ subject or '' }}" class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none" placeholder="مثال: رياضيات">
                 </div>
             </div>
         </div>
@@ -186,30 +225,50 @@
         const tabs = document.querySelectorAll('.tab-btn');
         const contents = document.querySelectorAll('.tab-content');
 
-        // Set initial active tab
-        tabs[0].classList.add('text-primary-600', 'border-primary-500');
-        tabs[0].classList.remove('text-slate-500', 'border-transparent');
+        // ✅ دالة لتفعيل التبويب
+        function activateTab(tabId) {
+            // إزالة التفعيل من جميع التبويبات
+            tabs.forEach(t => {
+                t.classList.remove('text-primary-600', 'border-primary-500');
+                t.classList.add('text-slate-500', 'border-transparent');
+            });
 
+            // إخفاء جميع المحتويات
+            contents.forEach(c => c.classList.add('hidden'));
+
+            // تفعيل التبويب المطلوب
+            const targetTab = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
+            if (targetTab) {
+                targetTab.classList.add('text-primary-600', 'border-primary-500');
+                targetTab.classList.remove('text-slate-500', 'border-transparent');
+                const targetContent = document.getElementById(`form-${tabId}`);
+                if (targetContent) {
+                    targetContent.classList.remove('hidden');
+                }
+            }
+        }
+
+        // ✅ تحديد التبويب النشط من الخادم أو استخدام الافتراضي
+        const activeTab = '{{ active_tab|default("director") }}';
+        activateTab(activeTab);
+
+        // ✅ أزرار التبويبات
         tabs.forEach(tab => {
             tab.addEventListener('click', function() {
-                // Remove active styles from all tabs
-                tabs.forEach(t => {
-                    t.classList.remove('text-primary-600', 'border-primary-500');
-                    t.classList.add('text-slate-500', 'border-transparent');
-                });
-
-                // Add active styles to clicked tab
-                this.classList.add('text-primary-600', 'border-primary-500');
-                this.classList.remove('text-slate-500', 'border-transparent');
-
-                // Hide all content
-                contents.forEach(c => c.classList.add('hidden'));
-
-                // Show selected content
                 const target = this.dataset.tab;
-                document.getElementById(`form-${target}`).classList.remove('hidden');
+                activateTab(target);
             });
         });
+
+        // ✅ إخفاء رسائل التنبيه تلقائياً بعد 8 ثوانٍ
+        const alertMessage = document.getElementById('alert-message');
+        if (alertMessage) {
+            setTimeout(() => {
+                alertMessage.style.transition = 'opacity 0.5s';
+                alertMessage.style.opacity = '0';
+                setTimeout(() => alertMessage.remove(), 500);
+            }, 8000);
+        }
     });
 </script>
 {% endblock %}
