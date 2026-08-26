@@ -413,3 +413,40 @@ async def logout(request: Request):
     resp.delete_cookie(settings.SESSION_COOKIE_NAME)
     resp.delete_cookie("selected_role")
     return resp
+
+
+# ============================================
+# مسارات Debug للتحقق
+# ============================================
+
+@router.get("/debug/users")
+async def debug_users(db: AsyncSession = Depends(get_db)):
+    """عرض جميع المستخدمين للتحقق"""
+    service = AuthService(db)
+    users = await service.debug_get_all_users()
+    return {"users": users, "count": len(users)}
+
+@router.get("/debug/roles")
+async def debug_roles(db: AsyncSession = Depends(get_db)):
+    """عرض جميع الأدوار للتحقق"""
+    service = AuthService(db)
+    roles = await service.debug_get_all_roles()
+    return {"roles": roles, "count": len(roles)}
+
+@router.get("/debug/check-user/{email}")
+async def debug_check_user(email: str, db: AsyncSession = Depends(get_db)):
+    """التحقق من وجود مستخدم معين"""
+    service = AuthService(db)
+    user = await service._get_user_by_email(email)
+    if user:
+        roles = await service._get_user_roles(user)
+        return {
+            "exists": True,
+            "id": user.id,
+            "email": user.email,
+            "full_name": user.full_name,
+            "is_active": user.is_active,
+            "school_id": user.school_id,
+            "roles": roles,
+        }
+    return {"exists": False, "email": email}
