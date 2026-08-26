@@ -166,7 +166,7 @@ async def init_database():
                     "email": "activities@school.edu",
                     "password": "activities123",
                     "full_name": "سارة الأنشطة",
-                    "role": "activities_manager"
+                    "role": "activities"
                 },
                 {
                     "email": "teacher@school.edu",
