@@ -72,7 +72,7 @@ async def dashboard_router(
         )
     
     # ✅ تغيير من activities_manager إلى activities
-    elif role == "activities":
+    elif role == "activities_manager":
         stats = await service.activities_manager_stats(user.school_id, user.id)
         return templates.TemplateResponse(
             "activities_manager/dashboard.html",
