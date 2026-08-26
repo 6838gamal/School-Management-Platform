@@ -15,35 +15,64 @@ class RegisterSchoolRequest(BaseModel):
     school_code: str = Field(..., min_length=2, max_length=50)
     director_name: str = Field(..., min_length=2, max_length=255)
     director_email: EmailStr
-    director_phone: Optional[str] = Field(None, description="رقم جوال المدير")  # ✅ إضافة
+    director_phone: Optional[str] = Field(None, description="رقم جوال المدير")
     director_password: str = Field(..., min_length=8, max_length=72)
 
 
-# ✅ إضافة هذا الكلاس الجديد (المفقود)
 class RegisterUserRequest(BaseModel):
     """طلب تسجيل مستخدم جديد (وكيل، مسؤول أنشطة، معلم)"""
     email: EmailStr
     password: str = Field(..., min_length=8, max_length=72)
     full_name: str = Field(..., min_length=2, max_length=255)
     employee_number: str = Field(..., description="الرقم الوظيفي")
-    phone: Optional[str] = Field(None, description="رقم الجوال")
+    phone: Optional[str] = Field(None, description="رقم الجوال (اختياري)")
     school_code: str = Field(..., description="رمز المدرسة للانضمام")
-    role_name: str = Field(..., description="اسم الدور (vice_principal, activities_officer, teacher)")
+    role_name: str = Field(..., description="اسم الدور (deputy, activities, teacher)")
     extra_data: Optional[Dict[str, Any]] = Field(default_factory=dict, description="بيانات إضافية")
     
     @validator('phone')
     def validate_phone(cls, v):
-        if v and not v.startswith('05'):
-            raise ValueError('رقم الجوال يجب أن يبدأ بـ 05')
-        if v and len(v) != 10:
-            raise ValueError('رقم الجوال يجب أن يكون 10 أرقام')
+        """
+        التحقق من رقم الجوال - مرن جداً
+        
+        - يمكن أن يكون فارغاً (اختياري)
+        - يمكن أن يكون رقم محلي (05xxxxxxxx)
+        - يمكن أن يكون رقم دولي (+9665xxxxxxxx)
+        - أي صيغة أخرى مقبولة
+        """
+        if not v:
+            return None
+        
+        # إزالة المسافات
+        v = v.strip()
+        
+        # إذا كان الرقم فارغاً بعد التنظيف، أرجع None
+        if not v:
+            return None
+        
+        # أبسط تحقق: فقط تأكد من أنه ليس فارغاً
+        # يمكن إضافة تحقق اختياري للطول إذا أردت
+        if len(v) < 5:
+            raise ValueError('رقم الجوال قصير جداً')
+        
+        # يمكن إضافة تحقق اختياري للأرقام الدولية
+        # مثل: السماح بـ + أو أرقام فقط
+        # حذف الرموز غير الرقمية للتحقق من الطول
+        digits = ''.join(filter(str.isdigit, v))
+        if len(digits) < 5:
+            raise ValueError('رقم الجوال يجب أن يحتوي على 5 أرقام على الأقل')
+        
         return v
     
     @validator('role_name')
     def validate_role(cls, v):
-        allowed_roles = ['vice_principal', 'activities_officer', 'teacher']
+        """التحقق من صحة اسم الدور - مطابق لقاعدة البيانات"""
+        # ✅ تحديث الأدوار المسموحة لتطابق قاعدة البيانات
+        allowed_roles = ['deputy', 'activities', 'teacher']
         if v not in allowed_roles:
-            raise ValueError(f'الدور غير مسموح. الأدوار المسموحة: {", ".join(allowed_roles)}')
+            raise ValueError(
+                f'الدور غير مسموح. الأدوار المسموحة: {", ".join(allowed_roles)}'
+            )
         return v
 
 
