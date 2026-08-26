@@ -1,77 +1,53 @@
-<!DOCTYPE html>
-<html lang="ar" dir="rtl" class="{% if request.cookies.get('theme') == 'dark' %}dark{% endif %}">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}{{ title or 'نظام إدارة المدارس' }}{% endblock %} — نظام إدارة المدارس</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            darkMode: 'class',
-            theme: {
-                extend: {
-                    colors: {
-                        primary: { 50:'#eff6ff',100:'#dbeafe',200:'#bfdbfe',300:'#93c5fd',400:'#60a5fa',500:'#3b82f6',600:'#2563eb',700:'#1d4ed8',800:'#1e40af',900:'#1e3a8a' },
-                        success: { 50:'#f0fdf4',500:'#22c55e',600:'#16a34a',700:'#15803d' },
-                        warning: { 50:'#fffbeb',500:'#f59e0b',600:'#d97706' },
-                        danger:  { 50:'#fef2f2',500:'#ef4444',600:'#dc2626' },
-                    },
-                    fontFamily: {
-                        sans: ['Cairo', 'system-ui', 'sans-serif'],
-                    },
-                },
-            },
-        };
-    </script>
-    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/css/app.css">
-    <link rel="icon" href="/static/images/favicon.svg" type="image/svg+xml">
-    {% block head %}{% endblock %}
-</head>
-<body class="bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-200 font-sans antialiased">
-    {% block body %}
-    <div class="min-h-screen flex flex-col">
-        <!-- شريط التنقل (Navbar) -->
-        {% block navbar %}{% include "base/navbar.html" %}{% endblock %}
-        
-        <div class="flex flex-1">
-            <!-- ============================================ -->
-            <!-- ✅ القائمة الجانبية حسب دور المستخدم          -->
-            <!-- ============================================ -->
-            {% if current_user %}
-                {% set roles = current_user.roles or [] %}
-                
-                <!-- إختيار القالب المناسب حسب الدور -->
-                {% if 'director' in roles %}
-                    {% include "layouts/director.html" %}
-                {% elif 'deputy' in roles %}
-                    {% include "layouts/deputy.html" %}
-                {% elif 'activities' in roles %}
-                    {% include "layouts/activities_manager.html" %}
-                {% elif 'teacher' in roles %}
-                    {% include "layouts/teacher.html" %}
-                {% else %}
-                    <!-- قالب افتراضي -->
-                    <aside class="w-64 bg-white dark:bg-slate-800 shadow-lg border-l border-slate-200 dark:border-slate-700 flex-shrink-0 h-screen sticky top-0 overflow-y-auto p-4">
-                        <p class="text-slate-500">لا توجد قائمة متاحة</p>
-                    </aside>
-                {% endif %}
-            {% endif %}
-            
-            <!-- ============================================ -->
-            <!-- المحتوى الرئيسي                              -->
-            <!-- ============================================ -->
-            <main class="flex-1 p-4 md:p-6 lg:p-8 overflow-x-hidden">
-                {% block content %}{% endblock %}
-            </main>
-        </div>
-        
-        <!-- تذييل الصفحة -->
-        {% include "base/footer.html" %}
-    </div>
-    {% endblock %}
+{% extends "base/base.html" %}
+{% block body %}
+<div class="min-h-screen flex flex-col">
+    <!-- شريط التنقل -->
+    {% block navbar %}{% include "base/navbar.html" %}{% endblock %}
     
-    <script src="/static/js/app.js"></script>
-    {% block scripts %}{% endblock %}
-</body>
-</html>
+    <div class="flex flex-1">
+        <!-- ============================================ -->
+        <!-- ✅ القائمة الجانبية حسب دور المستخدم          -->
+        <!-- ============================================ -->
+        {% if current_user %}
+            {% set roles = current_user.roles or [] %}
+            
+            <!-- Debug: عرض الأدوار (مؤقتاً) -->
+            <div style="background: yellow; padding: 5px; position: fixed; bottom: 10px; right: 10px; z-index: 9999; font-size: 12px; border-radius: 5px; direction: ltr;">
+                Debug: roles = {{ roles|join(', ') }}
+            </div>
+            
+            <!-- إختيار القالب المناسب حسب الدور -->
+            {% if 'director' in roles %}
+                {% include "layouts/director.html" %}
+            {% elif 'deputy' in roles %}
+                {% include "layouts/deputy.html" %}
+            {% elif 'activities' in roles %}
+                {% include "layouts/activities_manager.html" %}
+            {% elif 'teacher' in roles %}
+                {% include "layouts/teacher.html" %}
+            {% else %}
+                <!-- قالب افتراضي -->
+                <aside class="w-64 bg-white dark:bg-slate-800 shadow-lg border-l border-slate-200 dark:border-slate-700 flex-shrink-0 h-screen sticky top-0 overflow-y-auto p-4">
+                    <p class="text-slate-500">لا توجد قائمة متاحة</p>
+                    <p class="text-xs text-slate-400">الأدوار: {{ roles|join(', ') }}</p>
+                </aside>
+            {% endif %}
+        {% else %}
+            <!-- المستخدم غير مسجل -->
+            <aside class="w-64 bg-white dark:bg-slate-800 shadow-lg border-l border-slate-200 dark:border-slate-700 flex-shrink-0 h-screen sticky top-0 overflow-y-auto p-4">
+                <p class="text-slate-500">⚠️ يرجى تسجيل الدخول</p>
+            </aside>
+        {% endif %}
+        
+        <!-- ============================================ -->
+        <!-- المحتوى الرئيسي                              -->
+        <!-- ============================================ -->
+        <main class="flex-1 p-4 md:p-6 lg:p-8 overflow-x-hidden">
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+    
+    <!-- تذييل الصفحة -->
+    {% include "base/footer.html" %}
+</div>
+{% endblock %}
