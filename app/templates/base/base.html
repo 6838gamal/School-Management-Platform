@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="{{ current_user and 'ar' or 'ar' }}" dir="rtl" class="{% if request.cookies.get('theme') == 'dark' %}dark{% endif %}">
+<html lang="ar" dir="rtl" class="{% if request.cookies.get('theme') == 'dark' %}dark{% endif %}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -29,7 +29,48 @@
     {% block head %}{% endblock %}
 </head>
 <body class="bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-200 font-sans antialiased">
-    {% block body %}{% endblock %}
+    {% block body %}
+    <div class="min-h-screen flex flex-col">
+        <!-- شريط التنقل (Navbar) -->
+        {% block navbar %}{% include "base/navbar.html" %}{% endblock %}
+        
+        <div class="flex flex-1">
+            <!-- ============================================ -->
+            <!-- ✅ القائمة الجانبية حسب دور المستخدم          -->
+            <!-- ============================================ -->
+            {% if current_user %}
+                {% set roles = current_user.roles or [] %}
+                
+                <!-- إختيار القالب المناسب حسب الدور -->
+                {% if 'director' in roles %}
+                    {% include "layouts/director_layout.html" %}
+                {% elif 'deputy' in roles %}
+                    {% include "layouts/deputy_layout.html" %}
+                {% elif 'activities' in roles %}
+                    {% include "layouts/activities_layout.html" %}
+                {% elif 'teacher' in roles %}
+                    {% include "layouts/teacher_layout.html" %}
+                {% else %}
+                    <!-- قالب افتراضي -->
+                    <aside class="w-64 bg-white dark:bg-slate-800 shadow-lg border-l border-slate-200 dark:border-slate-700 flex-shrink-0 h-screen sticky top-0 overflow-y-auto p-4">
+                        <p class="text-slate-500">لا توجد قائمة متاحة</p>
+                    </aside>
+                {% endif %}
+            {% endif %}
+            
+            <!-- ============================================ -->
+            <!-- المحتوى الرئيسي                              -->
+            <!-- ============================================ -->
+            <main class="flex-1 p-4 md:p-6 lg:p-8 overflow-x-hidden">
+                {% block content %}{% endblock %}
+            </main>
+        </div>
+        
+        <!-- تذييل الصفحة -->
+        {% include "base/footer.html" %}
+    </div>
+    {% endblock %}
+    
     <script src="/static/js/app.js"></script>
     {% block scripts %}{% endblock %}
 </body>
