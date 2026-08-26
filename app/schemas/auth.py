@@ -24,7 +24,7 @@ class RegisterUserRequest(BaseModel):
     email: EmailStr
     password: str = Field(..., min_length=8, max_length=72)
     full_name: str = Field(..., min_length=2, max_length=255)
-    employee_number: str = Field(..., description="الرقم الوظيفي")
+    employee_number: Optional[str] = Field(None, description="الرقم الوظيفي (اختياري)")  # ✅ جعلته اختيارياً
     phone: Optional[str] = Field(None, description="رقم الجوال (اختياري)")
     school_code: str = Field(..., description="رمز المدرسة للانضمام")
     role_name: str = Field(..., description="اسم الدور (deputy, activities, teacher)")
@@ -51,12 +51,9 @@ class RegisterUserRequest(BaseModel):
             return None
         
         # أبسط تحقق: فقط تأكد من أنه ليس فارغاً
-        # يمكن إضافة تحقق اختياري للطول إذا أردت
         if len(v) < 5:
             raise ValueError('رقم الجوال قصير جداً')
         
-        # يمكن إضافة تحقق اختياري للأرقام الدولية
-        # مثل: السماح بـ + أو أرقام فقط
         # حذف الرموز غير الرقمية للتحقق من الطول
         digits = ''.join(filter(str.isdigit, v))
         if len(digits) < 5:
