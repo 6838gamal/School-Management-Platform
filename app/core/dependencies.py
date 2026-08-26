@@ -85,7 +85,8 @@ async def get_current_user(
     if not payload:
         return None
 
-    user_id = payload.get("uid")
+    # ✅ استخدام "user_id" بدلاً من "uid" (مطابق لـ auth_service.py)
+    user_id = payload.get("user_id")
     if not user_id:
         return None
 
