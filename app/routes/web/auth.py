@@ -1,22 +1,5 @@
 """Auth web routes: login, register, logout."""
-import os
-import glob
 
-@router.get("/debug/files")
-async def debug_files():
-    """عرض جميع ملفات models للتحقق"""
-    models_path = "app/models/"
-    files = []
-    
-    # البحث عن جميع الملفات في مجلد models
-    for file in glob.glob(f"{models_path}**/*.py", recursive=True):
-        files.append(file.replace("app/models/", ""))
-    
-    return {
-        "models_directory": models_path,
-        "files": files,
-        "total": len(files)
-    }
 
 from fastapi import APIRouter, Depends, Form, Request, Response
 from fastapi.responses import RedirectResponse
