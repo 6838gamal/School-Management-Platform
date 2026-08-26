@@ -11,13 +11,13 @@
                 {% set roles = current_user.roles or [] %}
                 
                 {% if 'director' in roles %}
-                    {% include "layouts/director_layout.html" %}
+                    {% include "layouts/director.html" %}
                 {% elif 'deputy' in roles %}
-                    {% include "layouts/deputy_layout.html" %}
+                    {% include "layouts/deputy.html" %}
                 {% elif 'activities' in roles %}
-                    {% include "layouts/activities_layout.html" %}
+                    {% include "layouts/activities_manager.html" %}
                 {% elif 'teacher' in roles %}
-                    {% include "layouts/teacher_layout.html" %}
+                    {% include "layouts/teacher.html" %}
                 {% else %}
                     <!-- قالب افتراضي -->
                     <aside class="w-64 bg-white dark:bg-slate-800 shadow-lg border-l border-slate-200 dark:border-slate-700 flex-shrink-0 h-screen sticky top-0 overflow-y-auto p-4">
