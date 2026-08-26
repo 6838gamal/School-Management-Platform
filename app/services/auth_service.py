@@ -2,13 +2,13 @@
 import logging
 from typing import Dict, Any, Optional, List
 from datetime import datetime, timedelta
-from jose import jwt
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
-import bcrypt  # ✅ استخدام bcrypt مباشرة
+import bcrypt
 
 from app.core.config import settings
 from app.core.exceptions import UnauthorizedException, ValidationException
+from app.core.security import encode_session, decode_session  # ✅ استخدام دوال security
 from app.models.users import User
 from app.models.users import Role
 from app.models.schools import School
@@ -29,7 +29,7 @@ class AuthService:
     
     def _hash_password(self, password: str) -> str:
         """
-        تشفير كلمة المرور باستخدام bcrypt مباشرة
+        تشفير كلمة المرور باستخدام bcrypt
         
         ملاحظة: bcrypt يدعم فقط 72 حرفاً كحد أقصى
         """
@@ -39,10 +39,9 @@ class AuthService:
                 password = password[:72]
                 logger.warning(f"⚠️ تم تقصير كلمة المرور إلى 72 حرفاً")
             
-            # تحويل إلى bytes وتشفير
-            password_bytes = password.encode('utf-8')
+            # تشفير كلمة المرور
             salt = bcrypt.gensalt(rounds=12)
-            hashed = bcrypt.hashpw(password_bytes, salt)
+            hashed = bcrypt.hashpw(password.encode('utf-8'), salt)
             
             logger.info(f"✅ تم تشفير كلمة المرور بنجاح")
             return hashed.decode('utf-8')
@@ -52,45 +51,46 @@ class AuthService:
             raise ValidationException(f"فشل تشفير كلمة المرور: {str(e)}")
     
     def _verify_password(self, plain_password: str, hashed_password: str) -> bool:
-        """التحقق من كلمة المرور باستخدام bcrypt مباشرة"""
+        """التحقق من كلمة المرور باستخدام bcrypt"""
         try:
             # التأكد من أن كلمة المرور لا تتجاوز 72 حرفاً
             if len(plain_password) > 72:
                 plain_password = plain_password[:72]
             
-            password_bytes = plain_password.encode('utf-8')
-            hashed_bytes = hashed_password.encode('utf-8')
-            
-            return bcrypt.checkpw(password_bytes, hashed_bytes)
+            return bcrypt.checkpw(
+                plain_password.encode('utf-8'),
+                hashed_password.encode('utf-8')
+            )
             
         except Exception as e:
             logger.error(f"❌ فشل التحقق من كلمة المرور: {str(e)}")
             return False
     
     def _create_token(self, user_id: str, email: str, roles: List[str]) -> str:
-        """إنشاء توكن JWT"""
+        """
+        إنشاء توكن جلسة باستخدام itsdangerous
+        
+        ملاحظة: استخدام encode_session من security.py لتوحيد التشفير
+        """
         payload = {
-            "user_id": user_id,
+            "user_id": user_id,  # ✅ استخدام user_id (مطابق لـ dependencies.py)
             "email": email,
             "roles": roles,
-            "exp": datetime.utcnow() + timedelta(seconds=settings.SESSION_MAX_AGE),
-            "iat": datetime.utcnow(),
         }
-        return jwt.encode(payload, settings.SECRET_KEY, algorithm="HS256")
+        # ✅ استخدام encode_session من security.py
+        return encode_session(payload, max_age=settings.SESSION_MAX_AGE)
     
     def _decode_token(self, token: str) -> Dict[str, Any]:
-        """فك تشفير التوكن"""
-        try:
-            payload = jwt.decode(
-                token,
-                settings.SECRET_KEY,
-                algorithms=["HS256"]
-            )
-            return payload
-        except jwt.ExpiredSignatureError:
-            raise UnauthorizedException("انتهت صلاحية الجلسة")
-        except jwt.InvalidTokenError:
-            raise UnauthorizedException("توكن غير صالح")
+        """
+        فك تشفير التوكن باستخدام itsdangerous
+        
+        ملاحظة: استخدام decode_session من security.py لتوحيد التشفير
+        """
+        # ✅ استخدام decode_session من security.py
+        payload = decode_session(token, max_age=settings.SESSION_MAX_AGE)
+        if not payload:
+            raise UnauthorizedException("توكن غير صالح أو منتهي الصلاحية")
+        return payload
     
     # ============================================
     # دوال البحث مع logging
@@ -147,6 +147,7 @@ class AuthService:
         
         query = select(Role).where(func.lower(Role.key) == func.lower(role_key))
         
+        # إذا تم تحديد school_id، أضفه في البحث
         if school_id:
             query = query.where(Role.school_id == school_id)
             logger.info(f"   - في المدرسة: {school_id}")
@@ -225,21 +226,26 @@ class AuthService:
         logger.info(f"   - رمز المدرسة: {request.school_code}")
         
         try:
+            # 1. التحقق من عدم وجود البريد
             existing_user = await self._get_user_by_email(request.email)
             if existing_user:
                 logger.error(f"❌ البريد الإلكتروني مستخدم بالفعل: {request.email}")
                 raise ValidationException("البريد الإلكتروني مستخدم بالفعل")
             
+            # 2. البحث عن المدرسة
             school = await self._get_school_by_code(request.school_code)
             if not school:
                 logger.error(f"❌ رمز المدرسة غير صحيح: {request.school_code}")
                 raise ValidationException("رمز المدرسة غير صحيح")
             
+            # 3. البحث عن الدور مع school_id
             role = await self._get_role_by_key(request.role_name, school.id)
             
+            # 4. إذا لم يتم العثور على الدور، قم بإنشائه
             if not role:
                 logger.info(f"📝 الدور '{request.role_name}' غير موجود، جاري إنشائه...")
                 
+                # أسماء الأدوار بالعربية
                 role_names_ar = {
                     "deputy": "وكيل",
                     "activities": "مسؤول أنشطة",
@@ -267,6 +273,9 @@ class AuthService:
                 await self.db.flush()
                 logger.info(f"✅ تم إنشاء الدور: {role.key} (ID: {role.id})")
             
+            # 5. إنشاء المستخدم
+            logger.info("✅ جميع التحققات اجتازت بنجاح، جاري إنشاء المستخدم...")
+            
             user = User(
                 email=request.email.lower(),
                 password_hash=self._hash_password(request.password),
@@ -279,6 +288,7 @@ class AuthService:
             await self.db.flush()
             logger.info(f"✅ تم إنشاء المستخدم: {user.email} (ID: {user.id})")
             
+            # 6. ربط المستخدم بالدور
             user_role = UserRole(
                 user_id=user.id,
                 role_id=role.id,
@@ -288,6 +298,7 @@ class AuthService:
             await self.db.refresh(user)
             logger.info(f"✅ تم ربط المستخدم بالدور: {role.key}")
             
+            # 7. تحويل إلى استجابة
             roles = await self._get_user_roles(user)
             user_data = {
                 "id": str(user.id),
@@ -319,16 +330,19 @@ class AuthService:
         logger.info(f"   - بريد المدير: {request.director_email}")
         
         try:
+            # 1. التحقق من عدم وجود البريد
             existing_user = await self._get_user_by_email(request.director_email)
             if existing_user:
                 logger.error(f"❌ البريد الإلكتروني مستخدم بالفعل: {request.director_email}")
                 raise ValidationException("البريد الإلكتروني مستخدم بالفعل")
             
+            # 2. التحقق من عدم وجود رمز المدرسة
             existing_school = await self._get_school_by_code(request.school_code)
             if existing_school:
                 logger.error(f"❌ رمز المدرسة مستخدم بالفعل: {request.school_code}")
                 raise ValidationException("رمز المدرسة مستخدم بالفعل")
             
+            # 3. إنشاء المدرسة
             school = School(
                 name=request.school_name,
                 code=request.school_code.upper(),
@@ -338,6 +352,7 @@ class AuthService:
             await self.db.flush()
             logger.info(f"✅ تم إنشاء المدرسة: {school.name} (ID: {school.id})")
             
+            # 4. إنشاء دور المدير للمدرسة مباشرة
             logger.info("📝 جاري إنشاء دور المدير للمدرسة...")
             role = Role(
                 school_id=school.id,
@@ -351,6 +366,7 @@ class AuthService:
             await self.db.flush()
             logger.info(f"✅ تم إنشاء دور المدير: {role.key} (ID: {role.id})")
             
+            # 5. إنشاء المستخدم (المدير)
             user = User(
                 email=request.director_email.lower(),
                 password_hash=self._hash_password(request.director_password),
@@ -363,6 +379,7 @@ class AuthService:
             await self.db.flush()
             logger.info(f"✅ تم إنشاء المدير: {user.email} (ID: {user.id})")
             
+            # 6. ربط المستخدم بدور المدير
             user_role = UserRole(
                 user_id=user.id,
                 role_id=role.id,
@@ -372,6 +389,7 @@ class AuthService:
             await self.db.refresh(user)
             logger.info(f"✅ تم ربط المدير بالدور: {role.key}")
             
+            # 7. تحويل إلى استجابة
             roles = await self._get_user_roles(user)
             user_data = {
                 "id": str(user.id),
@@ -409,6 +427,7 @@ class AuthService:
         logger.info(f"   - البريد: {email}")
         
         try:
+            # 1. البحث عن المستخدم
             user = await self._get_user_by_email(email)
             
             if not user:
@@ -418,6 +437,7 @@ class AuthService:
             
             logger.info(f"✅ تم العثور على المستخدم: {user.email}")
             
+            # 2. التحقق من كلمة المرور
             logger.info("🔍 التحقق من كلمة المرور...")
             password_valid = self._verify_password(password, user.password_hash)
             
@@ -428,6 +448,7 @@ class AuthService:
             
             logger.info("✅ كلمة المرور صحيحة")
             
+            # 3. التحقق من أن المستخدم نشط
             if not user.is_active:
                 logger.warning(f"❌ فشل تسجيل الدخول: الحساب غير نشط ({email})")
                 logger.info("=" * 60)
@@ -435,6 +456,7 @@ class AuthService:
             
             logger.info("✅ الحساب نشط")
             
+            # 4. الحصول على الأدوار
             roles = await self._get_user_roles(user)
             if not roles:
                 logger.warning(f"❌ فشل تسجيل الدخول: لا توجد أدوار للمستخدم ({email})")
@@ -443,9 +465,11 @@ class AuthService:
             
             logger.info(f"✅ الأدوار المتاحة: {roles}")
             
+            # 5. إنشاء توكن
             token = self._create_token(user.id, user.email, roles)
             logger.info(f"✅ تم إنشاء التوكن للمستخدم: {user.email}")
             
+            # 6. تحويل إلى استجابة
             user_data = {
                 "id": str(user.id),
                 "email": user.email,
