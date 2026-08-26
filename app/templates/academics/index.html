@@ -4,22 +4,27 @@
     <!-- عنوان الصفحة -->
     <h1 class="text-2xl font-bold text-slate-800 dark:text-white">الهيكل الأكاديمي</h1>
     
-    <!-- الأقسام العلوية - عرض البيانات -->
+    <!-- الأقسام العلوية - عرض البيانات مع روابط للقوائم -->
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
         
         <!-- 1. الأعوام الدراسية -->
         <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-6">
             <div class="flex items-center justify-between mb-4">
                 <h3 class="font-semibold text-slate-700 dark:text-slate-200">الأعوام الدراسية</h3>
-                {% if can('academics.create') %}
-                <a href="/academics/years/create" class="text-primary-600 hover:text-primary-700 text-sm font-medium">
-                    + إضافة
-                </a>
-                {% endif %}
+                <div class="flex gap-2">
+                    {% if can('academics.create') %}
+                    <a href="/academics/years/create" class="text-primary-600 hover:text-primary-700 text-sm font-medium">
+                        + إضافة
+                    </a>
+                    {% endif %}
+                    <a href="/academics/years/list" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 text-sm">
+                        عرض الكل →
+                    </a>
+                </div>
             </div>
             <div class="space-y-2">
                 {% if data.years %}
-                    {% for y in data.years %}
+                    {% for y in data.years[:5] %}
                     <div class="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-700/30 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors duration-200">
                         <span class="text-sm font-medium">{{ y.name }}</span>
                         {% if y.is_current %}
@@ -27,6 +32,11 @@
                         {% endif %}
                     </div>
                     {% endfor %}
+                    {% if data.years|length > 5 %}
+                    <div class="text-center text-sm text-slate-400 mt-2">
+                        ... وعرض {{ data.years|length - 5 }} إضافي
+                    </div>
+                    {% endif %}
                 {% else %}
                     <div class="p-3 bg-slate-50 dark:bg-slate-700/30 rounded-lg text-center">
                         <p class="text-slate-400 text-sm">لا توجد أعوام دراسية</p>
@@ -44,15 +54,20 @@
         <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-6">
             <div class="flex items-center justify-between mb-4">
                 <h3 class="font-semibold text-slate-700 dark:text-slate-200">المواد</h3>
-                {% if can('academics.create') %}
-                <a href="/academics/subjects/create" class="text-primary-600 hover:text-primary-700 text-sm font-medium">
-                    + إضافة
-                </a>
-                {% endif %}
+                <div class="flex gap-2">
+                    {% if can('academics.create') %}
+                    <a href="/academics/subjects/create" class="text-primary-600 hover:text-primary-700 text-sm font-medium">
+                        + إضافة
+                    </a>
+                    {% endif %}
+                    <a href="/academics/subjects/list" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 text-sm">
+                        عرض الكل →
+                    </a>
+                </div>
             </div>
             <div class="space-y-2">
                 {% if data.subjects %}
-                    {% for s in data.subjects %}
+                    {% for s in data.subjects[:5] %}
                     <div class="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-700/30 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors duration-200">
                         <span class="text-sm">{{ s.name }}</span>
                         {% if s.color %}
@@ -60,6 +75,11 @@
                         {% endif %}
                     </div>
                     {% endfor %}
+                    {% if data.subjects|length > 5 %}
+                    <div class="text-center text-sm text-slate-400 mt-2">
+                        ... وعرض {{ data.subjects|length - 5 }} إضافي
+                    </div>
+                    {% endif %}
                 {% else %}
                     <div class="p-3 bg-slate-50 dark:bg-slate-700/30 rounded-lg text-center">
                         <p class="text-slate-400 text-sm">لا توجد مواد</p>
@@ -77,20 +97,30 @@
         <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-6">
             <div class="flex items-center justify-between mb-4">
                 <h3 class="font-semibold text-slate-700 dark:text-slate-200">الشعب</h3>
-                {% if can('academics.create') %}
-                <a href="/academics/sections/create" class="text-primary-600 hover:text-primary-700 text-sm font-medium">
-                    + إضافة
-                </a>
-                {% endif %}
+                <div class="flex gap-2">
+                    {% if can('academics.create') %}
+                    <a href="/academics/sections/create" class="text-primary-600 hover:text-primary-700 text-sm font-medium">
+                        + إضافة
+                    </a>
+                    {% endif %}
+                    <a href="/academics/sections/list" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 text-sm">
+                        عرض الكل →
+                    </a>
+                </div>
             </div>
             <div class="space-y-2">
                 {% if data.sections %}
-                    {% for s in data.sections %}
+                    {% for s in data.sections[:5] %}
                     <div class="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-700/30 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors duration-200">
                         <span class="text-sm">{{ s.name }}</span>
                         <span class="text-xs text-slate-400">السعة: {{ s.capacity }}</span>
                     </div>
                     {% endfor %}
+                    {% if data.sections|length > 5 %}
+                    <div class="text-center text-sm text-slate-400 mt-2">
+                        ... وعرض {{ data.sections|length - 5 }} إضافي
+                    </div>
+                    {% endif %}
                 {% else %}
                     <div class="p-3 bg-slate-50 dark:bg-slate-700/30 rounded-lg text-center">
                         <p class="text-slate-400 text-sm">لا توجد شعب</p>
@@ -108,15 +138,20 @@
         <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-6">
             <div class="flex items-center justify-between mb-4">
                 <h3 class="font-semibold text-slate-700 dark:text-slate-200">الفصول (الحصص)</h3>
-                {% if can('academics.create') %}
-                <a href="/academics/periods/create" class="text-primary-600 hover:text-primary-700 text-sm font-medium">
-                    + إضافة
-                </a>
-                {% endif %}
+                <div class="flex gap-2">
+                    {% if can('academics.create') %}
+                    <a href="/academics/periods/create" class="text-primary-600 hover:text-primary-700 text-sm font-medium">
+                        + إضافة
+                    </a>
+                    {% endif %}
+                    <a href="/academics/periods/list" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 text-sm">
+                        عرض الكل →
+                    </a>
+                </div>
             </div>
             <div class="space-y-2">
                 {% if data.periods %}
-                    {% for p in data.periods %}
+                    {% for p in data.periods[:5] %}
                     <div class="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-700/30 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors duration-200">
                         <div>
                             <span class="text-sm font-medium">{{ p.name }}</span>
@@ -127,6 +162,11 @@
                         <span class="text-xs text-slate-400">ترتيب: {{ p.order }}</span>
                     </div>
                     {% endfor %}
+                    {% if data.periods|length > 5 %}
+                    <div class="text-center text-sm text-slate-400 mt-2">
+                        ... وعرض {{ data.periods|length - 5 }} إضافي
+                    </div>
+                    {% endif %}
                 {% else %}
                     <div class="p-3 bg-slate-50 dark:bg-slate-700/30 rounded-lg text-center">
                         <p class="text-slate-400 text-sm">لا توجد فصول</p>
@@ -141,51 +181,43 @@
         </div>
     </div>
 
-    <!-- القسم السفلي - أزرار الانتقال إلى صفحات الإضافة -->
-    {% if can('academics.create') %}
+    <!-- القسم السفلي - روابط سريعة للقوائم -->
     <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-6">
-        <h3 class="font-semibold text-slate-700 dark:text-slate-200 mb-4">إضافة عنصر جديد</h3>
+        <h3 class="font-semibold text-slate-700 dark:text-slate-200 mb-4">إدارة الهيكل الأكاديمي</h3>
         <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-            <a href="/academics/years/create" 
-               class="bg-primary-50 hover:bg-primary-100 dark:bg-primary-900/20 dark:hover:bg-primary-900/30 text-primary-600 dark:text-primary-400 px-4 py-3 rounded-lg text-sm font-medium transition-colors duration-200 text-center">
-                <span class="block text-xl mb-1">📅</span>
-                عام دراسي
+            <a href="/academics/years/list" 
+               class="bg-slate-50 hover:bg-slate-100 dark:bg-slate-700/30 dark:hover:bg-slate-700/50 text-slate-700 dark:text-slate-300 px-4 py-3 rounded-lg text-sm font-medium transition-colors duration-200 text-center border border-slate-200 dark:border-slate-700">
+                📅 الأعوام الدراسية
             </a>
-            <a href="/academics/stages/create" 
-               class="bg-primary-50 hover:bg-primary-100 dark:bg-primary-900/20 dark:hover:bg-primary-900/30 text-primary-600 dark:text-primary-400 px-4 py-3 rounded-lg text-sm font-medium transition-colors duration-200 text-center">
-                <span class="block text-xl mb-1">📚</span>
-                مرحلة
+            <a href="/academics/stages/list" 
+               class="bg-slate-50 hover:bg-slate-100 dark:bg-slate-700/30 dark:hover:bg-slate-700/50 text-slate-700 dark:text-slate-300 px-4 py-3 rounded-lg text-sm font-medium transition-colors duration-200 text-center border border-slate-200 dark:border-slate-700">
+                📚 المراحل
             </a>
-            <a href="/academics/grades/create" 
-               class="bg-primary-50 hover:bg-primary-100 dark:bg-primary-900/20 dark:hover:bg-primary-900/30 text-primary-600 dark:text-primary-400 px-4 py-3 rounded-lg text-sm font-medium transition-colors duration-200 text-center">
-                <span class="block text-xl mb-1">🏫</span>
-                صف
+            <a href="/academics/grades/list" 
+               class="bg-slate-50 hover:bg-slate-100 dark:bg-slate-700/30 dark:hover:bg-slate-700/50 text-slate-700 dark:text-slate-300 px-4 py-3 rounded-lg text-sm font-medium transition-colors duration-200 text-center border border-slate-200 dark:border-slate-700">
+                🏫 الصفوف
             </a>
-            <a href="/academics/sections/create" 
-               class="bg-primary-50 hover:bg-primary-100 dark:bg-primary-900/20 dark:hover:bg-primary-900/30 text-primary-600 dark:text-primary-400 px-4 py-3 rounded-lg text-sm font-medium transition-colors duration-200 text-center">
-                <span class="block text-xl mb-1">👥</span>
-                شعبة
+            <a href="/academics/sections/list" 
+               class="bg-slate-50 hover:bg-slate-100 dark:bg-slate-700/30 dark:hover:bg-slate-700/50 text-slate-700 dark:text-slate-300 px-4 py-3 rounded-lg text-sm font-medium transition-colors duration-200 text-center border border-slate-200 dark:border-slate-700">
+                👥 الشعب
             </a>
-            <a href="/academics/subjects/create" 
-               class="bg-primary-50 hover:bg-primary-100 dark:bg-primary-900/20 dark:hover:bg-primary-900/30 text-primary-600 dark:text-primary-400 px-4 py-3 rounded-lg text-sm font-medium transition-colors duration-200 text-center">
-                <span class="block text-xl mb-1">📖</span>
-                مادة
+            <a href="/academics/subjects/list" 
+               class="bg-slate-50 hover:bg-slate-100 dark:bg-slate-700/30 dark:hover:bg-slate-700/50 text-slate-700 dark:text-slate-300 px-4 py-3 rounded-lg text-sm font-medium transition-colors duration-200 text-center border border-slate-200 dark:border-slate-700">
+                📖 المواد
             </a>
-            <a href="/academics/rooms/create" 
-               class="bg-primary-50 hover:bg-primary-100 dark:bg-primary-900/20 dark:hover:bg-primary-900/30 text-primary-600 dark:text-primary-400 px-4 py-3 rounded-lg text-sm font-medium transition-colors duration-200 text-center">
-                <span class="block text-xl mb-1">🚪</span>
-                قاعة
+            <a href="/academics/rooms/list" 
+               class="bg-slate-50 hover:bg-slate-100 dark:bg-slate-700/30 dark:hover:bg-slate-700/50 text-slate-700 dark:text-slate-300 px-4 py-3 rounded-lg text-sm font-medium transition-colors duration-200 text-center border border-slate-200 dark:border-slate-700">
+                🚪 القاعات
             </a>
-            <a href="/academics/periods/create" 
-               class="bg-primary-50 hover:bg-primary-100 dark:bg-primary-900/20 dark:hover:bg-primary-900/30 text-primary-600 dark:text-primary-400 px-4 py-3 rounded-lg text-sm font-medium transition-colors duration-200 text-center">
-                <span class="block text-xl mb-1">⏰</span>
-                فصل (حصة)
+            <a href="/academics/periods/list" 
+               class="bg-slate-50 hover:bg-slate-100 dark:bg-slate-700/30 dark:hover:bg-slate-700/50 text-slate-700 dark:text-slate-300 px-4 py-3 rounded-lg text-sm font-medium transition-colors duration-200 text-center border border-slate-200 dark:border-slate-700">
+                ⏰ الفصول (الحصص)
+            </a>
+            <a href="/academics/tree" 
+               class="bg-primary-50 hover:bg-primary-100 dark:bg-primary-900/20 dark:hover:bg-primary-900/30 text-primary-600 dark:text-primary-400 px-4 py-3 rounded-lg text-sm font-medium transition-colors duration-200 text-center border border-primary-200 dark:border-primary-800">
+                🌳 الشجرة الأكاديمية
             </a>
         </div>
     </div>
-    {% endif %}
 </div>
-
-<!-- حذف الـ Modals والـ JavaScript الخاص بها -->
-<script src="/static/js/academics.js"></script>
 {% endblock %}
