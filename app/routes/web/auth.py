@@ -18,8 +18,8 @@ templates = Jinja2Templates(directory="app/templates")
 # قاموس عرض الأدوار
 ROLE_DISPLAY = {
     "director": "مدير",
-    "vice_principal": "وكيل",
-    "activities_officer": "مسؤول أنشطة",
+    "deputy": "وكيل",
+    "activities_manager": "مسؤول أنشطة",
     "teacher": "معلم"
 }
 
@@ -220,7 +220,7 @@ async def register_agent(
                 employee_number=agent_number,
                 phone=agent_phone if agent_phone else None,
                 school_code=school_code,
-                role_name="vice_principal"  # وكيل
+                role_name="deputy"  # وكيل
             )
         )
         
@@ -238,7 +238,7 @@ async def register_agent(
         # تعيين دور الوكيل
         resp.set_cookie(
             key="selected_role",
-            value="vice_principal",
+            value="deputy",
             max_age=settings.SESSION_MAX_AGE,
             httponly=True,
             secure=settings.SESSION_SECURE,
@@ -287,7 +287,7 @@ async def register_activity(
                 employee_number=activity_number,
                 phone=activity_phone if activity_phone else None,
                 school_code=school_code,
-                role_name="activities_officer"  # مسؤول أنشطة
+                role_name="activities_manager"  # مسؤول أنشطة
             )
         )
         
@@ -305,7 +305,7 @@ async def register_activity(
         # تعيين دور مسؤول الأنشطة
         resp.set_cookie(
             key="selected_role",
-            value="activities_officer",
+            value="activities_manager",
             max_age=settings.SESSION_MAX_AGE,
             httponly=True,
             secure=settings.SESSION_SECURE,
