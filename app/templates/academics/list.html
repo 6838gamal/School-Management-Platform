@@ -1,0 +1,125 @@
+{% extends "layouts/director.html" %}
+{% block content %}
+<div class="space-y-6">
+    <!-- العنوان والأزرار -->
+    <div class="flex items-center justify-between">
+        <h1 class="text-2xl font-bold text-slate-800 dark:text-white">{{ title }}</h1>
+        <div class="flex gap-3">
+            <a href="/academics" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 text-sm flex items-center">
+                ← العودة
+            </a>
+            {% if can('academics.create') %}
+            <a href="/academics/{{ type }}/create" class="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200 flex items-center">
+                + إضافة جديد
+            </a>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- جدول البيانات -->
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 overflow-hidden">
+        {% if items %}
+        <div class="overflow-x-auto">
+            <table class="w-full">
+                <thead class="bg-slate-50 dark:bg-slate-700/30">
+                    <tr>
+                        <th class="text-right px-6 py-3 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">#</th>
+                        <th class="text-right px-6 py-3 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">الاسم</th>
+                        {% if type == 'years' %}
+                        <th class="text-right px-6 py-3 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">الحالة</th>
+                        {% elif type == 'sections' %}
+                        <th class="text-right px-6 py-3 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">السعة</th>
+                        {% elif type == 'periods' %}
+                        <th class="text-right px-6 py-3 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">الترتيب</th>
+                        <th class="text-right px-6 py-3 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">الوقت</th>
+                        {% endif %}
+                        <th class="text-center px-6 py-3 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">الإجراءات</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
+                    {% for item in items %}
+                    <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/20 transition-colors duration-200">
+                        <td class="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">{{ loop.index }}</td>
+                        <td class="px-6 py-4 text-sm font-medium text-slate-800 dark:text-white">{{ item.name }}</td>
+                        
+                        {% if type == 'years' %}
+                        <td class="px-6 py-4 text-sm">
+                            {% if item.is_current %}
+                            <span class="px-2 py-1 text-xs bg-primary-50 text-primary-600 rounded-full">حالي</span>
+                            {% else %}
+                            <span class="px-2 py-1 text-xs bg-slate-100 text-slate-400 rounded-full">سابق</span>
+                            {% endif %}
+                        </td>
+                        {% elif type == 'sections' %}
+                        <td class="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">{{ item.capacity }}</td>
+                        {% elif type == 'periods' %}
+                        <td class="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">{{ item.order }}</td>
+                        <td class="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">
+                            {{ item.start_time }} - {{ item.end_time }}
+                            {% if item.is_break %}
+                            <span class="px-2 py-1 text-xs bg-yellow-50 text-yellow-600 rounded-full mr-2">استراحة</span>
+                            {% endif %}
+                        </td>
+                        {% endif %}
+                        
+                        <td class="px-6 py-4 text-center">
+                            <div class="flex items-center justify-center gap-2">
+                                {% if can('academics.edit') %}
+                                <a href="/academics/{{ type }}/{{ item.id }}/edit" 
+                                   class="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 text-sm">
+                                    تعديل
+                                </a>
+                                {% endif %}
+                                {% if can('academics.delete') %}
+                                <button onclick="confirmDelete('/api/academics/{{ type }}/{{ item.id }}', 'هل أنت متأكد من حذف هذا العنصر؟')" 
+                                        class="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 text-sm">
+                                    حذف
+                                </button>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="p-12 text-center">
+            <div class="text-6xl mb-4">📭</div>
+            <h3 class="text-lg font-medium text-slate-700 dark:text-slate-300 mb-2">لا توجد بيانات</h3>
+            <p class="text-slate-400 text-sm mb-4">لم يتم إضافة أي عناصر حتى الآن</p>
+            {% if can('academics.create') %}
+            <a href="/academics/{{ type }}/create" class="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200">
+                أضف أول عنصر
+            </a>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+function confirmDelete(url, message = 'هل أنت متأكد من الحذف؟') {
+    if (confirm(message)) {
+        fetch(url, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                window.location.reload();
+            } else {
+                alert('حدث خطأ أثناء الحذف: ' + data.message);
+            }
+        })
+        .catch(error => {
+            alert('حدث خطأ في الاتصال بالخادم');
+            console.error(error);
+        });
+    }
+}
+</script>
+{% endblock %}
