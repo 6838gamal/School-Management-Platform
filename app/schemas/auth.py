@@ -27,7 +27,7 @@ class RegisterUserRequest(BaseModel):
     employee_number: Optional[str] = Field(None, description="الرقم الوظيفي (اختياري)")  # ✅ جعلته اختيارياً
     phone: Optional[str] = Field(None, description="رقم الجوال (اختياري)")
     school_code: str = Field(..., description="رمز المدرسة للانضمام")
-    role_name: str = Field(..., description="اسم الدور (deputy, activities, teacher)")
+    role_name: str = Field(..., description="اسم الدور (deputy, activities_manager, teacher)")
     extra_data: Optional[Dict[str, Any]] = Field(default_factory=dict, description="بيانات إضافية")
     
     @validator('phone')
@@ -65,7 +65,7 @@ class RegisterUserRequest(BaseModel):
     def validate_role(cls, v):
         """التحقق من صحة اسم الدور - مطابق لقاعدة البيانات"""
         # ✅ تحديث الأدوار المسموحة لتطابق قاعدة البيانات
-        allowed_roles = ['deputy', 'activities', 'teacher']
+        allowed_roles = ['deputy', 'activities_manager', 'teacher']
         if v not in allowed_roles:
             raise ValueError(
                 f'الدور غير مسموح. الأدوار المسموحة: {", ".join(allowed_roles)}'
