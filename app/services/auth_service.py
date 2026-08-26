@@ -8,7 +8,7 @@ import bcrypt
 
 from app.core.config import settings
 from app.core.exceptions import UnauthorizedException, ValidationException
-from app.core.security import encode_session, decode_session  # ✅ استخدام دوال security
+from app.core.security import encode_session, decode_session
 from app.models.users import User
 from app.models.users import Role
 from app.models.schools import School
@@ -73,11 +73,10 @@ class AuthService:
         ملاحظة: استخدام encode_session من security.py لتوحيد التشفير
         """
         payload = {
-            "user_id": user_id,  # ✅ استخدام user_id (مطابق لـ dependencies.py)
+            "user_id": user_id,
             "email": email,
             "roles": roles,
         }
-        # ✅ استخدام encode_session من security.py
         return encode_session(payload, max_age=settings.SESSION_MAX_AGE)
     
     def _decode_token(self, token: str) -> Dict[str, Any]:
@@ -86,7 +85,6 @@ class AuthService:
         
         ملاحظة: استخدام decode_session من security.py لتوحيد التشفير
         """
-        # ✅ استخدام decode_session من security.py
         payload = decode_session(token, max_age=settings.SESSION_MAX_AGE)
         if not payload:
             raise UnauthorizedException("توكن غير صالح أو منتهي الصلاحية")
@@ -203,14 +201,64 @@ class AuthService:
         
         return role
     
+    # ============================================
+    # ✅ دوال جلب الأدوار (محدثة - استعلام مباشر)
+    # ============================================
+    
     async def _get_user_roles(self, user: User) -> List[str]:
-        """الحصول على مفاتيح أدوار المستخدم"""
-        roles = []
-        for user_role in user.user_roles:
-            if user_role.role:
-                roles.append(user_role.role.key)
-        logger.info(f"📋 أدوار المستخدم {user.email}: {roles}")
-        return roles
+        """
+        الحصول على مفاتيح أدوار المستخدم باستعلام مباشر من قاعدة البيانات
+        
+        ✅ تم التحديث لاستخدام استعلام مباشر بدلاً من الاعتماد على العلاقة
+        """
+        try:
+            from sqlalchemy import select
+            from app.models.users import UserRole, Role
+            
+            result = await self.db.execute(
+                select(Role.key)
+                .join(UserRole, UserRole.role_id == Role.id)
+                .where(UserRole.user_id == user.id)
+            )
+            roles = result.scalars().all()
+            
+            logger.info(f"📋 أدوار المستخدم {user.email}: {roles}")
+            return list(roles)
+            
+        except Exception as e:
+            logger.error(f"❌ خطأ في جلب أدوار المستخدم {user.email}: {str(e)}")
+            return []
+    
+    async def _get_user_roles_with_details(self, user: User) -> List[Dict[str, Any]]:
+        """
+        الحصول على تفاصيل أدوار المستخدم (للاستخدام في Debug)
+        """
+        try:
+            from sqlalchemy import select
+            from app.models.users import UserRole, Role
+            
+            result = await self.db.execute(
+                select(Role)
+                .join(UserRole, UserRole.role_id == Role.id)
+                .where(UserRole.user_id == user.id)
+            )
+            roles = result.scalars().all()
+            
+            return [
+                {
+                    "id": r.id,
+                    "key": r.key,
+                    "name_ar": r.name_ar,
+                    "name_en": r.name_en,
+                    "school_id": r.school_id,
+                    "is_system": r.is_system,
+                }
+                for r in roles
+            ]
+            
+        except Exception as e:
+            logger.error(f"❌ خطأ في جلب تفاصيل أدوار المستخدم: {str(e)}")
+            return []
     
     # ============================================
     # دوال التسجيل مع logging
@@ -298,7 +346,7 @@ class AuthService:
             await self.db.refresh(user)
             logger.info(f"✅ تم ربط المستخدم بالدور: {role.key}")
             
-            # 7. تحويل إلى استجابة
+            # 7. تحويل إلى استجابة - استخدام الدالة المحدثة
             roles = await self._get_user_roles(user)
             user_data = {
                 "id": str(user.id),
@@ -310,7 +358,7 @@ class AuthService:
                 "roles": roles,
             }
             
-            logger.info("✅ ✅ ✅ تم تسجيل المستخدم بنجاح!")
+            logger.info(f"✅ ✅ ✅ تم تسجيل المستخدم بنجاح! الأدوار: {roles}")
             logger.info("=" * 60)
             
             return {"user": user_data}
@@ -389,7 +437,7 @@ class AuthService:
             await self.db.refresh(user)
             logger.info(f"✅ تم ربط المدير بالدور: {role.key}")
             
-            # 7. تحويل إلى استجابة
+            # 7. تحويل إلى استجابة - استخدام الدالة المحدثة
             roles = await self._get_user_roles(user)
             user_data = {
                 "id": str(user.id),
@@ -401,7 +449,7 @@ class AuthService:
                 "roles": roles,
             }
             
-            logger.info("✅ ✅ ✅ تم تسجيل المدرسة والمدير بنجاح!")
+            logger.info(f"✅ ✅ ✅ تم تسجيل المدرسة والمدير بنجاح! الأدوار: {roles}")
             logger.info("=" * 60)
             
             return {
@@ -456,8 +504,9 @@ class AuthService:
             
             logger.info("✅ الحساب نشط")
             
-            # 4. الحصول على الأدوار
+            # 4. الحصول على الأدوار - استخدام الدالة المحدثة
             roles = await self._get_user_roles(user)
+            
             if not roles:
                 logger.warning(f"❌ فشل تسجيل الدخول: لا توجد أدوار للمستخدم ({email})")
                 logger.info("=" * 60)
@@ -480,7 +529,7 @@ class AuthService:
                 "roles": roles,
             }
             
-            logger.info(f"✅ ✅ ✅ تسجيل الدخول ناجح: {user.email}")
+            logger.info(f"✅ ✅ ✅ تسجيل الدخول ناجح: {user.email} - الأدوار: {roles}")
             logger.info("=" * 60)
             
             return {
@@ -552,3 +601,41 @@ class AuthService:
         
         logger.info("=" * 60)
         return roles_data
+    
+    async def debug_get_user_roles_direct(self, email: str) -> Dict[str, Any]:
+        """التحقق المباشر من أدوار مستخدم معين (Debug)"""
+        user = await self._get_user_by_email(email)
+        if not user:
+            return {"error": f"المستخدم غير موجود: {email}"}
+        
+        # استعلام مباشر
+        from sqlalchemy import select
+        from app.models.users import UserRole, Role
+        
+        result = await self.db.execute(
+            select(Role)
+            .join(UserRole, UserRole.role_id == Role.id)
+            .where(UserRole.user_id == user.id)
+        )
+        roles = result.scalars().all()
+        
+        return {
+            "user": {
+                "id": user.id,
+                "email": user.email,
+                "full_name": user.full_name,
+                "school_id": user.school_id,
+                "is_active": user.is_active,
+            },
+            "roles": [
+                {
+                    "id": r.id,
+                    "key": r.key,
+                    "name_ar": r.name_ar,
+                    "name_en": r.name_en,
+                }
+                for r in roles
+            ],
+            "roles_count": len(roles),
+            "has_roles": len(roles) > 0,
+        }
