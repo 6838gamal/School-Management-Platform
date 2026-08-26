@@ -4,6 +4,18 @@ Application entry point.
 Assembles the FastAPI app, mounts static files, configures Jinja2,
 registers all web and API routers, and wires exception handlers.
 """
+import logging
+
+# إعداد logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+
+# تعيين مستوى logging لخدمة المصادقة
+logger = logging.getLogger("app.services.auth_service")
+logger.setLevel(logging.INFO)
+
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
