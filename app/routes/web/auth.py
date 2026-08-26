@@ -9,17 +9,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.dependencies import template_context
-from app.core.exceptions import UnauthorizedException
+from app.core.exceptions import UnauthorizedException, ValidationException
 from app.services.auth_service import AuthService
 
 router = APIRouter(prefix="", tags=["auth"])
 templates = Jinja2Templates(directory="app/templates")
 
-# قاموس عرض الأدوار
+# ✅ قاموس عرض الأدوار - مطابق لقاعدة البيانات
 ROLE_DISPLAY = {
     "director": "مدير",
     "deputy": "وكيل",
-    "activities_manager": "مسؤول أنشطة",
+    "activities": "مسؤول أنشطة",
     "teacher": "معلم"
 }
 
@@ -134,12 +134,13 @@ async def register_submit(
     school_code: str = Form(...),
     director_name: str = Form(...),
     director_email: str = Form(...),
-    director_phone: str = Form(None),  # اختياري
+    director_phone: str = Form(None),
     director_password: str = Form(...),
     db: AsyncSession = Depends(get_db),
 ):
     from app.schemas.auth import RegisterSchoolRequest
     service = AuthService(db)
+    
     try:
         result = await service.register_school(
             RegisterSchoolRequest(
@@ -163,7 +164,6 @@ async def register_submit(
             secure=settings.SESSION_SECURE,
             samesite=settings.SESSION_SAMESITE,
         )
-        # تعيين دور المدير
         resp.set_cookie(
             key="selected_role",
             value="director",
@@ -174,7 +174,7 @@ async def register_submit(
         )
         return resp
         
-    except Exception as e:
+    except ValidationException as e:
         return templates.TemplateResponse(
             "auth/register.html",
             {
@@ -187,6 +187,23 @@ async def register_submit(
                 "director_email": director_email,
                 "director_phone": director_phone,
                 "current_user": None,
+                "active_tab": "director",
+            }
+        )
+    except Exception as e:
+        return templates.TemplateResponse(
+            "auth/register.html",
+            {
+                "request": request,
+                "title": "تسجيل مستخدم جديد",
+                "error": f"⚠️ حدث خطأ غير متوقع: {str(e)}",
+                "school_name": school_name,
+                "school_code": school_code,
+                "director_name": director_name,
+                "director_email": director_email,
+                "director_phone": director_phone,
+                "current_user": None,
+                "active_tab": "director",
             }
         )
 
@@ -201,7 +218,7 @@ async def register_agent(
     agent_number: str = Form(...),
     agent_name: str = Form(...),
     agent_email: str = Form(...),
-    agent_phone: str = Form(None),  # اختياري
+    agent_phone: str = Form(None),
     agent_password: str = Form(...),
     school_code: str = Form(...),
     db: AsyncSession = Depends(get_db),
@@ -211,7 +228,6 @@ async def register_agent(
     service = AuthService(db)
     
     try:
-        # إنشاء المستخدم كـ "وكيل"
         result = await service.register_user(
             RegisterUserRequest(
                 email=agent_email,
@@ -220,7 +236,7 @@ async def register_agent(
                 employee_number=agent_number,
                 phone=agent_phone if agent_phone else None,
                 school_code=school_code,
-                role_name="deputy"  # وكيل
+                role_name="deputy"
             )
         )
         
@@ -235,7 +251,6 @@ async def register_agent(
             secure=settings.SESSION_SECURE,
             samesite=settings.SESSION_SAMESITE,
         )
-        # تعيين دور الوكيل
         resp.set_cookie(
             key="selected_role",
             value="deputy",
@@ -246,7 +261,7 @@ async def register_agent(
         )
         return resp
         
-    except Exception as e:
+    except ValidationException as e:
         return templates.TemplateResponse(
             "auth/register.html",
             {
@@ -257,7 +272,25 @@ async def register_agent(
                 "agent_email": agent_email,
                 "agent_number": agent_number,
                 "agent_phone": agent_phone,
+                "school_code": school_code,
                 "current_user": None,
+                "active_tab": "agent",
+            }
+        )
+    except Exception as e:
+        return templates.TemplateResponse(
+            "auth/register.html",
+            {
+                "request": request,
+                "title": "تسجيل مستخدم جديد",
+                "error": f"⚠️ حدث خطأ غير متوقع: {str(e)}",
+                "agent_name": agent_name,
+                "agent_email": agent_email,
+                "agent_number": agent_number,
+                "agent_phone": agent_phone,
+                "school_code": school_code,
+                "current_user": None,
+                "active_tab": "agent",
             }
         )
 
@@ -268,7 +301,7 @@ async def register_activity(
     activity_number: str = Form(...),
     activity_name: str = Form(...),
     activity_email: str = Form(...),
-    activity_phone: str = Form(None),  # اختياري
+    activity_phone: str = Form(None),
     activity_password: str = Form(...),
     school_code: str = Form(...),
     db: AsyncSession = Depends(get_db),
@@ -278,7 +311,6 @@ async def register_activity(
     service = AuthService(db)
     
     try:
-        # إنشاء المستخدم كـ "مسؤول أنشطة"
         result = await service.register_user(
             RegisterUserRequest(
                 email=activity_email,
@@ -287,7 +319,7 @@ async def register_activity(
                 employee_number=activity_number,
                 phone=activity_phone if activity_phone else None,
                 school_code=school_code,
-                role_name="activities_manager"  # مسؤول أنشطة
+                role_name="activities"
             )
         )
         
@@ -302,10 +334,9 @@ async def register_activity(
             secure=settings.SESSION_SECURE,
             samesite=settings.SESSION_SAMESITE,
         )
-        # تعيين دور مسؤول الأنشطة
         resp.set_cookie(
             key="selected_role",
-            value="activities_manager",
+            value="activities",
             max_age=settings.SESSION_MAX_AGE,
             httponly=True,
             secure=settings.SESSION_SECURE,
@@ -313,7 +344,7 @@ async def register_activity(
         )
         return resp
         
-    except Exception as e:
+    except ValidationException as e:
         return templates.TemplateResponse(
             "auth/register.html",
             {
@@ -324,7 +355,25 @@ async def register_activity(
                 "activity_email": activity_email,
                 "activity_number": activity_number,
                 "activity_phone": activity_phone,
+                "school_code": school_code,
                 "current_user": None,
+                "active_tab": "activity",
+            }
+        )
+    except Exception as e:
+        return templates.TemplateResponse(
+            "auth/register.html",
+            {
+                "request": request,
+                "title": "تسجيل مستخدم جديد",
+                "error": f"⚠️ حدث خطأ غير متوقع: {str(e)}",
+                "activity_name": activity_name,
+                "activity_email": activity_email,
+                "activity_number": activity_number,
+                "activity_phone": activity_phone,
+                "school_code": school_code,
+                "current_user": None,
+                "active_tab": "activity",
             }
         )
 
@@ -335,10 +384,10 @@ async def register_teacher(
     teacher_number: str = Form(...),
     teacher_name: str = Form(...),
     teacher_email: str = Form(...),
-    teacher_phone: str = Form(None),  # اختياري
+    teacher_phone: str = Form(None),
     teacher_password: str = Form(...),
     school_code: str = Form(...),
-    subject: str = Form(None),  # اختياري
+    subject: str = Form(None),
     db: AsyncSession = Depends(get_db),
 ):
     """تسجيل معلم جديد"""
@@ -346,7 +395,6 @@ async def register_teacher(
     service = AuthService(db)
     
     try:
-        # إنشاء المستخدم كـ "معلم"
         result = await service.register_user(
             RegisterUserRequest(
                 email=teacher_email,
@@ -355,7 +403,7 @@ async def register_teacher(
                 employee_number=teacher_number,
                 phone=teacher_phone if teacher_phone else None,
                 school_code=school_code,
-                role_name="teacher",  # معلم
+                role_name="teacher",
                 extra_data={"subject": subject} if subject else {}
             )
         )
@@ -371,7 +419,6 @@ async def register_teacher(
             secure=settings.SESSION_SECURE,
             samesite=settings.SESSION_SAMESITE,
         )
-        # تعيين دور المعلم
         resp.set_cookie(
             key="selected_role",
             value="teacher",
@@ -382,7 +429,7 @@ async def register_teacher(
         )
         return resp
         
-    except Exception as e:
+    except ValidationException as e:
         return templates.TemplateResponse(
             "auth/register.html",
             {
@@ -393,8 +440,27 @@ async def register_teacher(
                 "teacher_email": teacher_email,
                 "teacher_number": teacher_number,
                 "teacher_phone": teacher_phone,
+                "school_code": school_code,
                 "subject": subject,
                 "current_user": None,
+                "active_tab": "teacher",
+            }
+        )
+    except Exception as e:
+        return templates.TemplateResponse(
+            "auth/register.html",
+            {
+                "request": request,
+                "title": "تسجيل مستخدم جديد",
+                "error": f"⚠️ حدث خطأ غير متوقع: {str(e)}",
+                "teacher_name": teacher_name,
+                "teacher_email": teacher_email,
+                "teacher_number": teacher_number,
+                "teacher_phone": teacher_phone,
+                "school_code": school_code,
+                "subject": subject,
+                "current_user": None,
+                "active_tab": "teacher",
             }
         )
 
