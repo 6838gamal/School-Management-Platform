@@ -261,6 +261,223 @@ class AuthService:
             return []
     
     # ============================================
+    # ✅ دوال إدارة الصلاحيات والأدوار (مضافة)
+    # ============================================
+    
+    async def ensure_system_roles_and_permissions(self, school_id: str) -> None:
+        """
+        التأكد من وجود جميع الأدوار والصلاحيات للنظام في مدرسة معينة
+        
+        هذه الدالة تقوم بإنشاء:
+        1. جميع الصلاحيات المحددة في PERMISSIONS
+        2. جميع الأدوار المحددة في ROLE_PERMISSIONS مع صلاحياتها
+        """
+        from app.core.permissions import PERMISSIONS, ROLE_PERMISSIONS, ROLE_LABELS
+        from app.models.users import Permission, RolePermission
+        
+        logger.info("=" * 60)
+        logger.info(f"🔧 بدء تهيئة الصلاحيات والأدوار للمدرسة: {school_id}")
+        
+        try:
+            # 1. إنشاء جميع الصلاحيات
+            logger.info("📝 جاري إنشاء الصلاحيات...")
+            for perm_def in PERMISSIONS:
+                stmt = select(Permission).where(Permission.key == perm_def.key)
+                result = await self.db.execute(stmt)
+                existing_perm = result.scalar_one_or_none()
+                
+                if not existing_perm:
+                    perm = Permission(
+                        key=perm_def.key,
+                        label_ar=perm_def.label_ar,
+                        label_en=perm_def.label_en,
+                        group=perm_def.group
+                    )
+                    self.db.add(perm)
+                    logger.info(f"   ✅ تم إنشاء صلاحية: {perm_def.key}")
+                else:
+                    logger.info(f"   ⏭️ صلاحية موجودة: {perm_def.key}")
+            
+            await self.db.flush()
+            logger.info("✅ تم إنشاء جميع الصلاحيات")
+            
+            # 2. جلب جميع الصلاحيات لاستخدامها لاحقاً
+            stmt = select(Permission)
+            result = await self.db.execute(stmt)
+            all_perms = result.scalars().all()
+            perm_dict = {p.key: p for p in all_perms}
+            logger.info(f"📊 عدد الصلاحيات الكلي: {len(perm_dict)}")
+            
+            # 3. إنشاء الأدوار مع صلاحياتها
+            logger.info("📝 جاري إنشاء الأدوار...")
+            for role_key, perm_keys in ROLE_PERMISSIONS.items():
+                # البحث عن الدور في المدرسة
+                stmt = select(Role).where(
+                    Role.school_id == school_id,
+                    Role.key == role_key
+                )
+                result = await self.db.execute(stmt)
+                existing_role = result.scalar_one_or_none()
+                
+                if not existing_role:
+                    # إنشاء الدور
+                    role = Role(
+                        school_id=school_id,
+                        key=role_key,
+                        name_ar=ROLE_LABELS.get(role_key, {}).get("ar", role_key),
+                        name_en=ROLE_LABELS.get(role_key, {}).get("en", role_key),
+                        description=f"دور {ROLE_LABELS.get(role_key, {}).get('ar', role_key)} في المدرسة",
+                        is_system=True
+                    )
+                    self.db.add(role)
+                    await self.db.flush()
+                    logger.info(f"   ✅ تم إنشاء دور: {role_key} (ID: {role.id})")
+                    
+                    # إضافة الصلاحيات للدور
+                    for perm_key in perm_keys:
+                        if perm_key in perm_dict:
+                            role_permission = RolePermission(
+                                role_id=role.id,
+                                permission_id=perm_dict[perm_key].id
+                            )
+                            self.db.add(role_permission)
+                            logger.info(f"      🔑 صلاحية '{perm_key}' مضافة للدور '{role_key}'")
+                else:
+                    logger.info(f"   ⏭️ دور موجود: {role_key}")
+            
+            await self.db.flush()
+            logger.info("✅ تم إنشاء جميع الأدوار والصلاحيات")
+            logger.info("=" * 60)
+            
+        except Exception as e:
+            logger.error(f"❌ خطأ في تهيئة الصلاحيات والأدوار: {str(e)}")
+            logger.info("=" * 60)
+            raise
+
+    async def ensure_user_has_role(self, user_id: str, role_name: str) -> bool:
+        """
+        التأكد من أن المستخدم لديه الدور المطلوب
+        
+        Args:
+            user_id: معرف المستخدم
+            role_name: مفتاح الدور (مثل director, deputy, teacher, activities)
+        
+        Returns:
+            bool: True إذا تم التأكد من وجود الدور، False إذا فشل
+        """
+        logger.info(f"🔍 التحقق من دور المستخدم: user_id={user_id}, role={role_name}")
+        
+        try:
+            # 1. جلب الدور
+            stmt = select(Role).where(
+                Role.key == role_name,
+                Role.is_system == True
+            )
+            result = await self.db.execute(stmt)
+            role = result.scalar_one_or_none()
+            
+            if not role:
+                logger.error(f"❌ الدور '{role_name}' غير موجود في النظام")
+                return False
+            
+            # 2. التحقق من وجود العلاقة
+            stmt = select(UserRole).where(
+                UserRole.user_id == user_id,
+                UserRole.role_id == role.id
+            )
+            result = await self.db.execute(stmt)
+            user_role = result.scalar_one_or_none()
+            
+            if not user_role:
+                # إضافة الدور للمستخدم
+                user_role = UserRole(user_id=user_id, role_id=role.id)
+                self.db.add(user_role)
+                await self.db.flush()
+                logger.info(f"✅ تم إضافة دور '{role_name}' للمستخدم {user_id}")
+                return True
+            else:
+                logger.info(f"✅ المستخدم لديه بالفعل دور '{role_name}'")
+                return True
+                
+        except Exception as e:
+            logger.error(f"❌ خطأ في إضافة دور للمستخدم: {str(e)}")
+            return False
+
+    async def get_user_permissions(self, user_id: str) -> List[str]:
+        """
+        الحصول على جميع صلاحيات المستخدم
+        
+        Args:
+            user_id: معرف المستخدم
+        
+        Returns:
+            List[str]: قائمة بمفاتيح الصلاحيات
+        """
+        from app.models.users import Permission, RolePermission
+        
+        logger.info(f"🔍 جلب صلاحيات المستخدم: {user_id}")
+        
+        try:
+            # استعلام لجلب جميع الصلاحيات من خلال أدوار المستخدم
+            stmt = (
+                select(Permission.key)
+                .join(RolePermission, RolePermission.permission_id == Permission.id)
+                .join(UserRole, UserRole.role_id == RolePermission.role_id)
+                .where(UserRole.user_id == user_id)
+            )
+            result = await self.db.execute(stmt)
+            permissions = result.scalars().all()
+            
+            logger.info(f"✅ صلاحيات المستخدم: {permissions}")
+            return list(permissions)
+            
+        except Exception as e:
+            logger.error(f"❌ خطأ في جلب صلاحيات المستخدم: {str(e)}")
+            return []
+
+    async def has_permission(self, user_id: str, permission_key: str) -> bool:
+        """
+        التحقق من أن المستخدم لديه صلاحية معينة
+        
+        Args:
+            user_id: معرف المستخدم
+            permission_key: مفتاح الصلاحية
+        
+        Returns:
+            bool: True إذا كان المستخدم لديه الصلاحية
+        """
+        permissions = await self.get_user_permissions(user_id)
+        return permission_key in permissions
+
+    async def has_any_permission(self, user_id: str, permission_keys: List[str]) -> bool:
+        """
+        التحقق من أن المستخدم لديه أي من الصلاحيات المحددة
+        
+        Args:
+            user_id: معرف المستخدم
+            permission_keys: قائمة مفاتيح الصلاحيات
+        
+        Returns:
+            bool: True إذا كان المستخدم لديه أي من هذه الصلاحيات
+        """
+        permissions = await self.get_user_permissions(user_id)
+        return any(p in permissions for p in permission_keys)
+
+    async def has_all_permissions(self, user_id: str, permission_keys: List[str]) -> bool:
+        """
+        التحقق من أن المستخدم لديه جميع الصلاحيات المحددة
+        
+        Args:
+            user_id: معرف المستخدم
+            permission_keys: قائمة مفاتيح الصلاحيات
+        
+        Returns:
+            bool: True إذا كان المستخدم لديه جميع هذه الصلاحيات
+        """
+        permissions = await self.get_user_permissions(user_id)
+        return all(p in permissions for p in permission_keys)
+    
+    # ============================================
     # دوال التسجيل مع logging
     # ============================================
     
@@ -286,40 +503,15 @@ class AuthService:
                 logger.error(f"❌ رمز المدرسة غير صحيح: {request.school_code}")
                 raise ValidationException("رمز المدرسة غير صحيح")
             
-            # 3. البحث عن الدور مع school_id
+            # 3. التأكد من وجود الصلاحيات والأدوار في النظام
+            await self.ensure_system_roles_and_permissions(school.id)
+            
+            # 4. البحث عن الدور مع school_id
             role = await self._get_role_by_key(request.role_name, school.id)
             
-            # 4. إذا لم يتم العثور على الدور، قم بإنشائه
             if not role:
-                logger.info(f"📝 الدور '{request.role_name}' غير موجود، جاري إنشائه...")
-                
-                # أسماء الأدوار بالعربية
-                role_names_ar = {
-                    "deputy": "وكيل",
-                    "activities": "مسؤول أنشطة",
-                    "teacher": "معلم"
-                }
-                
-                role_names_en = {
-                    "deputy": "Deputy",
-                    "activities": "Activities Officer",
-                    "teacher": "Teacher"
-                }
-                
-                name_ar = role_names_ar.get(request.role_name, request.role_name)
-                name_en = role_names_en.get(request.role_name, request.role_name)
-                
-                role = Role(
-                    school_id=school.id,
-                    key=request.role_name,
-                    name_ar=name_ar,
-                    name_en=name_en,
-                    description=f"{name_ar} في المدرسة",
-                    is_system=True
-                )
-                self.db.add(role)
-                await self.db.flush()
-                logger.info(f"✅ تم إنشاء الدور: {role.key} (ID: {role.id})")
+                logger.error(f"❌ الدور '{request.role_name}' غير موجود بعد التهيئة")
+                raise ValidationException(f"الدور '{request.role_name}' غير متاح")
             
             # 5. إنشاء المستخدم
             logger.info("✅ جميع التحققات اجتازت بنجاح، جاري إنشاء المستخدم...")
@@ -329,6 +521,7 @@ class AuthService:
                 password_hash=self._hash_password(request.password),
                 full_name=request.full_name,
                 phone=request.phone,
+                employee_number=getattr(request, 'employee_number', None),
                 school_id=school.id,
                 is_active=True,
             )
@@ -346,8 +539,10 @@ class AuthService:
             await self.db.refresh(user)
             logger.info(f"✅ تم ربط المستخدم بالدور: {role.key}")
             
-            # 7. تحويل إلى استجابة - استخدام الدالة المحدثة
+            # 7. تحويل إلى استجابة
             roles = await self._get_user_roles(user)
+            permissions = await self.get_user_permissions(user.id)
+            
             user_data = {
                 "id": str(user.id),
                 "email": user.email,
@@ -356,9 +551,11 @@ class AuthService:
                 "is_active": user.is_active,
                 "school_id": str(user.school_id) if user.school_id else None,
                 "roles": roles,
+                "permissions": permissions,
             }
             
             logger.info(f"✅ ✅ ✅ تم تسجيل المستخدم بنجاح! الأدوار: {roles}")
+            logger.info(f"   الصلاحيات: {permissions}")
             logger.info("=" * 60)
             
             return {"user": user_data}
@@ -400,21 +597,17 @@ class AuthService:
             await self.db.flush()
             logger.info(f"✅ تم إنشاء المدرسة: {school.name} (ID: {school.id})")
             
-            # 4. إنشاء دور المدير للمدرسة مباشرة
-            logger.info("📝 جاري إنشاء دور المدير للمدرسة...")
-            role = Role(
-                school_id=school.id,
-                key="director",
-                name_ar="مدير",
-                name_en="Director",
-                description="مدير المدرسة - صلاحيات كاملة",
-                is_system=True
-            )
-            self.db.add(role)
-            await self.db.flush()
-            logger.info(f"✅ تم إنشاء دور المدير: {role.key} (ID: {role.id})")
+            # 4. تهيئة جميع الصلاحيات والأدوار للمدرسة
+            await self.ensure_system_roles_and_permissions(school.id)
             
-            # 5. إنشاء المستخدم (المدير)
+            # 5. الحصول على دور المدير
+            role = await self._get_role_by_key("director", school.id)
+            
+            if not role:
+                logger.error("❌ دور المدير غير موجود بعد التهيئة")
+                raise ValidationException("فشل في إنشاء دور المدير")
+            
+            # 6. إنشاء المستخدم (المدير)
             user = User(
                 email=request.director_email.lower(),
                 password_hash=self._hash_password(request.director_password),
@@ -427,7 +620,7 @@ class AuthService:
             await self.db.flush()
             logger.info(f"✅ تم إنشاء المدير: {user.email} (ID: {user.id})")
             
-            # 6. ربط المستخدم بدور المدير
+            # 7. ربط المستخدم بدور المدير
             user_role = UserRole(
                 user_id=user.id,
                 role_id=role.id,
@@ -437,8 +630,10 @@ class AuthService:
             await self.db.refresh(user)
             logger.info(f"✅ تم ربط المدير بالدور: {role.key}")
             
-            # 7. تحويل إلى استجابة - استخدام الدالة المحدثة
+            # 8. تحويل إلى استجابة
             roles = await self._get_user_roles(user)
+            permissions = await self.get_user_permissions(user.id)
+            
             user_data = {
                 "id": str(user.id),
                 "email": user.email,
@@ -447,9 +642,11 @@ class AuthService:
                 "is_active": user.is_active,
                 "school_id": str(user.school_id) if user.school_id else None,
                 "roles": roles,
+                "permissions": permissions,
             }
             
             logger.info(f"✅ ✅ ✅ تم تسجيل المدرسة والمدير بنجاح! الأدوار: {roles}")
+            logger.info(f"   الصلاحيات: {permissions}")
             logger.info("=" * 60)
             
             return {
@@ -519,6 +716,8 @@ class AuthService:
             logger.info(f"✅ تم إنشاء التوكن للمستخدم: {user.email}")
             
             # 6. تحويل إلى استجابة
+            permissions = await self.get_user_permissions(user.id)
+            
             user_data = {
                 "id": str(user.id),
                 "email": user.email,
@@ -527,9 +726,11 @@ class AuthService:
                 "is_active": user.is_active,
                 "school_id": str(user.school_id) if user.school_id else None,
                 "roles": roles,
+                "permissions": permissions,
             }
             
             logger.info(f"✅ ✅ ✅ تسجيل الدخول ناجح: {user.email} - الأدوار: {roles}")
+            logger.info(f"   الصلاحيات: {permissions}")
             logger.info("=" * 60)
             
             return {
@@ -560,6 +761,7 @@ class AuthService:
         users_data = []
         for user in users:
             roles = await self._get_user_roles(user)
+            permissions = await self.get_user_permissions(user.id)
             user_info = {
                 "id": user.id,
                 "email": user.email,
@@ -567,6 +769,7 @@ class AuthService:
                 "is_active": user.is_active,
                 "school_id": user.school_id,
                 "roles": roles,
+                "permissions": permissions,
             }
             users_data.append(user_info)
             logger.info(f"  - ID: {user.id}, Email: {user.email}, Active: {user.is_active}, Roles: {roles}")
@@ -619,6 +822,8 @@ class AuthService:
         )
         roles = result.scalars().all()
         
+        permissions = await self.get_user_permissions(user.id)
+        
         return {
             "user": {
                 "id": user.id,
@@ -638,4 +843,6 @@ class AuthService:
             ],
             "roles_count": len(roles),
             "has_roles": len(roles) > 0,
+            "permissions": permissions,
+            "permissions_count": len(permissions),
         }
