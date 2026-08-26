@@ -122,7 +122,7 @@ async def login_submit(
 async def register_page(request: Request, ctx: dict = Depends(template_context)):
     if ctx.get("current_user"):
         return RedirectResponse("/dashboard", status_code=302)
-    return templates.TemplateResponse("auth/register.html", {**ctx, "title": "تسجيل مدرسة جديدة"})
+    return templates.TemplateResponse("auth/register.html", {**ctx, "title": "تسجيل مستخدم جديد"})
 
 
 @router.post("/register")
@@ -132,7 +132,7 @@ async def register_submit(
     school_code: str = Form(...),
     director_name: str = Form(...),
     director_email: str = Form(...),
-    director_phone: str = Form(...),  # ✅ إضافة رقم الجوال
+    director_phone: str = Form(None),  # اختياري
     director_password: str = Form(...),
     db: AsyncSession = Depends(get_db),
 ):
@@ -145,7 +145,7 @@ async def register_submit(
                 school_code=school_code,
                 director_name=director_name,
                 director_email=director_email,
-                director_phone=director_phone,  # ✅ إضافة رقم الجوال
+                director_phone=director_phone if director_phone else None,
                 director_password=director_password,
             )
         )
@@ -177,20 +177,20 @@ async def register_submit(
             "auth/register.html",
             {
                 "request": request,
-                "title": "تسجيل مدرسة جديدة",
+                "title": "تسجيل مستخدم جديد",
                 "error": str(e),
                 "school_name": school_name,
                 "school_code": school_code,
                 "director_name": director_name,
                 "director_email": director_email,
-                "director_phone": director_phone,  # ✅ إضافة رقم الجوال
+                "director_phone": director_phone,
                 "current_user": None,
             }
         )
 
 
 # ============================================
-# ✅ إضافة مسارات التسجيل للوكيل ومسؤول الأنشطة والمعلم
+# ✅ مسارات تسجيل الوكيل ومسؤول الأنشطة والمعلم
 # ============================================
 
 @router.post("/register-agent")
@@ -199,7 +199,7 @@ async def register_agent(
     agent_number: str = Form(...),
     agent_name: str = Form(...),
     agent_email: str = Form(...),
-    agent_phone: str = Form(...),  # ✅ إضافة رقم الجوال
+    agent_phone: str = Form(None),  # اختياري
     agent_password: str = Form(...),
     school_code: str = Form(...),
     db: AsyncSession = Depends(get_db),
@@ -216,7 +216,7 @@ async def register_agent(
                 password=agent_password,
                 full_name=agent_name,
                 employee_number=agent_number,
-                phone=agent_phone,  # ✅ إضافة رقم الجوال
+                phone=agent_phone if agent_phone else None,
                 school_code=school_code,
                 role_name="vice_principal"  # وكيل
             )
@@ -254,7 +254,7 @@ async def register_agent(
                 "agent_name": agent_name,
                 "agent_email": agent_email,
                 "agent_number": agent_number,
-                "agent_phone": agent_phone,  # ✅ إضافة رقم الجوال
+                "agent_phone": agent_phone,
                 "current_user": None,
             }
         )
@@ -266,7 +266,7 @@ async def register_activity(
     activity_number: str = Form(...),
     activity_name: str = Form(...),
     activity_email: str = Form(...),
-    activity_phone: str = Form(...),  # ✅ إضافة رقم الجوال
+    activity_phone: str = Form(None),  # اختياري
     activity_password: str = Form(...),
     school_code: str = Form(...),
     db: AsyncSession = Depends(get_db),
@@ -283,7 +283,7 @@ async def register_activity(
                 password=activity_password,
                 full_name=activity_name,
                 employee_number=activity_number,
-                phone=activity_phone,  # ✅ إضافة رقم الجوال
+                phone=activity_phone if activity_phone else None,
                 school_code=school_code,
                 role_name="activities_officer"  # مسؤول أنشطة
             )
@@ -321,7 +321,7 @@ async def register_activity(
                 "activity_name": activity_name,
                 "activity_email": activity_email,
                 "activity_number": activity_number,
-                "activity_phone": activity_phone,  # ✅ إضافة رقم الجوال
+                "activity_phone": activity_phone,
                 "current_user": None,
             }
         )
@@ -333,7 +333,7 @@ async def register_teacher(
     teacher_number: str = Form(...),
     teacher_name: str = Form(...),
     teacher_email: str = Form(...),
-    teacher_phone: str = Form(...),  # ✅ إضافة رقم الجوال
+    teacher_phone: str = Form(None),  # اختياري
     teacher_password: str = Form(...),
     school_code: str = Form(...),
     subject: str = Form(None),  # اختياري
@@ -351,7 +351,7 @@ async def register_teacher(
                 password=teacher_password,
                 full_name=teacher_name,
                 employee_number=teacher_number,
-                phone=teacher_phone,  # ✅ إضافة رقم الجوال
+                phone=teacher_phone if teacher_phone else None,
                 school_code=school_code,
                 role_name="teacher",  # معلم
                 extra_data={"subject": subject} if subject else {}
@@ -390,7 +390,7 @@ async def register_teacher(
                 "teacher_name": teacher_name,
                 "teacher_email": teacher_email,
                 "teacher_number": teacher_number,
-                "teacher_phone": teacher_phone,  # ✅ إضافة رقم الجوال
+                "teacher_phone": teacher_phone,
                 "subject": subject,
                 "current_user": None,
             }
