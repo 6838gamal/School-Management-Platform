@@ -2,7 +2,7 @@
 import logging
 from typing import Dict, Any, Optional, List
 from datetime import datetime, timedelta
-from jose import jwt  # ✅ استخدام jose بدلاً من jwt
+from jose import jwt
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from passlib.context import CryptContext
@@ -18,7 +18,6 @@ from app.schemas.auth import (
     RegisterUserRequest,
 )
 
-# إعداد logging
 logger = logging.getLogger(__name__)
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -80,7 +79,7 @@ class AuthService:
             logger.warning(f"❌ لم يتم العثور على مستخدم بالبريد: {email}")
         return user
     
-    async def _get_user_by_id(self, user_id: int) -> Optional[User]:
+    async def _get_user_by_id(self, user_id: str) -> Optional[User]:
         """الحصول على مستخدم بواسطة المعرف"""
         logger.info(f"🔍 البحث عن مستخدم بالمعرف: {user_id}")
         result = await self.db.execute(
@@ -106,31 +105,34 @@ class AuthService:
             logger.warning(f"❌ لم يتم العثور على مدرسة بالرمز: {school_code}")
         return school
     
-    async def _get_role_by_name(self, role_name: str) -> Optional[Role]:
-        """الحصول على دور بواسطة الاسم"""
-        logger.info(f"🔍 البحث عن دور بالاسم: {role_name}")
+    # ✅ التصحيح 1: استخدام Role.key بدلاً من Role.name
+    async def _get_role_by_key(self, role_key: str) -> Optional[Role]:
+        """الحصول على دور بواسطة المفتاح (key)"""
+        logger.info(f"🔍 البحث عن دور بالمفتاح: {role_key}")
         result = await self.db.execute(
-            select(Role).where(func.lower(Role.name) == func.lower(role_name))
+            select(Role).where(func.lower(Role.key) == func.lower(role_key))
         )
         role = result.scalar_one_or_none()
         if role:
-            logger.info(f"✅ تم العثور على الدور: {role.name} (ID: {role.id})")
+            logger.info(f"✅ تم العثور على الدور: {role.key} (ID: {role.id})")
         else:
-            logger.warning(f"❌ لم يتم العثور على دور بالاسم: {role_name}")
+            logger.warning(f"❌ لم يتم العثور على دور بالمفتاح: {role_key}")
         return role
     
+    # ✅ التصحيح 2: استخدام Role.key
     async def _get_all_roles(self) -> List[str]:
-        """الحصول على جميع أسماء الأدوار"""
+        """الحصول على جميع مفاتيح الأدوار"""
         result = await self.db.execute(select(Role))
         roles = result.scalars().all()
-        return [r.name for r in roles]
+        return [r.key for r in roles]
     
+    # ✅ التصحيح 3: استخدام Role.key
     async def _get_user_roles(self, user: User) -> List[str]:
-        """الحصول على أدوار المستخدم"""
+        """الحصول على مفاتيح أدوار المستخدم"""
         roles = []
-        for user_role in user.roles:
+        for user_role in user.user_roles:
             if user_role.role:
-                roles.append(user_role.role.name)
+                roles.append(user_role.role.key)
         logger.info(f"📋 أدوار المستخدم {user.email}: {roles}")
         return roles
     
@@ -160,8 +162,8 @@ class AuthService:
                 logger.error(f"❌ رمز المدرسة غير صحيح: {request.school_code}")
                 raise ValidationException("رمز المدرسة غير صحيح")
             
-            # 3. البحث عن الدور
-            role = await self._get_role_by_name(request.role_name)
+            # 3. البحث عن الدور باستخدام key
+            role = await self._get_role_by_key(request.role_name)
             
             # 4. إذا لم يتم العثور على الدور، عرض جميع الأدوار المتاحة
             if not role:
@@ -177,9 +179,8 @@ class AuthService:
             
             user = User(
                 email=request.email.lower(),
-                hashed_password=self._hash_password(request.password),
+                password_hash=self._hash_password(request.password),  # ✅ استخدام password_hash
                 full_name=request.full_name,
-                employee_number=request.employee_number,
                 phone=request.phone,
                 school_id=school.id,
                 is_active=True,
@@ -196,7 +197,7 @@ class AuthService:
             self.db.add(user_role)
             await self.db.commit()
             await self.db.refresh(user)
-            logger.info(f"✅ تم ربط المستخدم بالدور: {role.name}")
+            logger.info(f"✅ تم ربط المستخدم بالدور: {role.key}")
             
             # 7. تحويل إلى استجابة
             roles = await self._get_user_roles(user)
@@ -252,8 +253,8 @@ class AuthService:
             await self.db.flush()
             logger.info(f"✅ تم إنشاء المدرسة: {school.name} (ID: {school.id})")
             
-            # 4. الحصول على دور المدير
-            role = await self._get_role_by_name("director")
+            # 4. الحصول على دور المدير باستخدام key
+            role = await self._get_role_by_key("director")
             if not role:
                 available_roles = await self._get_all_roles()
                 logger.error(f"❌ دور المدير غير موجود")
@@ -263,9 +264,8 @@ class AuthService:
             # 5. إنشاء المستخدم (المدير)
             user = User(
                 email=request.director_email.lower(),
-                hashed_password=self._hash_password(request.director_password),
+                password_hash=self._hash_password(request.director_password),  # ✅ استخدام password_hash
                 full_name=request.director_name,
-                employee_number=request.director_phone or "",
                 phone=request.director_phone,
                 school_id=school.id,
                 is_active=True,
@@ -282,7 +282,7 @@ class AuthService:
             self.db.add(user_role)
             await self.db.commit()
             await self.db.refresh(user)
-            logger.info(f"✅ تم ربط المدير بالدور: {role.name}")
+            logger.info(f"✅ تم ربط المدير بالدور: {role.key}")
             
             # 7. تحويل إلى استجابة
             roles = await self._get_user_roles(user)
@@ -334,7 +334,7 @@ class AuthService:
             
             # 2. التحقق من كلمة المرور
             logger.info("🔍 التحقق من كلمة المرور...")
-            password_valid = self._verify_password(password, user.hashed_password)
+            password_valid = self._verify_password(password, user.password_hash)  # ✅ استخدام password_hash
             
             if not password_valid:
                 logger.warning(f"❌ فشل تسجيل الدخول: كلمة مرور غير صحيحة ({email})")
@@ -420,6 +420,7 @@ class AuthService:
         logger.info("=" * 60)
         return users_data
     
+    # ✅ التصحيح 4: استخدام Role.key بدلاً من Role.name
     async def debug_get_all_roles(self) -> List[Dict[str, Any]]:
         """الحصول على جميع الأدوار للتحقق"""
         result = await self.db.execute(select(Role))
@@ -432,11 +433,13 @@ class AuthService:
         for role in roles:
             role_info = {
                 "id": role.id,
-                "name": role.name,
-                "display_name": getattr(role, 'display_name', None),
+                "key": role.key,  # ✅ استخدام key
+                "name_ar": role.name_ar,
+                "name_en": role.name_en,
+                "is_system": role.is_system,
             }
             roles_data.append(role_info)
-            logger.info(f"  - ID: {role.id}, Name: '{role.name}'")
+            logger.info(f"  - ID: {role.id}, Key: '{role.key}', Name: '{role.name_ar}'")
         
         logger.info("=" * 60)
         return roles_data
