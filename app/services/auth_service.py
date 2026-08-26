@@ -76,14 +76,14 @@ class AuthService:
             "exp": datetime.utcnow() + timedelta(seconds=settings.SESSION_MAX_AGE),
             "iat": datetime.utcnow(),
         }
-        return jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm="HS256")
+        return jwt.encode(payload, settings.SECRET_KEY, algorithm="HS256")
     
     def _decode_token(self, token: str) -> Dict[str, Any]:
         """فك تشفير التوكن"""
         try:
             payload = jwt.decode(
                 token,
-                settings.JWT_SECRET_KEY,
+                settings.SECRET_KEY,
                 algorithms=["HS256"]
             )
             return payload
