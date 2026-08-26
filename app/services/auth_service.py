@@ -513,7 +513,7 @@ class AuthService:
                 logger.error(f"❌ الدور '{request.role_name}' غير موجود بعد التهيئة")
                 raise ValidationException(f"الدور '{request.role_name}' غير متاح")
             
-            # 5. إنشاء المستخدم
+            # 5. إنشاء المستخدم - ✅ تم إزالة employee_number
             logger.info("✅ جميع التحققات اجتازت بنجاح، جاري إنشاء المستخدم...")
             
             user = User(
@@ -521,7 +521,6 @@ class AuthService:
                 password_hash=self._hash_password(request.password),
                 full_name=request.full_name,
                 phone=request.phone,
-                employee_number=getattr(request, 'employee_number', None),
                 school_id=school.id,
                 is_active=True,
             )
@@ -766,6 +765,7 @@ class AuthService:
                 "id": user.id,
                 "email": user.email,
                 "full_name": user.full_name,
+                "phone": user.phone,
                 "is_active": user.is_active,
                 "school_id": user.school_id,
                 "roles": roles,
@@ -829,6 +829,7 @@ class AuthService:
                 "id": user.id,
                 "email": user.email,
                 "full_name": user.full_name,
+                "phone": user.phone,
                 "school_id": user.school_id,
                 "is_active": user.is_active,
             },
