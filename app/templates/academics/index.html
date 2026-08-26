@@ -1,39 +1,191 @@
 {% extends "layouts/director.html" %}
 {% block content %}
 <div class="space-y-6">
+    <!-- عنوان الصفحة -->
     <h1 class="text-2xl font-bold text-slate-800 dark:text-white">الهيكل الأكاديمي</h1>
+    
+    <!-- الأقسام العلوية - عرض البيانات -->
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        
+        <!-- 1. الأعوام الدراسية -->
         <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-6">
-            <h3 class="font-semibold text-slate-700 dark:text-slate-200 mb-4">الأعوام الدراسية</h3>
-            <div class="space-y-2">{% for y in data.years %}<div class="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-700/30 rounded-lg"><span class="text-sm font-medium">{{ y.name }}</span>{% if y.is_current %}<span class="text-xs px-2 py-0.5 bg-primary-50 text-primary-600 rounded-full">حالي</span>{% endif %}</div>{% endfor %}</div>
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="font-semibold text-slate-700 dark:text-slate-200">الأعوام الدراسية</h3>
+                {% if can('academics.create') %}
+                <a href="/academics/years/create" class="text-primary-600 hover:text-primary-700 text-sm font-medium">
+                    + إضافة
+                </a>
+                {% endif %}
+            </div>
+            <div class="space-y-2">
+                {% if data.years %}
+                    {% for y in data.years %}
+                    <div class="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-700/30 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors duration-200">
+                        <span class="text-sm font-medium">{{ y.name }}</span>
+                        {% if y.is_current %}
+                        <span class="text-xs px-2 py-0.5 bg-primary-50 text-primary-600 rounded-full">حالي</span>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="p-3 bg-slate-50 dark:bg-slate-700/30 rounded-lg text-center">
+                        <p class="text-slate-400 text-sm">لا توجد أعوام دراسية</p>
+                        {% if can('academics.create') %}
+                        <a href="/academics/years/create" class="text-primary-600 hover:text-primary-700 text-sm font-medium inline-block mt-2">
+                            أضف عام دراسي الآن
+                        </a>
+                        {% endif %}
+                    </div>
+                {% endif %}
+            </div>
         </div>
+
+        <!-- 2. المواد -->
         <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-6">
-            <h3 class="font-semibold text-slate-700 dark:text-slate-200 mb-4">المواد</h3>
-            <div class="space-y-2">{% for s in data.subjects %}<div class="p-3 bg-slate-50 dark:bg-slate-700/30 rounded-lg text-sm">{{ s.name }}</div>{% else %}<p class="text-slate-400 text-sm">لا توجد مواد.</p>{% endfor %}</div>
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="font-semibold text-slate-700 dark:text-slate-200">المواد</h3>
+                {% if can('academics.create') %}
+                <a href="/academics/subjects/create" class="text-primary-600 hover:text-primary-700 text-sm font-medium">
+                    + إضافة
+                </a>
+                {% endif %}
+            </div>
+            <div class="space-y-2">
+                {% if data.subjects %}
+                    {% for s in data.subjects %}
+                    <div class="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-700/30 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors duration-200">
+                        <span class="text-sm">{{ s.name }}</span>
+                        {% if s.color %}
+                        <span class="w-4 h-4 rounded-full" style="background-color: {{ s.color }}"></span>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="p-3 bg-slate-50 dark:bg-slate-700/30 rounded-lg text-center">
+                        <p class="text-slate-400 text-sm">لا توجد مواد</p>
+                        {% if can('academics.create') %}
+                        <a href="/academics/subjects/create" class="text-primary-600 hover:text-primary-700 text-sm font-medium inline-block mt-2">
+                            أضف مادة الآن
+                        </a>
+                        {% endif %}
+                    </div>
+                {% endif %}
+            </div>
         </div>
+
+        <!-- 3. الشعب -->
         <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-6">
-            <h3 class="font-semibold text-slate-700 dark:text-slate-200 mb-4">الشعب</h3>
-            <div class="space-y-2">{% for s in data.sections %}<div class="p-3 bg-slate-50 dark:bg-slate-700/30 rounded-lg text-sm">{{ s.name }}</div>{% else %}<p class="text-slate-400 text-sm">لا توجد شعب.</p>{% endfor %}</div>
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="font-semibold text-slate-700 dark:text-slate-200">الشعب</h3>
+                {% if can('academics.create') %}
+                <a href="/academics/sections/create" class="text-primary-600 hover:text-primary-700 text-sm font-medium">
+                    + إضافة
+                </a>
+                {% endif %}
+            </div>
+            <div class="space-y-2">
+                {% if data.sections %}
+                    {% for s in data.sections %}
+                    <div class="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-700/30 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors duration-200">
+                        <span class="text-sm">{{ s.name }}</span>
+                        <span class="text-xs text-slate-400">السعة: {{ s.capacity }}</span>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="p-3 bg-slate-50 dark:bg-slate-700/30 rounded-lg text-center">
+                        <p class="text-slate-400 text-sm">لا توجد شعب</p>
+                        {% if can('academics.create') %}
+                        <a href="/academics/sections/create" class="text-primary-600 hover:text-primary-700 text-sm font-medium inline-block mt-2">
+                            أضف شعبة الآن
+                        </a>
+                        {% endif %}
+                    </div>
+                {% endif %}
+            </div>
         </div>
+
+        <!-- 4. الفصول (الحصص) -->
         <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-6">
-            <h3 class="font-semibold text-slate-700 dark:text-slate-200 mb-4">الفصول (الحصص)</h3>
-            <div class="space-y-2">{% for p in data.periods %}<div class="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-700/30 rounded-lg text-sm"><span>{{ p.name }}</span><span class="text-xs text-slate-400">ترتيب: {{ p.order }}</span></div>{% else %}<p class="text-slate-400 text-sm">لا توجد فصول.</p>{% endfor %}</div>
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="font-semibold text-slate-700 dark:text-slate-200">الفصول (الحصص)</h3>
+                {% if can('academics.create') %}
+                <a href="/academics/periods/create" class="text-primary-600 hover:text-primary-700 text-sm font-medium">
+                    + إضافة
+                </a>
+                {% endif %}
+            </div>
+            <div class="space-y-2">
+                {% if data.periods %}
+                    {% for p in data.periods %}
+                    <div class="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-700/30 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors duration-200">
+                        <div>
+                            <span class="text-sm font-medium">{{ p.name }}</span>
+                            {% if p.is_break %}
+                            <span class="text-xs px-2 py-0.5 bg-yellow-50 text-yellow-600 rounded-full mr-2">استراحة</span>
+                            {% endif %}
+                        </div>
+                        <span class="text-xs text-slate-400">ترتيب: {{ p.order }}</span>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="p-3 bg-slate-50 dark:bg-slate-700/30 rounded-lg text-center">
+                        <p class="text-slate-400 text-sm">لا توجد فصول</p>
+                        {% if can('academics.create') %}
+                        <a href="/academics/periods/create" class="text-primary-600 hover:text-primary-700 text-sm font-medium inline-block mt-2">
+                            أضف فصل الآن
+                        </a>
+                        {% endif %}
+                    </div>
+                {% endif %}
+            </div>
         </div>
     </div>
+
+    <!-- القسم السفلي - أزرار الانتقال إلى صفحات الإضافة -->
     {% if can('academics.create') %}
     <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-6">
         <h3 class="font-semibold text-slate-700 dark:text-slate-200 mb-4">إضافة عنصر جديد</h3>
-        <div class="flex flex-wrap gap-3">
-            <button onclick="showModal('year-modal')" class="bg-primary-50 text-primary-600 px-4 py-2 rounded-lg text-sm font-medium">عام دراسي</button>
-            <button onclick="showModal('stage-modal')" class="bg-primary-50 text-primary-600 px-4 py-2 rounded-lg text-sm font-medium">مرحلة</button>
-            <button onclick="showModal('grade-modal')" class="bg-primary-50 text-primary-600 px-4 py-2 rounded-lg text-sm font-medium">صف</button>
-            <button onclick="showModal('section-modal')" class="bg-primary-50 text-primary-600 px-4 py-2 rounded-lg text-sm font-medium">شعبة</button>
-            <button onclick="showModal('subject-modal')" class="bg-primary-50 text-primary-600 px-4 py-2 rounded-lg text-sm font-medium">مادة</button>
-            <button onclick="showModal('room-modal')" class="bg-primary-50 text-primary-600 px-4 py-2 rounded-lg text-sm font-medium">قاعة</button>
-            <button onclick="showModal('period-modal')" class="bg-primary-50 text-primary-600 px-4 py-2 rounded-lg text-sm font-medium">فصل</button>
+        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+            <a href="/academics/years/create" 
+               class="bg-primary-50 hover:bg-primary-100 dark:bg-primary-900/20 dark:hover:bg-primary-900/30 text-primary-600 dark:text-primary-400 px-4 py-3 rounded-lg text-sm font-medium transition-colors duration-200 text-center">
+                <span class="block text-xl mb-1">📅</span>
+                عام دراسي
+            </a>
+            <a href="/academics/stages/create" 
+               class="bg-primary-50 hover:bg-primary-100 dark:bg-primary-900/20 dark:hover:bg-primary-900/30 text-primary-600 dark:text-primary-400 px-4 py-3 rounded-lg text-sm font-medium transition-colors duration-200 text-center">
+                <span class="block text-xl mb-1">📚</span>
+                مرحلة
+            </a>
+            <a href="/academics/grades/create" 
+               class="bg-primary-50 hover:bg-primary-100 dark:bg-primary-900/20 dark:hover:bg-primary-900/30 text-primary-600 dark:text-primary-400 px-4 py-3 rounded-lg text-sm font-medium transition-colors duration-200 text-center">
+                <span class="block text-xl mb-1">🏫</span>
+                صف
+            </a>
+            <a href="/academics/sections/create" 
+               class="bg-primary-50 hover:bg-primary-100 dark:bg-primary-900/20 dark:hover:bg-primary-900/30 text-primary-600 dark:text-primary-400 px-4 py-3 rounded-lg text-sm font-medium transition-colors duration-200 text-center">
+                <span class="block text-xl mb-1">👥</span>
+                شعبة
+            </a>
+            <a href="/academics/subjects/create" 
+               class="bg-primary-50 hover:bg-primary-100 dark:bg-primary-900/20 dark:hover:bg-primary-900/30 text-primary-600 dark:text-primary-400 px-4 py-3 rounded-lg text-sm font-medium transition-colors duration-200 text-center">
+                <span class="block text-xl mb-1">📖</span>
+                مادة
+            </a>
+            <a href="/academics/rooms/create" 
+               class="bg-primary-50 hover:bg-primary-100 dark:bg-primary-900/20 dark:hover:bg-primary-900/30 text-primary-600 dark:text-primary-400 px-4 py-3 rounded-lg text-sm font-medium transition-colors duration-200 text-center">
+                <span class="block text-xl mb-1">🚪</span>
+                قاعة
+            </a>
+            <a href="/academics/periods/create" 
+               class="bg-primary-50 hover:bg-primary-100 dark:bg-primary-900/20 dark:hover:bg-primary-900/30 text-primary-600 dark:text-primary-400 px-4 py-3 rounded-lg text-sm font-medium transition-colors duration-200 text-center">
+                <span class="block text-xl mb-1">⏰</span>
+                فصل (حصة)
+            </a>
         </div>
     </div>
     {% endif %}
 </div>
+
+<!-- حذف الـ Modals والـ JavaScript الخاص بها -->
 <script src="/static/js/academics.js"></script>
 {% endblock %}
