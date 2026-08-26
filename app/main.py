@@ -79,8 +79,8 @@ async def ensure_user_exists(db, email: str, password: str, full_name: str, scho
     
     if user:
         print(f"ℹ️ المستخدم موجود بالفعل: {email}")
-        # التأكد من أن لديه الدور الصحيح
-        await service.ensure_user_has_role(user.id, role_name)
+        # تمرير school_id لتجنب تكرار الأدوار
+        await service.ensure_user_has_role(user.id, role_name, school_id)
         return user
     
     # إنشاء المستخدم الجديد
@@ -94,8 +94,8 @@ async def ensure_user_exists(db, email: str, password: str, full_name: str, scho
     db.add(user)
     await db.flush()
     
-    # تعيين الدور
-    await service.ensure_user_has_role(user.id, role_name)
+    # تمرير school_id لتجنب تكرار الأدوار
+    await service.ensure_user_has_role(user.id, role_name, school_id)
     
     print(f"✅ تم إنشاء المستخدم: {email} (الدور: {role_name})")
     return user
