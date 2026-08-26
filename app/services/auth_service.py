@@ -311,7 +311,7 @@ class AuthService:
             # 3. إنشاء الأدوار مع صلاحياتها
             logger.info("📝 جاري إنشاء الأدوار...")
             for role_key, perm_keys in ROLE_PERMISSIONS.items():
-                # البحث عن الدور في المدرسة
+                # البحث عن الدور في المدرسة المحددة فقط
                 stmt = select(Role).where(
                     Role.school_id == school_id,
                     Role.key == role_key
@@ -354,13 +354,14 @@ class AuthService:
             logger.info("=" * 60)
             raise
 
-    async def ensure_user_has_role(self, user_id: str, role_name: str) -> bool:
+    async def ensure_user_has_role(self, user_id: str, role_name: str, school_id: Optional[str] = None) -> bool:
         """
         التأكد من أن المستخدم لديه الدور المطلوب
         
         Args:
             user_id: معرف المستخدم
             role_name: مفتاح الدور (مثل director, deputy, teacher, activities)
+            school_id: معرف المدرسة (اختياري - إذا لم يتم توفيره، سيتم جلب دور من أي مدرسة)
         
         Returns:
             bool: True إذا تم التأكد من وجود الدور، False إذا فشل
@@ -368,12 +369,17 @@ class AuthService:
         logger.info(f"🔍 التحقق من دور المستخدم: user_id={user_id}, role={role_name}")
         
         try:
-            # 1. جلب الدور
-            stmt = select(Role).where(
+            # 1. جلب الدور - مع مراعاة school_id
+            query = select(Role).where(
                 Role.key == role_name,
                 Role.is_system == True
             )
-            result = await self.db.execute(stmt)
+            
+            # إذا كان school_id موجوداً، أضفه للاستعلام
+            if school_id:
+                query = query.where(Role.school_id == school_id)
+            
+            result = await self.db.execute(query)
             role = result.scalar_one_or_none()
             
             if not role:
@@ -513,7 +519,7 @@ class AuthService:
                 logger.error(f"❌ الدور '{request.role_name}' غير موجود بعد التهيئة")
                 raise ValidationException(f"الدور '{request.role_name}' غير متاح")
             
-            # 5. إنشاء المستخدم - ✅ تم إزالة employee_number
+            # 5. إنشاء المستخدم - تم إزالة employee_number
             logger.info("✅ جميع التحققات اجتازت بنجاح، جاري إنشاء المستخدم...")
             
             user = User(
