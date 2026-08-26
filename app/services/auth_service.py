@@ -20,7 +20,12 @@ from app.schemas.auth import (
 
 logger = logging.getLogger(__name__)
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# ✅ تهيئة CryptContext مع إعدادات إضافية
+pwd_context = CryptContext(
+    schemes=["bcrypt"],
+    deprecated="auto",
+    bcrypt__rounds=12,  # عدد جولات التشفير
+)
 
 
 class AuthService:
@@ -30,12 +35,35 @@ class AuthService:
         self.db = db
     
     def _hash_password(self, password: str) -> str:
-        """تشفير كلمة المرور"""
-        return pwd_context.hash(password)
+        """
+        تشفير كلمة المرور
+        
+        ملاحظة: bcrypt يدعم فقط 72 حرفاً كحد أقصى
+        """
+        try:
+            # التأكد من أن كلمة المرور لا تتجاوز 72 حرفاً
+            if len(password) > 72:
+                password = password[:72]
+                logger.warning(f"⚠️ تم تقصير كلمة المرور إلى 72 حرفاً")
+            
+            hashed = pwd_context.hash(password)
+            logger.info(f"✅ تم تشفير كلمة المرور بنجاح")
+            return hashed
+        except Exception as e:
+            logger.error(f"❌ فشل تشفير كلمة المرور: {str(e)}")
+            raise ValidationException(f"فشل تشفير كلمة المرور: {str(e)}")
     
     def _verify_password(self, plain_password: str, hashed_password: str) -> bool:
         """التحقق من كلمة المرور"""
-        return pwd_context.verify(plain_password, hashed_password)
+        try:
+            # التأكد من أن كلمة المرور لا تتجاوز 72 حرفاً
+            if len(plain_password) > 72:
+                plain_password = plain_password[:72]
+            
+            return pwd_context.verify(plain_password, hashed_password)
+        except Exception as e:
+            logger.error(f"❌ فشل التحقق من كلمة المرور: {str(e)}")
+            return False
     
     def _create_token(self, user_id: str, email: str, roles: List[str]) -> str:
         """إنشاء توكن JWT"""
