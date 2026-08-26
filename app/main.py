@@ -65,12 +65,52 @@ from app.routes.web.teachers import router as web_teachers
 templates = Jinja2Templates(directory="app/templates")
 
 
+async def ensure_user_exists(db, email: str, password: str, full_name: str, school_id: int, role_name: str):
+    """التأكد من وجود المستخدم، وإنشائه إذا لم يكن موجوداً"""
+    from app.services.auth_service import AuthService
+    from app.core.security import hash_password
+    
+    service = AuthService(db)
+    
+    # التحقق من وجود المستخدم
+    stmt = select(User).where(User.email == email)
+    result = await db.execute(stmt)
+    user = result.scalar_one_or_none()
+    
+    if user:
+        print(f"ℹ️ المستخدم موجود بالفعل: {email}")
+        # التأكد من أن لديه الدور الصحيح
+        await service.ensure_user_has_role(user.id, role_name)
+        return user
+    
+    # إنشاء المستخدم الجديد
+    user = User(
+        email=email,
+        password_hash=hash_password(password),
+        full_name=full_name,
+        school_id=school_id,
+        is_active=True
+    )
+    db.add(user)
+    await db.flush()
+    
+    # تعيين الدور
+    await service.ensure_user_has_role(user.id, role_name)
+    
+    print(f"✅ تم إنشاء المستخدم: {email} (الدور: {role_name})")
+    return user
+
+
 async def init_database():
     """تهيئة قاعدة البيانات وإنشاء المستخدمين الأوليين."""
+    from app.services.auth_service import AuthService
+    
     print("🌱 جاري تهيئة قاعدة البيانات...")
     
     async for db in get_db():
         try:
+            service = AuthService(db)
+            
             # 1. التحقق من وجود مدرسة
             stmt = select(School).where(School.code == "SCHOOL001")
             result = await db.execute(stmt)
@@ -88,130 +128,28 @@ async def init_database():
                 await db.flush()
                 print("✅ تم إنشاء المدرسة")
             
-            # 2. إنشاء الصلاحيات إذا لم توجد
-            for perm_def in PERMISSIONS:
-                stmt = select(Permission).where(Permission.key == perm_def.key)
-                result = await db.execute(stmt)
-                existing_perm = result.scalar_one_or_none()
-                if not existing_perm:
-                    perm = Permission(
-                        key=perm_def.key,
-                        label_ar=perm_def.label_ar,
-                        label_en=perm_def.label_en,
-                        group=perm_def.group
-                    )
-                    db.add(perm)
-            await db.flush()
-            print("✅ تم إنشاء الصلاحيات")
+            # 2. تهيئة الصلاحيات والأدوار
+            await service.ensure_system_roles_and_permissions(school.id)
+            await db.commit()
+            print("✅ تم تهيئة الصلاحيات والأدوار")
             
-            # 3. جلب جميع الصلاحيات
-            stmt = select(Permission)
-            result = await db.execute(stmt)
-            all_perms = result.scalars().all()
-            perm_dict = {p.key: p for p in all_perms}
-            
-            # 4. إنشاء الأدوار إذا لم توجد
-            for role_key, perm_keys in ROLE_PERMISSIONS.items():
-                stmt = select(Role).where(
-                    Role.school_id == school.id,
-                    Role.key == role_key
-                )
-                result = await db.execute(stmt)
-                existing_role = result.scalar_one_or_none()
-                
-                if not existing_role:
-                    role = Role(
-                        school_id=school.id,
-                        key=role_key,
-                        name_ar=ROLE_LABELS.get(role_key, {}).get("ar", role_key),
-                        name_en=ROLE_LABELS.get(role_key, {}).get("en", role_key),
-                        description=f"دور {ROLE_LABELS.get(role_key, {}).get('ar', role_key)} في المدرسة",
-                        is_system=True
-                    )
-                    db.add(role)
-                    await db.flush()
-                    
-                    # إضافة الصلاحيات للدور
-                    for perm_key in perm_keys:
-                        if perm_key in perm_dict:
-                            role_permission = RolePermission(
-                                role_id=role.id,
-                                permission_id=perm_dict[perm_key].id
-                            )
-                            db.add(role_permission)
-            await db.flush()
-            print("✅ تم إنشاء الأدوار والصلاحيات")
-            
-            # 5. جلب جميع الأدوار
-            stmt = select(Role).where(Role.school_id == school.id)
-            result = await db.execute(stmt)
-            roles = result.scalars().all()
-            role_dict = {r.key: r for r in roles}
-            
-            # 6. إنشاء المستخدمين التجريبيين (مع حذف القديمين)
-            users_data = [
-                {
-                    "email": "admin@school.edu",
-                    "password": "admin123",
-                    "full_name": "أحمد المدير",
-                    "role": "director"
-                },
-                {
-                    "email": "deputy@school.edu",
-                    "password": "deputy123",
-                    "full_name": "خالد الوكيل",
-                    "role": "deputy"
-                },
-                {
-                    "email": "activities@school.edu",
-                    "password": "activities123",
-                    "full_name": "سارة الأنشطة",
-                    "role": "activities"
-                },
-                {
-                    "email": "teacher@school.edu",
-                    "password": "teacher123",
-                    "full_name": "محمد المعلم",
-                    "role": "teacher"
-                }
+            # 3. إنشاء المستخدمين التجريبيين
+            demo_users = [
+                {"email": "admin@school.edu", "password": "admin123", "full_name": "أحمد المدير", "role": "director"},
+                {"email": "deputy@school.edu", "password": "deputy123", "full_name": "خالد الوكيل", "role": "deputy"},
+                {"email": "activities@school.edu", "password": "activities123", "full_name": "سارة الأنشطة", "role": "activities"},
+                {"email": "teacher@school.edu", "password": "teacher123", "full_name": "محمد المعلم", "role": "teacher"}
             ]
             
-            for user_data in users_data:
-                # حذف المستخدم القديم إن وجد
-                stmt = select(User).where(User.email == user_data["email"])
-                result = await db.execute(stmt)
-                existing_user = result.scalar_one_or_none()
-                
-                if existing_user:
-                    # حذف العلاقات أولاً
-                    stmt = select(UserRole).where(UserRole.user_id == existing_user.id)
-                    result = await db.execute(stmt)
-                    user_roles = result.scalars().all()
-                    for ur in user_roles:
-                        await db.delete(ur)
-                    await db.delete(existing_user)
-                    await db.flush()
-                
-                # إنشاء المستخدم الجديد
-                user = User(
+            for user_data in demo_users:
+                await ensure_user_exists(
+                    db,
                     email=user_data["email"],
-                    password_hash=hash_password(user_data["password"]),
+                    password=user_data["password"],
                     full_name=user_data["full_name"],
                     school_id=school.id,
-                    is_active=True
+                    role_name=user_data["role"]
                 )
-                db.add(user)
-                await db.flush()
-                
-                # تعيين الدور للمستخدم
-                if user_data["role"] in role_dict:
-                    user_role = UserRole(
-                        user_id=user.id,
-                        role_id=role_dict[user_data["role"]].id
-                    )
-                    db.add(user_role)
-                
-                print(f"✅ تم إنشاء المستخدم: {user_data['email']}")
             
             await db.commit()
             
@@ -220,7 +158,7 @@ async def init_database():
             result = await db.execute(stmt)
             users_count = len(result.scalars().all())
             
-            stmt = select(Role)
+            stmt = select(Role).where(Role.school_id == school.id)
             result = await db.execute(stmt)
             roles_count = len(result.scalars().all())
             
