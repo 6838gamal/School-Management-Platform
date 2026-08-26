@@ -51,22 +51,24 @@
     {% endif %}
 
     <!-- Tabs -->
-    <div class="flex border-b border-slate-200 dark:border-slate-600 mb-6">
-        <button type="button" class="tab-btn flex-1 py-2 text-sm font-medium text-slate-500 hover:text-primary-600 border-b-2 border-transparent hover:border-primary-300 transition-colors" data-tab="director">
+    <div class="flex border-b border-slate-200 dark:border-slate-600 mb-6 overflow-x-auto">
+        <button type="button" class="tab-btn flex-1 py-2 text-sm font-medium text-slate-500 hover:text-primary-600 border-b-2 border-transparent hover:border-primary-300 transition-colors whitespace-nowrap" data-tab="director">
             مدير
         </button>
-        <button type="button" class="tab-btn flex-1 py-2 text-sm font-medium text-slate-500 hover:text-primary-600 border-b-2 border-transparent hover:border-primary-300 transition-colors" data-tab="agent">
+        <button type="button" class="tab-btn flex-1 py-2 text-sm font-medium text-slate-500 hover:text-primary-600 border-b-2 border-transparent hover:border-primary-300 transition-colors whitespace-nowrap" data-tab="agent">
             وكيل
         </button>
-        <button type="button" class="tab-btn flex-1 py-2 text-sm font-medium text-slate-500 hover:text-primary-600 border-b-2 border-transparent hover:border-primary-300 transition-colors" data-tab="activity">
+        <button type="button" class="tab-btn flex-1 py-2 text-sm font-medium text-slate-500 hover:text-primary-600 border-b-2 border-transparent hover:border-primary-300 transition-colors whitespace-nowrap" data-tab="activity">
             مسؤول أنشطة
         </button>
-        <button type="button" class="tab-btn flex-1 py-2 text-sm font-medium text-slate-500 hover:text-primary-600 border-b-2 border-transparent hover:border-primary-300 transition-colors" data-tab="teacher">
+        <button type="button" class="tab-btn flex-1 py-2 text-sm font-medium text-slate-500 hover:text-primary-600 border-b-2 border-transparent hover:border-primary-300 transition-colors whitespace-nowrap" data-tab="teacher">
             معلم
         </button>
     </div>
 
-    <!-- Director Form -->
+    <!-- ============================================ -->
+    <!-- نموذج المدير (تم إصلاحه) -->
+    <!-- ============================================ -->
     <form id="form-director" method="POST" action="/register" class="space-y-4 tab-content">
         <div class="border-b border-slate-200 dark:border-slate-600 pb-4 mb-4">
             <h3 class="text-sm font-semibold text-slate-500 mb-3">بيانات المدرسة</h3>
@@ -84,10 +86,7 @@
         <div>
             <h3 class="text-sm font-semibold text-slate-500 mb-3">بيانات المدير</h3>
             <div class="space-y-3">
-                <div>
-                    <label class="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">الرقم الوظيفي</label>
-                    <input type="text" name="director_number" required value="{{ director_number or '' }}" class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none">
-                </div>
+                <!-- ✅ تم إزالة حقل director_number -->
                 <div>
                     <label class="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">الاسم الكامل</label>
                     <input type="text" name="director_name" required value="{{ director_name or '' }}" class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none">
@@ -98,7 +97,7 @@
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">رقم الجوال</label>
-                    <input type="tel" name="director_phone" required value="{{ director_phone or '' }}" class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none" placeholder="05xxxxxxxx">
+                    <input type="tel" name="director_phone" value="{{ director_phone or '' }}" class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none" placeholder="05xxxxxxxx (اختياري)">
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">كلمة المرور (8 أحرف على الأقل)</label>
@@ -109,7 +108,9 @@
         <button type="submit" class="w-full bg-primary-600 hover:bg-primary-700 text-white font-semibold py-2.5 rounded-lg transition-colors">إنشاء حساب المدير</button>
     </form>
 
-    <!-- Agent Form -->
+    <!-- ============================================ -->
+    <!-- نموذج الوكيل -->
+    <!-- ============================================ -->
     <form id="form-agent" method="POST" action="/register-agent" class="space-y-4 tab-content hidden">
         <div>
             <h3 class="text-sm font-semibold text-slate-500 mb-3">بيانات الوكيل</h3>
@@ -128,7 +129,7 @@
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">رقم الجوال</label>
-                    <input type="tel" name="agent_phone" required value="{{ agent_phone or '' }}" class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none" placeholder="05xxxxxxxx">
+                    <input type="tel" name="agent_phone" value="{{ agent_phone or '' }}" class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none" placeholder="05xxxxxxxx (اختياري)">
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">كلمة المرور (8 أحرف على الأقل)</label>
@@ -143,7 +144,9 @@
         <button type="submit" class="w-full bg-primary-600 hover:bg-primary-700 text-white font-semibold py-2.5 rounded-lg transition-colors">إنشاء حساب الوكيل</button>
     </form>
 
-    <!-- Activity Manager Form -->
+    <!-- ============================================ -->
+    <!-- نموذج مسؤول الأنشطة -->
+    <!-- ============================================ -->
     <form id="form-activity" method="POST" action="/register-activity" class="space-y-4 tab-content hidden">
         <div>
             <h3 class="text-sm font-semibold text-slate-500 mb-3">بيانات مسؤول الأنشطة</h3>
@@ -162,7 +165,7 @@
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">رقم الجوال</label>
-                    <input type="tel" name="activity_phone" required value="{{ activity_phone or '' }}" class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none" placeholder="05xxxxxxxx">
+                    <input type="tel" name="activity_phone" value="{{ activity_phone or '' }}" class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none" placeholder="05xxxxxxxx (اختياري)">
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">كلمة المرور (8 أحرف على الأقل)</label>
@@ -177,7 +180,9 @@
         <button type="submit" class="w-full bg-primary-600 hover:bg-primary-700 text-white font-semibold py-2.5 rounded-lg transition-colors">إنشاء حساب مسؤول الأنشطة</button>
     </form>
 
-    <!-- Teacher Form -->
+    <!-- ============================================ -->
+    <!-- نموذج المعلم -->
+    <!-- ============================================ -->
     <form id="form-teacher" method="POST" action="/register-teacher" class="space-y-4 tab-content hidden">
         <div>
             <h3 class="text-sm font-semibold text-slate-500 mb-3">بيانات المعلم</h3>
@@ -196,7 +201,7 @@
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">رقم الجوال</label>
-                    <input type="tel" name="teacher_phone" required value="{{ teacher_phone or '' }}" class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none" placeholder="05xxxxxxxx">
+                    <input type="tel" name="teacher_phone" value="{{ teacher_phone or '' }}" class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none" placeholder="05xxxxxxxx (اختياري)">
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">كلمة المرور (8 أحرف على الأقل)</label>
