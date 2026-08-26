@@ -2,7 +2,7 @@
 import logging
 from typing import Dict, Any, Optional, List
 from datetime import datetime, timedelta
-import jwt
+from jose import jwt  # ✅ استخدام jose بدلاً من jwt
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from passlib.context import CryptContext
@@ -48,6 +48,20 @@ class AuthService:
             "iat": datetime.utcnow(),
         }
         return jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm="HS256")
+    
+    def _decode_token(self, token: str) -> Dict[str, Any]:
+        """فك تشفير التوكن"""
+        try:
+            payload = jwt.decode(
+                token,
+                settings.JWT_SECRET_KEY,
+                algorithms=["HS256"]
+            )
+            return payload
+        except jwt.ExpiredSignatureError:
+            raise UnauthorizedException("انتهت صلاحية الجلسة")
+        except jwt.InvalidTokenError:
+            raise UnauthorizedException("توكن غير صالح")
     
     # ============================================
     # دوال البحث مع logging
