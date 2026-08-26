@@ -505,16 +505,28 @@ async def debug_roles(db: AsyncSession = Depends(get_db)):
 async def debug_check_user(email: str, db: AsyncSession = Depends(get_db)):
     """التحقق من وجود مستخدم معين"""
     service = AuthService(db)
-    user = await service._get_user_by_email(email)
-    if user:
-        roles = await service._get_user_roles(user)
-        return {
-            "exists": True,
-            "id": user.id,
-            "email": user.email,
-            "full_name": user.full_name,
-            "is_active": user.is_active,
-            "school_id": user.school_id,
-            "roles": roles,
-        }
-    return {"exists": False, "email": email}
+    result = await service.debug_get_user_roles_direct(email)
+    return result
+
+@router.get("/admin/init-permissions")
+async def init_permissions(
+    request: Request,
+    db: AsyncSession = Depends(get_db)
+):
+    """إعادة تهيئة الصلاحيات والأدوار (للمطورين فقط)"""
+    from app.models.schools import School
+    from sqlalchemy import select
+    
+    service = AuthService(db)
+    
+    # الحصول على المدرسة الأولى
+    stmt = select(School).where(School.code == "SCHOOL001")
+    result = await db.execute(stmt)
+    school = result.scalar_one_or_none()
+    
+    if school:
+        await service.ensure_system_roles_and_permissions(school.id)
+        await db.commit()
+        return {"message": "تم إعادة تهيئة الصلاحيات والأدوار بنجاح"}
+    
+    return {"error": "لم يتم العثور على المدرسة"}
