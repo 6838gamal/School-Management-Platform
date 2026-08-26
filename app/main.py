@@ -137,7 +137,7 @@ async def init_database():
             demo_users = [
                 {"email": "admin@school.edu", "password": "admin123", "full_name": "أحمد المدير", "role": "director"},
                 {"email": "deputy@school.edu", "password": "deputy123", "full_name": "خالد الوكيل", "role": "deputy"},
-                {"email": "activities@school.edu", "password": "activities123", "full_name": "سارة الأنشطة", "role": "activities"},
+                {"email": "activities@school.edu", "password": "activities123", "full_name": "سارة الأنشطة", "role": "activities_manager"},
                 {"email": "teacher@school.edu", "password": "teacher123", "full_name": "محمد المعلم", "role": "teacher"}
             ]
             
