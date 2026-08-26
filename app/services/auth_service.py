@@ -10,7 +10,7 @@ from passlib.context import CryptContext
 from app.core.config import settings
 from app.core.exceptions import UnauthorizedException, ValidationException
 from app.models.users import User
-from app.models.role import Role
+from app.models.users import Role
 from app.models.school import School
 from app.models.user_role import UserRole
 from app.schemas.auth import (
