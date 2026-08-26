@@ -19,7 +19,7 @@ templates = Jinja2Templates(directory="app/templates")
 ROLE_DISPLAY = {
     "director": "مدير",
     "deputy": "وكيل",
-    "activities": "مسؤول أنشطة",
+    "activities_manager": "مسؤول أنشطة",
     "teacher": "معلم"
 }
 
@@ -319,7 +319,7 @@ async def register_activity(
                 employee_number=activity_number,
                 phone=activity_phone if activity_phone else None,
                 school_code=school_code,
-                role_name="activities"
+                role_name="activities_manager"
             )
         )
         
@@ -336,7 +336,7 @@ async def register_activity(
         )
         resp.set_cookie(
             key="selected_role",
-            value="activities",
+            value="activities_manager",
             max_age=settings.SESSION_MAX_AGE,
             httponly=True,
             secure=settings.SESSION_SECURE,
