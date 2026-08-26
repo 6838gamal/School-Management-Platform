@@ -1,0 +1,188 @@
+{% extends "layouts/director.html" %}
+{% block content %}
+<div class="space-y-6">
+    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div>
+            <h1 class="text-2xl font-bold text-slate-800 dark:text-white">الفصول (الحصص)</h1>
+            <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">إدارة الفصول الدراسية في اليوم الدراسي</p>
+        </div>
+        <div class="flex items-center gap-3">
+            <a href="/academics" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 text-sm flex items-center transition-colors duration-200">
+                <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+                </svg>
+                العودة
+            </a>
+            {% if can('academics.create') %}
+            <a href="/academics/periods/create" class="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200 flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                </svg>
+                إضافة فصل
+            </a>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-4">
+            <div class="flex items-center justify-between">
+                <span class="text-sm text-slate-500 dark:text-slate-400">إجمالي الفصول</span>
+                <span class="text-2xl font-bold text-slate-800 dark:text-white">{{ items|length }}</span>
+            </div>
+        </div>
+        <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-4">
+            <div class="flex items-center justify-between">
+                <span class="text-sm text-slate-500 dark:text-slate-400">فصول دراسية</span>
+                <span class="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                    {% set classes = items|selectattr('is_break', 'equalto', False)|list %}
+                    {{ classes|length }}
+                </span>
+            </div>
+        </div>
+        <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-4">
+            <div class="flex items-center justify-between">
+                <span class="text-sm text-slate-500 dark:text-slate-400">فترات استراحة</span>
+                <span class="text-2xl font-bold text-yellow-600 dark:text-yellow-400">
+                    {% set breaks = items|selectattr('is_break', 'equalto', True)|list %}
+                    {{ breaks|length }}
+                </span>
+            </div>
+        </div>
+        <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-4">
+            <div class="flex items-center justify-between">
+                <span class="text-sm text-slate-500 dark:text-slate-400">إجمالي الوقت</span>
+                <span class="text-2xl font-bold text-primary-600 dark:text-primary-400">
+                    {{ items|length * 45 }} دقيقة
+                </span>
+            </div>
+        </div>
+    </div>
+
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 overflow-hidden">
+        {% if items %}
+        <div class="overflow-x-auto">
+            <table class="w-full">
+                <thead class="bg-slate-50 dark:bg-slate-700/30">
+                    <tr>
+                        <th class="text-right px-6 py-3 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">#</th>
+                        <th class="text-right px-6 py-3 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">اسم الفصل</th>
+                        <th class="text-right px-6 py-3 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">الترتيب</th>
+                        <th class="text-right px-6 py-3 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">وقت البداية</th>
+                        <th class="text-right px-6 py-3 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">وقت النهاية</th>
+                        <th class="text-right px-6 py-3 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">النوع</th>
+                        <th class="text-center px-6 py-3 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">الإجراءات</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
+                    {% for item in items|sort(attribute='order') %}
+                    <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/20 transition-colors duration-200">
+                        <td class="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">{{ loop.index }}</td>
+                        <td class="px-6 py-4 text-sm font-medium text-slate-800 dark:text-white">{{ item.name }}</td>
+                        <td class="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">{{ item.order }}</td>
+                        <td class="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">{{ item.start_time }}</td>
+                        <td class="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">{{ item.end_time }}</td>
+                        <td class="px-6 py-4 text-sm">
+                            {% if item.is_break %}
+                            <span class="px-2 py-1 text-xs bg-yellow-50 text-yellow-600 dark:bg-yellow-900/20 dark:text-yellow-400 rounded-full">⏸ استراحة</span>
+                            {% else %}
+                            <span class="px-2 py-1 text-xs bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400 rounded-full">📚 درس</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4">
+                            <div class="flex items-center justify-center gap-2">
+                                {% if can('academics.edit') %}
+                                <a href="/academics/periods/{{ item.id }}/edit" 
+                                   class="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 text-sm flex items-center gap-1 transition-colors duration-200">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                                    </svg>
+                                    تعديل
+                                </a>
+                                {% endif %}
+                                {% if can('academics.delete') %}
+                                <button onclick="confirmDelete('/api/academics/periods/{{ item.id }}', 'هل أنت متأكد من حذف الفصل {{ item.name }}؟')" 
+                                        class="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 text-sm flex items-center gap-1 transition-colors duration-200">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                                    </svg>
+                                    حذف
+                                </button>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="p-12 text-center">
+            <div class="text-6xl mb-4">⏰</div>
+            <h3 class="text-lg font-medium text-slate-700 dark:text-slate-300 mb-2">لا توجد فصول</h3>
+            <p class="text-slate-400 text-sm mb-4">لم يتم إضافة أي فصل حتى الآن</p>
+            {% if can('academics.create') %}
+            <a href="/academics/periods/create" class="inline-flex items-center gap-2 bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                </svg>
+                أضف أول فصل
+            </a>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+function confirmDelete(url, message = 'هل أنت متأكد من الحذف؟') {
+    if (confirm(message)) {
+        const buttons = document.querySelectorAll('button');
+        buttons.forEach(btn => btn.disabled = true);
+        fetch(url, {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showMessage('✅ ' + data.message, 'success');
+                setTimeout(() => window.location.reload(), 1500);
+            } else {
+                showMessage('❌ ' + (data.message || 'حدث خطأ أثناء الحذف'), 'error');
+                buttons.forEach(btn => btn.disabled = false);
+            }
+        })
+        .catch(error => {
+            showMessage('❌ حدث خطأ في الاتصال بالخادم', 'error');
+            buttons.forEach(btn => btn.disabled = false);
+            console.error(error);
+        });
+    }
+}
+
+function showMessage(message, type = 'success') {
+    const colors = {
+        success: 'bg-green-50 text-green-800 border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800',
+        error: 'bg-red-50 text-red-800 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800',
+        warning: 'bg-yellow-50 text-yellow-800 border-yellow-200 dark:bg-yellow-900/20 dark:text-yellow-400 dark:border-yellow-800'
+    };
+    document.querySelectorAll('.toast-message').forEach(el => el.remove());
+    const div = document.createElement('div');
+    div.className = `toast-message fixed top-4 right-4 p-4 rounded-lg border ${colors[type]} shadow-lg z-50 max-w-md animate-slide-in`;
+    div.innerHTML = message;
+    document.body.appendChild(div);
+    setTimeout(() => { div.remove(); }, 5000);
+}
+</script>
+
+<style>
+@keyframes slideIn {
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+}
+.animate-slide-in {
+    animation: slideIn 0.3s ease-out;
+}
+</style>
+{% endblock %}
