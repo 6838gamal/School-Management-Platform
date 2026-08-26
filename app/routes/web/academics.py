@@ -628,3 +628,22 @@ async def academic_tree(
         "academics/tree.html",
         {**ctx, "title": "الشجرة الأكاديمية", "tree": tree},
     )
+
+
+# ============= الشجرة الأكاديمية =============
+@router.get("/tree")
+async def academic_tree(
+    request: Request,
+    user: CurrentUser = Depends(require_any_permission("academics.view")),
+    db: AsyncSession = Depends(get_db),
+    ctx: dict = Depends(template_context),
+):
+    service = AcademicService(db)
+    try:
+        tree = await service.get_full_tree(user.school_id)
+    except NotFoundException:
+        tree = []
+    return templates.TemplateResponse(
+        "academics/tree.html",
+        {**ctx, "title": "الشجرة الأكاديمية", "tree": tree}
+                               )
