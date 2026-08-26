@@ -132,6 +132,7 @@ async def register_submit(
     school_code: str = Form(...),
     director_name: str = Form(...),
     director_email: str = Form(...),
+    director_phone: str = Form(...),  # ✅ إضافة رقم الجوال
     director_password: str = Form(...),
     db: AsyncSession = Depends(get_db),
 ):
@@ -144,6 +145,7 @@ async def register_submit(
                 school_code=school_code,
                 director_name=director_name,
                 director_email=director_email,
+                director_phone=director_phone,  # ✅ إضافة رقم الجوال
                 director_password=director_password,
             )
         )
@@ -181,6 +183,216 @@ async def register_submit(
                 "school_code": school_code,
                 "director_name": director_name,
                 "director_email": director_email,
+                "director_phone": director_phone,  # ✅ إضافة رقم الجوال
+                "current_user": None,
+            }
+        )
+
+
+# ============================================
+# ✅ إضافة مسارات التسجيل للوكيل ومسؤول الأنشطة والمعلم
+# ============================================
+
+@router.post("/register-agent")
+async def register_agent(
+    request: Request,
+    agent_number: str = Form(...),
+    agent_name: str = Form(...),
+    agent_email: str = Form(...),
+    agent_phone: str = Form(...),  # ✅ إضافة رقم الجوال
+    agent_password: str = Form(...),
+    school_code: str = Form(...),
+    db: AsyncSession = Depends(get_db),
+):
+    """تسجيل وكيل جديد"""
+    from app.schemas.auth import RegisterUserRequest
+    service = AuthService(db)
+    
+    try:
+        # إنشاء المستخدم كـ "وكيل"
+        result = await service.register_user(
+            RegisterUserRequest(
+                email=agent_email,
+                password=agent_password,
+                full_name=agent_name,
+                employee_number=agent_number,
+                phone=agent_phone,  # ✅ إضافة رقم الجوال
+                school_code=school_code,
+                role_name="vice_principal"  # وكيل
+            )
+        )
+        
+        # تسجيل الدخول التلقائي
+        login_result = await service.login(agent_email, agent_password)
+        resp = RedirectResponse("/onboarding", status_code=302)
+        resp.set_cookie(
+            key=settings.SESSION_COOKIE_NAME,
+            value=login_result["token"],
+            max_age=settings.SESSION_MAX_AGE,
+            httponly=settings.SESSION_HTTPONLY,
+            secure=settings.SESSION_SECURE,
+            samesite=settings.SESSION_SAMESITE,
+        )
+        # تعيين دور الوكيل
+        resp.set_cookie(
+            key="selected_role",
+            value="vice_principal",
+            max_age=settings.SESSION_MAX_AGE,
+            httponly=True,
+            secure=settings.SESSION_SECURE,
+            samesite=settings.SESSION_SAMESITE,
+        )
+        return resp
+        
+    except Exception as e:
+        return templates.TemplateResponse(
+            "auth/register.html",
+            {
+                "request": request,
+                "title": "تسجيل مستخدم جديد",
+                "error": str(e),
+                "agent_name": agent_name,
+                "agent_email": agent_email,
+                "agent_number": agent_number,
+                "agent_phone": agent_phone,  # ✅ إضافة رقم الجوال
+                "current_user": None,
+            }
+        )
+
+
+@router.post("/register-activity")
+async def register_activity(
+    request: Request,
+    activity_number: str = Form(...),
+    activity_name: str = Form(...),
+    activity_email: str = Form(...),
+    activity_phone: str = Form(...),  # ✅ إضافة رقم الجوال
+    activity_password: str = Form(...),
+    school_code: str = Form(...),
+    db: AsyncSession = Depends(get_db),
+):
+    """تسجيل مسؤول أنشطة جديد"""
+    from app.schemas.auth import RegisterUserRequest
+    service = AuthService(db)
+    
+    try:
+        # إنشاء المستخدم كـ "مسؤول أنشطة"
+        result = await service.register_user(
+            RegisterUserRequest(
+                email=activity_email,
+                password=activity_password,
+                full_name=activity_name,
+                employee_number=activity_number,
+                phone=activity_phone,  # ✅ إضافة رقم الجوال
+                school_code=school_code,
+                role_name="activities_officer"  # مسؤول أنشطة
+            )
+        )
+        
+        # تسجيل الدخول التلقائي
+        login_result = await service.login(activity_email, activity_password)
+        resp = RedirectResponse("/onboarding", status_code=302)
+        resp.set_cookie(
+            key=settings.SESSION_COOKIE_NAME,
+            value=login_result["token"],
+            max_age=settings.SESSION_MAX_AGE,
+            httponly=settings.SESSION_HTTPONLY,
+            secure=settings.SESSION_SECURE,
+            samesite=settings.SESSION_SAMESITE,
+        )
+        # تعيين دور مسؤول الأنشطة
+        resp.set_cookie(
+            key="selected_role",
+            value="activities_officer",
+            max_age=settings.SESSION_MAX_AGE,
+            httponly=True,
+            secure=settings.SESSION_SECURE,
+            samesite=settings.SESSION_SAMESITE,
+        )
+        return resp
+        
+    except Exception as e:
+        return templates.TemplateResponse(
+            "auth/register.html",
+            {
+                "request": request,
+                "title": "تسجيل مستخدم جديد",
+                "error": str(e),
+                "activity_name": activity_name,
+                "activity_email": activity_email,
+                "activity_number": activity_number,
+                "activity_phone": activity_phone,  # ✅ إضافة رقم الجوال
+                "current_user": None,
+            }
+        )
+
+
+@router.post("/register-teacher")
+async def register_teacher(
+    request: Request,
+    teacher_number: str = Form(...),
+    teacher_name: str = Form(...),
+    teacher_email: str = Form(...),
+    teacher_phone: str = Form(...),  # ✅ إضافة رقم الجوال
+    teacher_password: str = Form(...),
+    school_code: str = Form(...),
+    subject: str = Form(None),  # اختياري
+    db: AsyncSession = Depends(get_db),
+):
+    """تسجيل معلم جديد"""
+    from app.schemas.auth import RegisterUserRequest
+    service = AuthService(db)
+    
+    try:
+        # إنشاء المستخدم كـ "معلم"
+        result = await service.register_user(
+            RegisterUserRequest(
+                email=teacher_email,
+                password=teacher_password,
+                full_name=teacher_name,
+                employee_number=teacher_number,
+                phone=teacher_phone,  # ✅ إضافة رقم الجوال
+                school_code=school_code,
+                role_name="teacher",  # معلم
+                extra_data={"subject": subject} if subject else {}
+            )
+        )
+        
+        # تسجيل الدخول التلقائي
+        login_result = await service.login(teacher_email, teacher_password)
+        resp = RedirectResponse("/onboarding", status_code=302)
+        resp.set_cookie(
+            key=settings.SESSION_COOKIE_NAME,
+            value=login_result["token"],
+            max_age=settings.SESSION_MAX_AGE,
+            httponly=settings.SESSION_HTTPONLY,
+            secure=settings.SESSION_SECURE,
+            samesite=settings.SESSION_SAMESITE,
+        )
+        # تعيين دور المعلم
+        resp.set_cookie(
+            key="selected_role",
+            value="teacher",
+            max_age=settings.SESSION_MAX_AGE,
+            httponly=True,
+            secure=settings.SESSION_SECURE,
+            samesite=settings.SESSION_SAMESITE,
+        )
+        return resp
+        
+    except Exception as e:
+        return templates.TemplateResponse(
+            "auth/register.html",
+            {
+                "request": request,
+                "title": "تسجيل مستخدم جديد",
+                "error": str(e),
+                "teacher_name": teacher_name,
+                "teacher_email": teacher_email,
+                "teacher_number": teacher_number,
+                "teacher_phone": teacher_phone,  # ✅ إضافة رقم الجوال
+                "subject": subject,
+                "current_user": None,
             }
         )
 
