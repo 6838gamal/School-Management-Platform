@@ -117,7 +117,7 @@ class AuthService:
         
         query = select(Role).where(func.lower(Role.key) == func.lower(role_key))
         
-        # ✅ إذا تم تحديد school_id، أضفه في البحث
+        # إذا تم تحديد school_id، أضفه في البحث
         if school_id:
             query = query.where(Role.school_id == school_id)
             logger.info(f"   - في المدرسة: {school_id}")
@@ -208,24 +208,42 @@ class AuthService:
                 logger.error(f"❌ رمز المدرسة غير صحيح: {request.school_code}")
                 raise ValidationException("رمز المدرسة غير صحيح")
             
-            # 3. ✅ البحث عن الدور مع school_id
+            # 3. البحث عن الدور مع school_id
             role = await self._get_role_by_key(request.role_name, school.id)
             
-            # 4. إذا لم يتم العثور على الدور، جرب البحث بدون school_id (دور نظام)
+            # 4. إذا لم يتم العثور على الدور، قم بإنشائه
             if not role:
-                role = await self._get_role_by_key(request.role_name, None)
+                logger.info(f"📝 الدور '{request.role_name}' غير موجود، جاري إنشائه...")
                 
-                if not role:
-                    # 5. عرض جميع الأدوار المتاحة للمدرسة
-                    available_roles = await self._get_all_roles(school.id)
-                    logger.error(f"❌ الدور غير موجود: {request.role_name}")
-                    logger.info(f"📋 الأدوار المتاحة في المدرسة: {available_roles}")
-                    raise ValidationException(
-                        f"الدور '{request.role_name}' غير موجود في المدرسة. "
-                        f"الأدوار المتاحة: {', '.join(available_roles)}"
-                    )
+                # أسماء الأدوار بالعربية
+                role_names_ar = {
+                    "deputy": "وكيل",
+                    "activities": "مسؤول أنشطة",
+                    "teacher": "معلم"
+                }
+                
+                role_names_en = {
+                    "deputy": "Deputy",
+                    "activities": "Activities Officer",
+                    "teacher": "Teacher"
+                }
+                
+                name_ar = role_names_ar.get(request.role_name, request.role_name)
+                name_en = role_names_en.get(request.role_name, request.role_name)
+                
+                role = Role(
+                    school_id=school.id,
+                    key=request.role_name,
+                    name_ar=name_ar,
+                    name_en=name_en,
+                    description=f"{name_ar} في المدرسة",
+                    is_system=True
+                )
+                self.db.add(role)
+                await self.db.flush()
+                logger.info(f"✅ تم إنشاء الدور: {role.key} (ID: {role.id})")
             
-            # 6. إنشاء المستخدم
+            # 5. إنشاء المستخدم
             logger.info("✅ جميع التحققات اجتازت بنجاح، جاري إنشاء المستخدم...")
             
             user = User(
@@ -240,7 +258,7 @@ class AuthService:
             await self.db.flush()
             logger.info(f"✅ تم إنشاء المستخدم: {user.email} (ID: {user.id})")
             
-            # 7. ربط المستخدم بالدور
+            # 6. ربط المستخدم بالدور
             user_role = UserRole(
                 user_id=user.id,
                 role_id=role.id,
@@ -250,7 +268,7 @@ class AuthService:
             await self.db.refresh(user)
             logger.info(f"✅ تم ربط المستخدم بالدور: {role.key}")
             
-            # 8. تحويل إلى استجابة
+            # 7. تحويل إلى استجابة
             roles = await self._get_user_roles(user)
             user_data = {
                 "id": str(user.id),
@@ -304,29 +322,21 @@ class AuthService:
             await self.db.flush()
             logger.info(f"✅ تم إنشاء المدرسة: {school.name} (ID: {school.id})")
             
-            # 4. ✅ البحث عن دور المدير مع school_id
-            role = await self._get_role_by_key("director", school.id)
+            # 4. إنشاء دور المدير للمدرسة مباشرة
+            logger.info("📝 جاري إنشاء دور المدير للمدرسة...")
+            role = Role(
+                school_id=school.id,
+                key="director",
+                name_ar="مدير",
+                name_en="Director",
+                description="مدير المدرسة - صلاحيات كاملة",
+                is_system=True
+            )
+            self.db.add(role)
+            await self.db.flush()
+            logger.info(f"✅ تم إنشاء دور المدير: {role.key} (ID: {role.id})")
             
-            # 5. إذا لم يتم العثور على دور المدير للمدرسة، حاول البحث عن دور نظام
-            if not role:
-                role = await self._get_role_by_key("director", None)
-                
-                # 6. إذا لم يتم العثور على دور نظام، قم بإنشاء دور جديد للمدرسة
-                if not role:
-                    logger.info("📝 دور المدير غير موجود، جاري إنشائه...")
-                    role = Role(
-                        school_id=school.id,
-                        key="director",
-                        name_ar="مدير",
-                        name_en="Director",
-                        description="مدير المدرسة - صلاحيات كاملة",
-                        is_system=True
-                    )
-                    self.db.add(role)
-                    await self.db.flush()
-                    logger.info(f"✅ تم إنشاء دور المدير للمدرسة: {role.key} (ID: {role.id})")
-            
-            # 7. إنشاء المستخدم (المدير)
+            # 5. إنشاء المستخدم (المدير)
             user = User(
                 email=request.director_email.lower(),
                 password_hash=self._hash_password(request.director_password),
@@ -339,7 +349,7 @@ class AuthService:
             await self.db.flush()
             logger.info(f"✅ تم إنشاء المدير: {user.email} (ID: {user.id})")
             
-            # 8. ربط المستخدم بدور المدير
+            # 6. ربط المستخدم بدور المدير
             user_role = UserRole(
                 user_id=user.id,
                 role_id=role.id,
@@ -349,7 +359,7 @@ class AuthService:
             await self.db.refresh(user)
             logger.info(f"✅ تم ربط المدير بالدور: {role.key}")
             
-            # 9. تحويل إلى استجابة
+            # 7. تحويل إلى استجابة
             roles = await self._get_user_roles(user)
             user_data = {
                 "id": str(user.id),
