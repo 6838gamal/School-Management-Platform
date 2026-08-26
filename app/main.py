@@ -62,6 +62,8 @@ from app.routes.web.modules import (
 from app.routes.web.students import router as web_students
 from app.routes.web.teachers import router as web_teachers
 
+from app.routes.api import router as api_router
+
 templates = Jinja2Templates(directory="app/templates")
 
 
@@ -245,6 +247,8 @@ app.include_router(api_activities, prefix=api_prefix)
 app.include_router(api_behavior, prefix=api_prefix)
 app.include_router(api_notifications, prefix=api_prefix)
 app.include_router(api_reports, prefix=api_prefix)
+
+app.include_router(api_router)
 
 
 @app.get("/")
