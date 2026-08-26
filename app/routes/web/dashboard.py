@@ -71,7 +71,7 @@ async def dashboard_router(
             },
         )
     
-    elif role == "activities_manager":
+    elif role == "activities":
         stats = await service.activities_manager_stats(user.school_id, user.id)
         return templates.TemplateResponse(
             "activities_manager/dashboard.html",
