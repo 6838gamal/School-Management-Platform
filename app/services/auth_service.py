@@ -11,8 +11,8 @@ from app.core.config import settings
 from app.core.exceptions import UnauthorizedException, ValidationException
 from app.models.users import User
 from app.models.users import Role
-from app.models.school import School
-from app.models.user_role import UserRole
+from app.models.schools import School
+from app.models.users import UserRole
 from app.schemas.auth import (
     RegisterSchoolRequest,
     RegisterUserRequest,
