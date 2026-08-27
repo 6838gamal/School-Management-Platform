@@ -25,7 +25,9 @@ class Schedule(UUIDPkMixin, TimestampMixin, Base):
     )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 
-    # العلاقات
+    # ============= العلاقات =============
+    section: Mapped["Section"] = relationship("Section", foreign_keys=[section_id])
+    academic_year: Mapped["AcademicYear"] = relationship("AcademicYear", foreign_keys=[academic_year_id])
     entries: Mapped[list["ScheduleEntry"]] = relationship(
         "ScheduleEntry", back_populates="schedule", cascade="all, delete-orphan"
     )
@@ -59,5 +61,9 @@ class ScheduleEntry(UUIDPkMixin, TimestampMixin, Base):
     )
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    # العلاقات
+    # ============= العلاقات =============
     schedule: Mapped["Schedule"] = relationship("Schedule", back_populates="entries")
+    period: Mapped["Period"] = relationship("Period", foreign_keys=[period_id])
+    subject: Mapped["Subject"] = relationship("Subject", foreign_keys=[subject_id])
+    teacher: Mapped["User"] = relationship("User", foreign_keys=[teacher_id])
+    room: Mapped["Room"] = relationship("Room", foreign_keys=[room_id])
