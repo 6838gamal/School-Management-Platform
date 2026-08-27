@@ -89,7 +89,7 @@ async def schedules_page(
     academic = AcademicService(db)
     data = await academic.get_onboarding_data(user.school_id)
     return templates.TemplateResponse(
-        "schedules/index.html",
+        "schedules/list.html",
         {**ctx, "title": "الجداول", "sections": data["sections"], "periods": data["periods"]},
     )
 
