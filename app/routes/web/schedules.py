@@ -28,7 +28,7 @@ async def schedules_page(
     service = ScheduleService(db)
     schedules = await service.list_schedules(user.school_id)
     return templates.TemplateResponse(
-        "schedules/index.html",
+        "schedules/list.html",
         {**ctx, "title": "الجداول الدراسية", "items": schedules, "type": "schedules"}
     )
 
