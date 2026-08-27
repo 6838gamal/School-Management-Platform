@@ -14,20 +14,19 @@ class Schedule(UUIDPkMixin, TimestampMixin, Base):
     )
 
     school_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("schools.id", ondelete="CASCADE"), index=True
+        String(36), nullable=False, index=True
     )
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     section_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("sections.id", ondelete="CASCADE"), index=True
+        String(36), nullable=False, index=True
     )
+    # بدون مفتاح أجنبي - مجرد عمود نصي
     academic_year_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("academic_years.id", ondelete="CASCADE"), index=True
+        String(36), nullable=False, index=True
     )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 
-    # ============= العلاقات =============
-    section: Mapped["Section"] = relationship("Section", foreign_keys=[section_id])
-    academic_year: Mapped["AcademicYear"] = relationship("AcademicYear", foreign_keys=[academic_year_id])
+    # العلاقة مع المدخلات فقط
     entries: Mapped[list["ScheduleEntry"]] = relationship(
         "ScheduleEntry", back_populates="schedule", cascade="all, delete-orphan"
     )
@@ -46,24 +45,20 @@ class ScheduleEntry(UUIDPkMixin, TimestampMixin, Base):
     schedule_id: Mapped[str] = mapped_column(
         String(36), ForeignKey("schedules.id", ondelete="CASCADE"), index=True
     )
-    day_of_week: Mapped[int] = mapped_column(Integer, nullable=False)  # 0=الأحد, 1=الإثنين, ...
+    day_of_week: Mapped[int] = mapped_column(Integer, nullable=False)
     period_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("periods.id", ondelete="CASCADE"), index=True
+        String(36), nullable=False, index=True
     )
     subject_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("subjects.id", ondelete="CASCADE"), index=True
+        String(36), nullable=False, index=True
     )
     teacher_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("users.id", ondelete="CASCADE"), index=True
+        String(36), nullable=False, index=True
     )
     room_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("rooms.id", ondelete="CASCADE"), index=True
+        String(36), nullable=False, index=True
     )
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    # ============= العلاقات =============
+    # العلاقات
     schedule: Mapped["Schedule"] = relationship("Schedule", back_populates="entries")
-    period: Mapped["Period"] = relationship("Period", foreign_keys=[period_id])
-    subject: Mapped["Subject"] = relationship("Subject", foreign_keys=[subject_id])
-    teacher: Mapped["User"] = relationship("User", foreign_keys=[teacher_id])
-    room: Mapped["Room"] = relationship("Room", foreign_keys=[room_id])
