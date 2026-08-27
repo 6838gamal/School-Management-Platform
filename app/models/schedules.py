@@ -69,7 +69,7 @@ class ScheduleEntry(UUIDPkMixin, TimestampMixin, Base):
     room_id: Mapped[str] = mapped_column(
         String(36), nullable=False, index=True
     )
-    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    
 
     # العلاقات
     schedule: Mapped["Schedule"] = relationship("Schedule", back_populates="entries")
