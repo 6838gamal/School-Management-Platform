@@ -58,8 +58,8 @@ async def create_schedule_page(
 ):
     """صفحة إنشاء جدول جديد"""
     service = ScheduleService(db)
-    sections = await service.get_sections(user.school_id)
-    academic_years = await service.get_academic_years(user.school_id)
+    sections = await service.get_sections_objects(user.school_id)  # استخدام ORM Objects
+    academic_years = await service.get_academic_years_objects(user.school_id)  # استخدام ORM Objects
     
     return templates.TemplateResponse(
         "schedules/create.html",
@@ -86,8 +86,8 @@ async def update_schedule_page(
     if not schedule:
         raise HTTPException(status_code=404, detail="الجدول غير موجود")
     
-    sections = await service.get_sections(user.school_id)
-    academic_years = await service.get_academic_years(user.school_id)
+    sections = await service.get_sections_objects(user.school_id)
+    academic_years = await service.get_academic_years_objects(user.school_id)
     
     return templates.TemplateResponse(
         "schedules/update.html",
@@ -132,83 +132,129 @@ async def view_schedule_page(
 # ============= مسارات API =============
 
 @router.post("/api/v1/schedules")
-async def create_schedule(
+async def create_schedule_api(
     req: ScheduleCreate,
     user: CurrentUser = Depends(require_any_permission("schedules.create")),
     db: AsyncSession = Depends(get_db),
 ):
     """API: إنشاء جدول جديد"""
-    service = ScheduleService(db)
-    result = await service.create_schedule(user.school_id, req)
-    return {"success": True, "id": result.id, "message": "تم إنشاء الجدول بنجاح"}
+    try:
+        service = ScheduleService(db)
+        result = await service.create_schedule(user.school_id, req)
+        return {
+            "success": True, 
+            "id": result.id, 
+            "message": "تم إنشاء الجدول بنجاح"
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
 
 
 @router.put("/api/v1/schedules/{schedule_id}")
-async def update_schedule(
+async def update_schedule_api(
     schedule_id: str,
     req: ScheduleUpdate,
     user: CurrentUser = Depends(require_any_permission("schedules.update")),
     db: AsyncSession = Depends(get_db),
 ):
     """API: تحديث جدول"""
-    service = ScheduleService(db)
-    result = await service.update_schedule(schedule_id, req)
-    return {"success": True, "message": "تم تحديث الجدول بنجاح"}
+    try:
+        service = ScheduleService(db)
+        result = await service.update_schedule(schedule_id, req)
+        return {
+            "success": True, 
+            "message": "تم تحديث الجدول بنجاح"
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
 
 
 @router.delete("/api/v1/schedules/{schedule_id}")
-async def delete_schedule(
+async def delete_schedule_api(
     schedule_id: str,
     user: CurrentUser = Depends(require_any_permission("schedules.delete")),
     db: AsyncSession = Depends(get_db),
 ):
     """API: حذف جدول"""
-    service = ScheduleService(db)
-    await service.delete_schedule(schedule_id)
-    return {"success": True, "message": "تم حذف الجدول بنجاح"}
+    try:
+        service = ScheduleService(db)
+        await service.delete_schedule(schedule_id)
+        return {"success": True, "message": "تم حذف الجدول بنجاح"}
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
 
 
 @router.post("/api/v1/schedules/{schedule_id}/entries")
-async def add_schedule_entry(
+async def add_schedule_entry_api(
     schedule_id: str,
     req: ScheduleEntryCreate,
     user: CurrentUser = Depends(require_any_permission("schedules.create")),
     db: AsyncSession = Depends(get_db),
 ):
     """API: إضافة مدخل إلى الجدول"""
-    service = ScheduleService(db)
-    result = await service.add_entry(schedule_id, req)
-    return {"success": True, "id": result.id, "message": "تم إضافة المدخل بنجاح"}
+    try:
+        service = ScheduleService(db)
+        result = await service.add_entry(schedule_id, req)
+        return {
+            "success": True, 
+            "id": result.id, 
+            "message": "تم إضافة المدخل بنجاح"
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
 
 
 @router.put("/api/v1/schedules/entries/{entry_id}")
-async def update_schedule_entry(
+async def update_schedule_entry_api(
     entry_id: str,
     req: ScheduleEntryUpdate,
     user: CurrentUser = Depends(require_any_permission("schedules.update")),
     db: AsyncSession = Depends(get_db),
 ):
     """API: تحديث مدخل في الجدول"""
-    service = ScheduleService(db)
-    result = await service.update_entry(entry_id, req)
-    return {"success": True, "message": "تم تحديث المدخل بنجاح"}
+    try:
+        service = ScheduleService(db)
+        result = await service.update_entry(entry_id, req)
+        return {
+            "success": True, 
+            "message": "تم تحديث المدخل بنجاح"
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
 
 
 @router.delete("/api/v1/schedules/entries/{entry_id}")
-async def delete_schedule_entry(
+async def delete_schedule_entry_api(
     entry_id: str,
     user: CurrentUser = Depends(require_any_permission("schedules.delete")),
     db: AsyncSession = Depends(get_db),
 ):
     """API: حذف مدخل من الجدول"""
-    service = ScheduleService(db)
-    await service.delete_entry(entry_id)
-    return {"success": True, "message": "تم حذف المدخل بنجاح"}
+    try:
+        service = ScheduleService(db)
+        await service.delete_entry(entry_id)
+        return {"success": True, "message": "تم حذف المدخل بنجاح"}
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
 
-
-
-
-# ============= API Routes (في نفس الملف) =============
 
 @router.get("/api/v1/schedules/data/{school_id}")
 async def get_schedule_data_api(
@@ -225,7 +271,7 @@ async def get_schedule_data_api(
     
     return {
         "success": True,
-        "subjects": [{"id": s.id, "name": s.name} for s in subjects],
-        "teachers": [{"id": t.id, "full_name": t.full_name} for t in teachers],
-        "rooms": [{"id": r.id, "name": r.name} for r in rooms]
+        "subjects": subjects,
+        "teachers": teachers,
+        "rooms": rooms
     }
