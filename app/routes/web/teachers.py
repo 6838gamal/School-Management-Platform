@@ -9,8 +9,8 @@ import uuid
 from app.core.database import get_db
 from app.core.dependencies import CurrentUser, require_any_permission, template_context
 from app.services.teacher_service import TeacherService
-from app.models.teacher import Teacher
-from app.models.user import User
+from app.models.teachers import Teacher
+from app.models.users import User
 from app.core.security import get_password_hash
 
 router = APIRouter(prefix="/teachers", tags=["teachers"])
