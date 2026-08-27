@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.core.database import get_db
-from app.core.templating import templates  # ✅ استيراد templates من core.templating
+from app.core.templating import templates
 from app.core.dependencies import get_current_user
 from app.models.users import User, Role, UserRole
 from app.services.auth_service import AuthService
@@ -21,11 +21,11 @@ async def activity_managers_list(
 ):
     """صفحة قائمة مديري الأنشطة"""
     
-    # جلب دور activity_managers
+    # ✅ استخدام first() بدلاً من scalar_one_or_none() لتجنب MultipleResultsFound
     result = await db.execute(
         select(Role).where(Role.key == 'activity_managers')
     )
-    activity_role = result.scalar_one_or_none()
+    activity_role = result.scalars().first()  # ✅ تغيير من scalar_one_or_none إلى first()
     
     managers = []
     if activity_role:
@@ -35,6 +35,10 @@ async def activity_managers_list(
             .where(UserRole.role_id == activity_role.id)
         )
         managers = result.scalars().all()
+    
+    # ✅ التحقق من وجود templates
+    if templates is None:
+        raise HTTPException(status_code=500, detail="Templates not initialized")
     
     return templates.TemplateResponse(
         "activity_managers/list.html",
@@ -59,6 +63,9 @@ async def activity_managers_create_form(
     from app.models.schools import School
     result = await db.execute(select(School))
     schools = result.scalars().all()
+    
+    if templates is None:
+        raise HTTPException(status_code=500, detail="Templates not initialized")
     
     return templates.TemplateResponse(
         "activity_managers/create.html",
@@ -129,6 +136,9 @@ async def activity_managers_update_form(
     from app.models.schools import School
     result = await db.execute(select(School))
     schools = result.scalars().all()
+    
+    if templates is None:
+        raise HTTPException(status_code=500, detail="Templates not initialized")
     
     return templates.TemplateResponse(
         "activity_managers/update.html",
