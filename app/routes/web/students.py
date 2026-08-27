@@ -60,7 +60,8 @@ async def student_new(
     data = await academic.get_onboarding_data(user.school_id)
     return templates.TemplateResponse(
         "students/form.html",
-        {**ctx, "title": "إضافة طالب", "mode": "create", "sections": data["sections"], "years": data["years"]},
+        {**ctx, "title": "إضافة طالب", "mode": "create", 
+         "sections": data["sections"], "years": data["years"]},
     )
 
 
@@ -69,56 +70,48 @@ async def student_create(
     request: Request,
     user: CurrentUser = Depends(require_any_permission("students.create")),
     db: AsyncSession = Depends(get_db),
-    # استقبال البيانات من النموذج
-    full_name: str = Form(...),
     student_number: str = Form(...),
+    national_id: Optional[str] = Form(None),
+    first_name: str = Form(...),
+    last_name: str = Form(...),
     gender: Optional[str] = Form(None),
     birth_date: Optional[str] = Form(None),
-    email: Optional[str] = Form(None),
-    phone: Optional[str] = Form(None),
     guardian_name: Optional[str] = Form(None),
     guardian_phone: Optional[str] = Form(None),
+    guardian_email: Optional[str] = Form(None),
     address: Optional[str] = Form(None),
-    grade: Optional[str] = Form(None),
-    section: Optional[str] = Form(None),
-    enrollment_date: Optional[str] = Form(None),
-    notes: Optional[str] = Form(None),
-    is_active: bool = Form(True),
+    section_id: Optional[str] = Form(None),
+    year_id: Optional[str] = Form(None),
 ):
     service = StudentService(db)
     
-    # تحويل التاريخ إلى التنسيق المناسب
-    from datetime import datetime
-    birth_date_obj = datetime.strptime(birth_date, "%Y-%m-%d").date() if birth_date else None
-    enrollment_date_obj = datetime.strptime(enrollment_date, "%Y-%m-%d").date() if enrollment_date else None
-    
     student_data = StudentCreate(
-        school_id=user.school_id,
-        full_name=full_name,
         student_number=student_number,
+        national_id=national_id,
+        first_name=first_name,
+        last_name=last_name,
         gender=gender,
-        birth_date=birth_date_obj,
-        email=email,
-        phone=phone,
+        birth_date=birth_date,
         guardian_name=guardian_name,
         guardian_phone=guardian_phone,
+        guardian_email=guardian_email,
         address=address,
-        grade=grade,
-        section=section,
-        enrollment_date=enrollment_date_obj,
-        notes=notes,
-        is_active=is_active
+        section_id=section_id,
+        year_id=year_id,
     )
     
     try:
-        student = await service.create_student(student_data, user.id)
+        student = await service.create_student(student_data, user.id, user.school_id)
         return RedirectResponse(url=f"/students/{student.id}", status_code=303)
     except ValueError as e:
-        # خطأ في التحقق من البيانات
-        ctx = await template_context(request)
+        ctx = await template_context(request, user)
+        from app.services.academic_service import AcademicService
+        academic = AcademicService(db)
+        data = await academic.get_onboarding_data(user.school_id)
         return templates.TemplateResponse(
             "students/form.html",
-            {**ctx, "title": "إضافة طالب", "mode": "create", "error": str(e)},
+            {**ctx, "title": "إضافة طالب", "mode": "create", 
+             "sections": data["sections"], "years": data["years"], "error": str(e)},
             status_code=400
         )
 
@@ -134,7 +127,6 @@ async def student_edit(
     service = StudentService(db)
     detail = await service.get_student_detail(student_id)
     
-    # جلب بيانات الأكاديمية للقوائم المنسدلة
     from app.services.academic_service import AcademicService
     academic = AcademicService(db)
     data = await academic.get_onboarding_data(user.school_id)
@@ -152,57 +144,44 @@ async def student_update(
     student_id: str,
     user: CurrentUser = Depends(require_any_permission("students.update")),
     db: AsyncSession = Depends(get_db),
-    # استقبال البيانات من النموذج
-    full_name: str = Form(...),
-    student_number: str = Form(...),
+    first_name: Optional[str] = Form(None),
+    last_name: Optional[str] = Form(None),
+    national_id: Optional[str] = Form(None),
     gender: Optional[str] = Form(None),
     birth_date: Optional[str] = Form(None),
-    email: Optional[str] = Form(None),
-    phone: Optional[str] = Form(None),
     guardian_name: Optional[str] = Form(None),
     guardian_phone: Optional[str] = Form(None),
+    guardian_email: Optional[str] = Form(None),
     address: Optional[str] = Form(None),
-    grade: Optional[str] = Form(None),
-    section: Optional[str] = Form(None),
-    enrollment_date: Optional[str] = Form(None),
-    notes: Optional[str] = Form(None),
-    is_active: bool = Form(True),
+    is_active: Optional[bool] = Form(None),
 ):
     service = StudentService(db)
     
-    from datetime import datetime
-    birth_date_obj = datetime.strptime(birth_date, "%Y-%m-%d").date() if birth_date else None
-    enrollment_date_obj = datetime.strptime(enrollment_date, "%Y-%m-%d").date() if enrollment_date else None
-    
     student_update = StudentUpdate(
-        full_name=full_name,
-        student_number=student_number,
+        first_name=first_name,
+        last_name=last_name,
+        national_id=national_id,
         gender=gender,
-        birth_date=birth_date_obj,
-        email=email,
-        phone=phone,
+        birth_date=birth_date,
         guardian_name=guardian_name,
         guardian_phone=guardian_phone,
+        guardian_email=guardian_email,
         address=address,
-        grade=grade,
-        section=section,
-        enrollment_date=enrollment_date_obj,
-        notes=notes,
-        is_active=is_active
+        is_active=is_active,
     )
     
     try:
         student = await service.update_student(student_id, student_update)
         return RedirectResponse(url=f"/students/{student.id}", status_code=303)
     except ValueError as e:
-        ctx = await template_context(request)
-        # جلب بيانات الأكاديمية للقوائم المنسدلة
+        ctx = await template_context(request, user)
+        detail = await service.get_student_detail(student_id)
         from app.services.academic_service import AcademicService
         academic = AcademicService(db)
         data = await academic.get_onboarding_data(user.school_id)
         return templates.TemplateResponse(
             "students/form.html",
-            {**ctx, "title": "تعديل طالب", "mode": "edit", "student": await service.get_student_detail(student_id),
+            {**ctx, "title": "تعديل طالب", "mode": "edit", "student": detail,
              "sections": data["sections"], "years": data["years"], "error": str(e)},
             status_code=400
         )
