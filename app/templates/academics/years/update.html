@@ -1,0 +1,149 @@
+{% extends "layouts/director.html" %}
+{% block content %}
+<div class="max-w-2xl mx-auto">
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-6">
+        <div class="flex items-center justify-between mb-6">
+            <div>
+                <h1 class="text-2xl font-bold text-slate-800 dark:text-white">تعديل عام دراسي</h1>
+                <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">تحديث بيانات العام الدراسي</p>
+            </div>
+            <a href="/academics/years/list" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
+                ✕ إلغاء
+            </a>
+        </div>
+
+        <form id="updateForm" method="POST" action="/api/v1/academics/years/{{ item.id }}" onsubmit="return handleSubmit(event, this)">
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                        اسم العام <span class="text-red-500">*</span>
+                    </label>
+                    <input type="text" name="name" value="{{ item.name }}" 
+                           class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-slate-700 dark:text-white transition-colors duration-200" 
+                           required>
+                    <p class="text-xs text-slate-400 mt-1">مثال: 2026-2027</p>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                        تاريخ البداية <span class="text-red-500">*</span>
+                    </label>
+                    <input type="date" name="start_date" value="{{ item.start_date }}"
+                           class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-slate-700 dark:text-white transition-colors duration-200" 
+                           required>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                        تاريخ النهاية <span class="text-red-500">*</span>
+                    </label>
+                    <input type="date" name="end_date" value="{{ item.end_date }}"
+                           class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-slate-700 dark:text-white transition-colors duration-200" 
+                           required>
+                </div>
+
+                <div class="flex items-center space-x-3 space-x-reverse">
+                    <input type="checkbox" name="is_current" value="true" {% if item.is_current %}checked{% endif %}
+                           class="w-4 h-4 text-primary-600 border-slate-300 rounded focus:ring-primary-500 dark:border-slate-600">
+                    <label class="text-sm text-slate-700 dark:text-slate-300">تعيين كعام دراسي حالي</label>
+                </div>
+
+                <div class="flex items-center space-x-3 space-x-reverse">
+                    <input type="checkbox" name="is_active" value="true" {% if item.is_active %}checked{% endif %}
+                           class="w-4 h-4 text-primary-600 border-slate-300 rounded focus:ring-primary-500 dark:border-slate-600">
+                    <label class="text-sm text-slate-700 dark:text-slate-300">مفعل</label>
+                </div>
+            </div>
+            
+            <div class="flex gap-3 mt-6 pt-6 border-t border-slate-200 dark:border-slate-700">
+                <button type="submit" id="submitBtn" class="flex-1 bg-primary-600 hover:bg-primary-700 text-white px-4 py-2.5 rounded-lg font-medium transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed">
+                    تحديث
+                </button>
+                <a href="/academics/years/list" class="flex-1 bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 px-4 py-2.5 rounded-lg font-medium transition-colors duration-200 text-center">
+                    إلغاء
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+async function handleSubmit(event, form) {
+    event.preventDefault();
+    const submitBtn = document.getElementById('submitBtn');
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'جاري التحديث...';
+
+    const formData = new FormData(form);
+    const data = Object.fromEntries(formData.entries());
+    
+    // تحويل القيم المنطقية
+    data.is_current = data.is_current === 'true';
+    data.is_active = data.is_active === 'true';
+
+    // إزالة الحقول الفارغة
+    Object.keys(data).forEach(key => {
+        if (data[key] === '' || data[key] === null || data[key] === undefined) {
+            delete data[key];
+        }
+    });
+
+    try {
+        const response = await fetch(form.action, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(data)
+        });
+        
+        if (response.ok) {
+            const result = await response.json();
+            showMessage('✅ ' + result.message, 'success');
+            setTimeout(() => {
+                window.location.href = '/academics/years/list';
+            }, 1500);
+        } else {
+            const error = await response.json();
+            showMessage('❌ ' + (error.detail || 'حدث خطأ أثناء التحديث'), 'error');
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'تحديث';
+        }
+    } catch (error) {
+        showMessage('❌ حدث خطأ في الاتصال بالخادم', 'error');
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'تحديث';
+        console.error(error);
+    }
+}
+
+function showMessage(message, type = 'success') {
+    const colors = {
+        success: 'bg-green-50 text-green-800 border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800',
+        error: 'bg-red-50 text-red-800 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800',
+        warning: 'bg-yellow-50 text-yellow-800 border-yellow-200 dark:bg-yellow-900/20 dark:text-yellow-400 dark:border-yellow-800'
+    };
+    
+    document.querySelectorAll('.toast-message').forEach(el => el.remove());
+    
+    const div = document.createElement('div');
+    div.className = `toast-message fixed top-4 right-4 p-4 rounded-lg border ${colors[type]} shadow-lg z-50 max-w-md animate-slide-in`;
+    div.innerHTML = message;
+    document.body.appendChild(div);
+    
+    setTimeout(() => { 
+        div.remove(); 
+    }, 5000);
+}
+</script>
+
+<style>
+@keyframes slideIn {
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+}
+.animate-slide-in {
+    animation: slideIn 0.3s ease-out;
+}
+</style>
+{% endblock %}
