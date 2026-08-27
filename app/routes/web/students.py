@@ -9,6 +9,12 @@ from app.core.database import get_db
 from app.core.dependencies import CurrentUser, require_any_permission, template_context
 from app.services.student_service import StudentService
 from app.schemas.students import StudentCreate, StudentUpdate
+from app.core.exceptions import (
+    NotFoundException,
+    ConflictException,
+    ValidationException,
+    AppException
+)
 
 router = APIRouter(prefix="/students", tags=["students"])
 templates = Jinja2Templates(directory="app/templates")
@@ -41,11 +47,24 @@ async def student_detail(
     ctx: dict = Depends(template_context),
 ):
     service = StudentService(db)
-    detail = await service.get_student_detail(student_id)
-    return templates.TemplateResponse(
-        "students/detail.html",
-        {**ctx, "title": detail["full_name"], "student": detail},
-    )
+    try:
+        detail = await service.get_student_detail(student_id)
+        return templates.TemplateResponse(
+            "students/detail.html",
+            {**ctx, "title": detail["full_name"], "student": detail},
+        )
+    except NotFoundException as e:
+        return templates.TemplateResponse(
+            "errors/404.html",
+            {**ctx, "message": str(e)},
+            status_code=404
+        )
+    except AppException as e:
+        return templates.TemplateResponse(
+            "errors/error.html",
+            {**ctx, "message": str(e)},
+            status_code=e.status_code if hasattr(e, 'status_code') else 400
+        )
 
 
 @router.get("/new")
@@ -55,14 +74,21 @@ async def student_new(
     db: AsyncSession = Depends(get_db),
     ctx: dict = Depends(template_context),
 ):
-    from app.services.academic_service import AcademicService
-    academic = AcademicService(db)
-    data = await academic.get_onboarding_data(user.school_id)
-    return templates.TemplateResponse(
-        "students/form.html",
-        {**ctx, "title": "إضافة طالب", "mode": "create", 
-         "sections": data["sections"], "years": data["years"]},
-    )
+    try:
+        from app.services.academic_service import AcademicService
+        academic = AcademicService(db)
+        data = await academic.get_onboarding_data(user.school_id)
+        return templates.TemplateResponse(
+            "students/form.html",
+            {**ctx, "title": "إضافة طالب", "mode": "create", 
+             "sections": data.get("sections", []), "years": data.get("years", [])},
+        )
+    except AppException as e:
+        return templates.TemplateResponse(
+            "errors/error.html",
+            {**ctx, "message": str(e)},
+            status_code=400
+        )
 
 
 @router.post("")
@@ -85,6 +111,33 @@ async def student_create(
 ):
     service = StudentService(db)
     
+    # التحقق من صحة البيانات الأساسية
+    if not student_number or len(student_number) < 3:
+        ctx = await template_context(request, user)
+        from app.services.academic_service import AcademicService
+        academic = AcademicService(db)
+        data = await academic.get_onboarding_data(user.school_id)
+        return templates.TemplateResponse(
+            "students/form.html",
+            {**ctx, "title": "إضافة طالب", "mode": "create", 
+             "sections": data.get("sections", []), "years": data.get("years", []),
+             "error": "رقم الطالب يجب أن يكون 3 أحرف على الأقل"},
+            status_code=400
+        )
+    
+    if not first_name or len(first_name) < 2:
+        ctx = await template_context(request, user)
+        from app.services.academic_service import AcademicService
+        academic = AcademicService(db)
+        data = await academic.get_onboarding_data(user.school_id)
+        return templates.TemplateResponse(
+            "students/form.html",
+            {**ctx, "title": "إضافة طالب", "mode": "create", 
+             "sections": data.get("sections", []), "years": data.get("years", []),
+             "error": "الاسم الأول يجب أن يكون حرفين على الأقل"},
+            status_code=400
+        )
+    
     student_data = StudentCreate(
         student_number=student_number,
         national_id=national_id,
@@ -103,7 +156,7 @@ async def student_create(
     try:
         student = await service.create_student(student_data, user.id, user.school_id)
         return RedirectResponse(url=f"/students/{student.id}", status_code=303)
-    except ValueError as e:
+    except ConflictException as e:
         ctx = await template_context(request, user)
         from app.services.academic_service import AcademicService
         academic = AcademicService(db)
@@ -111,7 +164,32 @@ async def student_create(
         return templates.TemplateResponse(
             "students/form.html",
             {**ctx, "title": "إضافة طالب", "mode": "create", 
-             "sections": data["sections"], "years": data["years"], "error": str(e)},
+             "sections": data.get("sections", []), "years": data.get("years", []), 
+             "error": str(e)},
+            status_code=409
+        )
+    except ValidationException as e:
+        ctx = await template_context(request, user)
+        from app.services.academic_service import AcademicService
+        academic = AcademicService(db)
+        data = await academic.get_onboarding_data(user.school_id)
+        return templates.TemplateResponse(
+            "students/form.html",
+            {**ctx, "title": "إضافة طالب", "mode": "create", 
+             "sections": data.get("sections", []), "years": data.get("years", []), 
+             "error": str(e)},
+            status_code=422
+        )
+    except AppException as e:
+        ctx = await template_context(request, user)
+        from app.services.academic_service import AcademicService
+        academic = AcademicService(db)
+        data = await academic.get_onboarding_data(user.school_id)
+        return templates.TemplateResponse(
+            "students/form.html",
+            {**ctx, "title": "إضافة طالب", "mode": "create", 
+             "sections": data.get("sections", []), "years": data.get("years", []), 
+             "error": str(e)},
             status_code=400
         )
 
@@ -125,17 +203,30 @@ async def student_edit(
     ctx: dict = Depends(template_context),
 ):
     service = StudentService(db)
-    detail = await service.get_student_detail(student_id)
-    
-    from app.services.academic_service import AcademicService
-    academic = AcademicService(db)
-    data = await academic.get_onboarding_data(user.school_id)
-    
-    return templates.TemplateResponse(
-        "students/form.html",
-        {**ctx, "title": "تعديل طالب", "mode": "edit", "student": detail, 
-         "sections": data["sections"], "years": data["years"]},
-    )
+    try:
+        detail = await service.get_student_detail(student_id)
+        
+        from app.services.academic_service import AcademicService
+        academic = AcademicService(db)
+        data = await academic.get_onboarding_data(user.school_id)
+        
+        return templates.TemplateResponse(
+            "students/form.html",
+            {**ctx, "title": "تعديل طالب", "mode": "edit", "student": detail, 
+             "sections": data.get("sections", []), "years": data.get("years", [])},
+        )
+    except NotFoundException as e:
+        return templates.TemplateResponse(
+            "errors/404.html",
+            {**ctx, "message": str(e)},
+            status_code=404
+        )
+    except AppException as e:
+        return templates.TemplateResponse(
+            "errors/error.html",
+            {**ctx, "message": str(e)},
+            status_code=400
+        )
 
 
 @router.post("/{student_id}/edit")
@@ -173,7 +264,13 @@ async def student_update(
     try:
         student = await service.update_student(student_id, student_update)
         return RedirectResponse(url=f"/students/{student.id}", status_code=303)
-    except ValueError as e:
+    except NotFoundException as e:
+        return templates.TemplateResponse(
+            "errors/404.html",
+            {"request": request, "message": str(e)},
+            status_code=404
+        )
+    except ConflictException as e:
         ctx = await template_context(request, user)
         detail = await service.get_student_detail(student_id)
         from app.services.academic_service import AcademicService
@@ -182,7 +279,34 @@ async def student_update(
         return templates.TemplateResponse(
             "students/form.html",
             {**ctx, "title": "تعديل طالب", "mode": "edit", "student": detail,
-             "sections": data["sections"], "years": data["years"], "error": str(e)},
+             "sections": data.get("sections", []), "years": data.get("years", []), 
+             "error": str(e)},
+            status_code=409
+        )
+    except ValidationException as e:
+        ctx = await template_context(request, user)
+        detail = await service.get_student_detail(student_id)
+        from app.services.academic_service import AcademicService
+        academic = AcademicService(db)
+        data = await academic.get_onboarding_data(user.school_id)
+        return templates.TemplateResponse(
+            "students/form.html",
+            {**ctx, "title": "تعديل طالب", "mode": "edit", "student": detail,
+             "sections": data.get("sections", []), "years": data.get("years", []), 
+             "error": str(e)},
+            status_code=422
+        )
+    except AppException as e:
+        ctx = await template_context(request, user)
+        detail = await service.get_student_detail(student_id)
+        from app.services.academic_service import AcademicService
+        academic = AcademicService(db)
+        data = await academic.get_onboarding_data(user.school_id)
+        return templates.TemplateResponse(
+            "students/form.html",
+            {**ctx, "title": "تعديل طالب", "mode": "edit", "student": detail,
+             "sections": data.get("sections", []), "years": data.get("years", []), 
+             "error": str(e)},
             status_code=400
         )
 
@@ -195,5 +319,13 @@ async def student_delete(
     db: AsyncSession = Depends(get_db),
 ):
     service = StudentService(db)
-    await service.delete_student(student_id)
-    return RedirectResponse(url="/students", status_code=303)
+    try:
+        await service.delete_student(student_id)
+        return RedirectResponse(url="/students", status_code=303)
+    except NotFoundException:
+        # إذا لم يتم العثور على الطالب، نعيد التوجيه إلى القائمة
+        return RedirectResponse(url="/students", status_code=303)
+    except AppException as e:
+        # في حالة أي خطأ آخر، نعيد التوجيه إلى القائمة مع رسالة خطأ
+        # يمكن إضافة رسالة خطأ في session إذا كان لديك نظام رسائل
+        return RedirectResponse(url="/students", status_code=303)
