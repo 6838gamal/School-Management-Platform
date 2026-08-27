@@ -1,40 +1,183 @@
 {% extends "layouts/director.html" %}
 {% block content %}
 <div class="space-y-6">
-    <div class="flex items-center gap-3">
-        <a href="/students" class="text-slate-400 hover:text-slate-600">&larr; العودة</a>
-    </div>
-    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-6">
-        <div class="flex items-start justify-between">
-            <div>
-                <h1 class="text-2xl font-bold text-slate-800 dark:text-white">{{ student.full_name }}</h1>
-                <p class="text-slate-400 text-sm mt-1">رقم: {{ student.student_number }}</p>
-            </div>
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-bold text-slate-800 dark:text-white">{{ student.full_name }}</h1>
+            <p class="text-slate-400 text-sm mt-1">رقم الطالب: {{ student.student_number }}</p>
+        </div>
+        <div class="flex gap-2">
             {% if can('students.update') %}
-            <a href="/students/{{ student.id }}/edit" class="text-primary-600 text-sm font-medium hover:underline">تعديل</a>
+            <a href="/students/{{ student.id }}/edit" class="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg text-sm font-semibold">تعديل</a>
             {% endif %}
-        </div>
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-6">
-            <div><p class="text-xs text-slate-400">الجنس</p><p class="font-medium">{{ student.gender or '—' }}</p></div>
-            <div><p class="text-xs text-slate-400">تاريخ الميلاد</p><p class="font-medium">{{ student.birth_date or '—' }}</p></div>
-            <div><p class="text-xs text-slate-400">الرقم الوطني</p><p class="font-medium">{{ student.national_id or '—' }}</p></div>
-            <div><p class="text-xs text-slate-400">ولي الأمر</p><p class="font-medium">{{ student.guardian_name or '—' }}</p></div>
-            <div><p class="text-xs text-slate-400">هاتف ولي الأمر</p><p class="font-medium">{{ student.guardian_phone or '—' }}</p></div>
-            <div><p class="text-xs text-slate-400">العنوان</p><p class="font-medium">{{ student.address or '—' }}</p></div>
+            <a href="/students" class="bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 px-4 py-2 rounded-lg text-sm font-medium">← العودة</a>
         </div>
     </div>
-    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-6">
-        <h3 class="font-semibold text-slate-700 dark:text-slate-200 mb-4">سجل التسجيل</h3>
-        <div class="space-y-3">
-            {% for e in student.enrollments %}
-            <div class="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-700/30 rounded-lg">
-                <div><span class="text-sm font-medium">{{ e.status }}</span><span class="text-xs text-slate-400 mr-2">من {{ e.enrolled_at }}</span></div>
-                <span class="text-xs text-slate-400">شعبة: {{ e.section_id[:8] }}</span>
+
+    <!-- بطاقة المعلومات الأساسية -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-6">
+            <div class="text-sm text-slate-400">الحالة</div>
+            <div class="mt-1">
+                {% if student.is_active %}
+                <span class="px-3 py-1 text-sm rounded-full bg-success-50 text-success-600">نشط</span>
+                {% else %}
+                <span class="px-3 py-1 text-sm rounded-full bg-danger-50 text-danger-600">معطل</span>
+                {% endif %}
             </div>
-            {% else %}
-            <p class="text-slate-400 text-sm">لا يوجد سجل تسجيل.</p>
-            {% endfor %}
+        </div>
+        <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-6">
+            <div class="text-sm text-slate-400">الجنس</div>
+            <div class="mt-1 font-medium">{{ student.gender or '—' }}</div>
+        </div>
+        <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-6">
+            <div class="text-sm text-slate-400">تاريخ الميلاد</div>
+            <div class="mt-1 font-medium">{{ student.birth_date or '—' }}</div>
+        </div>
+        <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-6">
+            <div class="text-sm text-slate-400">الرقم الوطني</div>
+            <div class="mt-1 font-medium">{{ student.national_id or '—' }}</div>
+        </div>
+    </div>
+
+    <!-- معلومات ولي الأمر -->
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 overflow-hidden">
+        <div class="p-4 border-b border-slate-100 dark:border-slate-700">
+            <h2 class="font-semibold text-slate-800 dark:text-white">معلومات ولي الأمر</h2>
+        </div>
+        <div class="p-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+                <div class="text-sm text-slate-400">اسم ولي الأمر</div>
+                <div class="font-medium">{{ student.guardian_name or '—' }}</div>
+            </div>
+            <div>
+                <div class="text-sm text-slate-400">هاتف ولي الأمر</div>
+                <div class="font-medium">{{ student.guardian_phone or '—' }}</div>
+            </div>
+            <div>
+                <div class="text-sm text-slate-400">البريد الإلكتروني لولي الأمر</div>
+                <div class="font-medium">{{ student.guardian_email or '—' }}</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- المعلومات الأكاديمية -->
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 overflow-hidden">
+        <div class="p-4 border-b border-slate-100 dark:border-slate-700">
+            <h2 class="font-semibold text-slate-800 dark:text-white">المعلومات الأكاديمية</h2>
+        </div>
+        <div class="p-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+                <div class="text-sm text-slate-400">السنة الدراسية</div>
+                <div class="font-medium">{{ student.year_name or '—' }}</div>
+            </div>
+            <div>
+                <div class="text-sm text-slate-400">القسم/الشعبة</div>
+                <div class="font-medium">{{ student.section_name or '—' }}</div>
+            </div>
+            <div>
+                <div class="text-sm text-slate-400">تاريخ التسجيل</div>
+                <div class="font-medium">{{ student.created_at or '—' }}</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- معلومات إضافية -->
+    {% if student.address %}
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 overflow-hidden">
+        <div class="p-4 border-b border-slate-100 dark:border-slate-700">
+            <h2 class="font-semibold text-slate-800 dark:text-white">العنوان</h2>
+        </div>
+        <div class="p-4">
+            <p class="text-slate-600 dark:text-slate-300">{{ student.address }}</p>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- معلومات التسجيل (Enrollments) -->
+    {% if student.enrollments %}
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 overflow-hidden">
+        <div class="p-4 border-b border-slate-100 dark:border-slate-700">
+            <h2 class="font-semibold text-slate-800 dark:text-white">سجل التسجيل</h2>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead class="bg-slate-50 dark:bg-slate-700/50 text-slate-500 dark:text-slate-300">
+                    <tr>
+                        <th class="text-right p-3 font-medium">السنة</th>
+                        <th class="text-right p-3 font-medium">القسم</th>
+                        <th class="text-right p-3 font-medium">الحالة</th>
+                        <th class="text-right p-3 font-medium">تاريخ التسجيل</th>
+                        <th class="text-right p-3 font-medium">تاريخ الانتهاء</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
+                    {% for enrollment in student.enrollments %}
+                    <tr>
+                        <td class="p-3">{{ enrollment.year_name or '—' }}</td>
+                        <td class="p-3">{{ enrollment.section_name or '—' }}</td>
+                        <td class="p-3">
+                            <span class="px-2 py-0.5 text-xs rounded-full 
+                                {% if enrollment.status == 'active' %}bg-success-50 text-success-600
+                                {% elif enrollment.status == 'completed' %}bg-primary-50 text-primary-600
+                                {% else %}bg-warning-50 text-warning-600{% endif %}">
+                                {{ enrollment.status }}
+                            </span>
+                        </td>
+                        <td class="p-3">{{ enrollment.enrolled_at or '—' }}</td>
+                        <td class="p-3">{{ enrollment.ended_at or '—' }}</td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="5" class="p-8 text-center text-slate-400">لا يوجد سجل تسجيل</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- زر الحذف -->
+    {% if can('students.delete') %}
+    <div class="flex justify-end">
+        <button onclick="confirmDelete('{{ student.id }}', '{{ student.full_name }}')" 
+                class="bg-danger-50 hover:bg-danger-100 text-danger-600 px-4 py-2 rounded-lg text-sm font-medium">
+            حذف الطالب
+        </button>
+    </div>
+    {% endif %}
+</div>
+
+<!-- مودال تأكيد الحذف -->
+<div id="deleteModal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50">
+    <div class="bg-white dark:bg-slate-800 rounded-xl max-w-md w-full mx-4 p-6">
+        <h3 class="text-lg font-bold text-slate-800 dark:text-white mb-2">تأكيد الحذف</h3>
+        <p class="text-slate-600 dark:text-slate-300 mb-6">هل أنت متأكد من حذف الطالب <span id="deleteStudentName" class="font-semibold"></span>؟ لا يمكن التراجع عن هذا الإجراء.</p>
+        <div class="flex gap-3 justify-end">
+            <button onclick="closeDeleteModal()" class="bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 px-4 py-2 rounded-lg text-sm font-medium">إلغاء</button>
+            <form id="deleteForm" method="POST" action="">
+                <input type="hidden" name="_method" value="DELETE">
+                <button type="submit" class="bg-danger-600 hover:bg-danger-700 text-white px-4 py-2 rounded-lg text-sm font-semibold">تأكيد الحذف</button>
+            </form>
         </div>
     </div>
 </div>
+
+<script>
+function confirmDelete(id, name) {
+    document.getElementById('deleteStudentName').textContent = name;
+    document.getElementById('deleteForm').action = '/students/' + id;
+    document.getElementById('deleteModal').classList.remove('hidden');
+    document.getElementById('deleteModal').classList.add('flex');
+}
+
+function closeDeleteModal() {
+    document.getElementById('deleteModal').classList.add('hidden');
+    document.getElementById('deleteModal').classList.remove('flex');
+}
+
+// إغلاق المودال عند الضغط خارج المحتوى
+document.getElementById('deleteModal').addEventListener('click', function(e) {
+    if (e.target === this) closeDeleteModal();
+});
+</script>
 {% endblock %}
