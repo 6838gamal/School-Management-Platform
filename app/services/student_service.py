@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, or_
 from sqlalchemy.orm import selectinload
 
-from app.models.students import Student, Enrollment
+from app.models.students import Student, StudentEnrollment
 from app.schemas.students import StudentCreate, StudentUpdate
 from app.core.exceptions import NotFoundError, ValidationError
 
