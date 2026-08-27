@@ -161,12 +161,15 @@ async def init_database():
                 await db.flush()
                 print("✅ تم إنشاء المدرسة")
             
-            # 2. تهيئة الصلاحيات والأدوار
+            # 2. التأكد من وجود جميع الصلاحيات (إضافة المفقودة فقط)
+            await service.ensure_permissions_exist(school.id)
+            
+            # 3. تهيئة الصلاحيات والأدوار
             await service.ensure_system_roles_and_permissions(school.id)
             await db.commit()
             print("✅ تم تهيئة الصلاحيات والأدوار")
             
-            # 3. إنشاء المستخدمين التجريبيين
+            # 4. إنشاء المستخدمين التجريبيين
             demo_users = [
                 {"email": "admin@school.edu", "password": "admin123", "full_name": "أحمد المدير", "role": "director"},
                 {"email": "deputy@school.edu", "password": "deputy123", "full_name": "خالد الوكيل", "role": "deputy"},
