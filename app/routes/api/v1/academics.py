@@ -89,7 +89,7 @@ async def create_year(
 async def update_year(
     year_id: str,
     req: AcademicYearUpdate,
-    user: CurrentUser = Depends(require_any_permission("academics.edit")),
+    user: CurrentUser = Depends(require_any_permission("academics.update")),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -268,7 +268,7 @@ async def create_stage(
 async def update_stage(
     stage_id: str,
     req: StageUpdate,
-    user: CurrentUser = Depends(require_any_permission("academics.edit")),
+    user: CurrentUser = Depends(require_any_permission("academics.update")),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -407,7 +407,7 @@ async def create_grade(
 async def update_grade(
     grade_id: str,
     req: GradeUpdate,
-    user: CurrentUser = Depends(require_any_permission("academics.edit")),
+    user: CurrentUser = Depends(require_any_permission("academics.update")),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -546,7 +546,7 @@ async def create_section(
 async def update_section(
     section_id: str,
     req: SectionUpdate,
-    user: CurrentUser = Depends(require_any_permission("academics.edit")),
+    user: CurrentUser = Depends(require_any_permission("academics.update")),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -687,7 +687,7 @@ async def create_subject(
 async def update_subject(
     subject_id: str,
     req: SubjectUpdate,
-    user: CurrentUser = Depends(require_any_permission("academics.edit")),
+    user: CurrentUser = Depends(require_any_permission("academics.update")),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -832,7 +832,7 @@ async def create_room(
 async def update_room(
     room_id: str,
     req: RoomUpdate,
-    user: CurrentUser = Depends(require_any_permission("academics.edit")),
+    user: CurrentUser = Depends(require_any_permission("academics.update")),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -980,7 +980,7 @@ async def create_period(
 async def update_period(
     period_id: str,
     req: PeriodUpdate,
-    user: CurrentUser = Depends(require_any_permission("academics.edit")),
+    user: CurrentUser = Depends(require_any_permission("academics.update")),
     db: AsyncSession = Depends(get_db),
 ):
     """
