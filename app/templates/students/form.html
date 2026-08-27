@@ -1,27 +1,183 @@
 {% extends "layouts/director.html" %}
 {% block content %}
-<div class="space-y-6 max-w-2xl">
-    <h1 class="text-2xl font-bold text-slate-800 dark:text-white">{{ title }}</h1>
-    <form method="POST" action="{% if mode == 'create' %}/api/v1/students{% else %}/api/v1/students/{{ student.id }}{% endif %}" class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-6 space-y-4">
-        <div class="grid grid-cols-2 gap-4">
-            <div><label class="block text-sm font-medium mb-1">رقم الطالب</label><input name="student_number" required value="{{ student.student_number if mode == 'edit' else '' }}" class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 outline-none focus:ring-2 focus:ring-primary-500"></div>
-            <div><label class="block text-sm font-medium mb-1">الرقم الوطني</label><input name="national_id" value="{{ student.national_id if mode == 'edit' else '' }}" class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 outline-none focus:ring-2 focus:ring-primary-500"></div>
-            <div><label class="block text-sm font-medium mb-1">الاسم الأول</label><input name="first_name" required value="{{ student.first_name if mode == 'edit' else '' }}" class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 outline-none focus:ring-2 focus:ring-primary-500"></div>
-            <div><label class="block text-sm font-medium mb-1">الاسم الأخير</label><input name="last_name" required value="{{ student.last_name if mode == 'edit' else '' }}" class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 outline-none focus:ring-2 focus:ring-primary-500"></div>
-            <div><label class="block text-sm font-medium mb-1">الجنس</label><select name="gender" class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 outline-none"><option value="">—</option><option value="male">ذكر</option><option value="female">أنثى</option></select></div>
-            <div><label class="block text-sm font-medium mb-1">تاريخ الميلاد</label><input type="date" name="birth_date" value="{{ student.birth_date if mode == 'edit' else '' }}" class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 outline-none focus:ring-2 focus:ring-primary-500"></div>
-            <div><label class="block text-sm font-medium mb-1">ولي الأمر</label><input name="guardian_name" value="{{ student.guardian_name if mode == 'edit' else '' }}" class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 outline-none focus:ring-2 focus:ring-primary-500"></div>
-            <div><label class="block text-sm font-medium mb-1">هاتف ولي الأمر</label><input name="guardian_phone" value="{{ student.guardian_phone if mode == 'edit' else '' }}" class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 outline-none focus:ring-2 focus:ring-primary-500"></div>
-            {% if mode == 'create' %}
-            <div class="col-span-2"><label class="block text-sm font-medium mb-1">الشعبة</label>
-                <select name="section_id" class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 outline-none">
-                    <option value="">—</option>
-                    {% for s in sections %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}
-                </select>
-            </div>
-            {% endif %}
+<div class="space-y-6">
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-bold text-slate-800 dark:text-white">{{ title }}</h1>
+            <p class="text-slate-400 text-sm mt-1">جميع الحقول المطلوبة عليها علامة *</p>
         </div>
-        <button type="submit" class="bg-primary-600 hover:bg-primary-700 text-white px-6 py-2.5 rounded-lg font-semibold">حفظ</button>
-    </form>
+        <a href="/students" class="text-slate-600 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 text-sm font-medium">← العودة للقائمة</a>
+    </div>
+
+    {% if error %}
+    <div class="bg-danger-50 border border-danger-200 text-danger-700 px-4 py-3 rounded-lg">
+        {{ error }}
+    </div>
+    {% endif %}
+
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 overflow-hidden">
+        <form method="POST" action="{{ '/students' if mode == 'create' else '/students/' + student.id + '/edit' }}" class="p-6 space-y-6" id="studentForm">
+            <input type="hidden" name="_method" value="{{ 'POST' if mode == 'create' else 'PUT' }}">
+            
+            <!-- المعلومات الشخصية -->
+            <div class="border-b border-slate-100 dark:border-slate-700 pb-6">
+                <h3 class="text-lg font-semibold text-slate-800 dark:text-white mb-4">المعلومات الشخصية</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="space-y-1">
+                        <label class="text-sm font-medium text-slate-700 dark:text-slate-300">
+                            رقم الطالب <span class="text-danger-500">*</span>
+                        </label>
+                        <input type="text" name="student_number" 
+                               class="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500"
+                               value="{% if mode == 'edit' %}{{ student.student_number or '' }}{% endif %}"
+                               required>
+                    </div>
+                    
+                    <div class="space-y-1">
+                        <label class="text-sm font-medium text-slate-700 dark:text-slate-300">
+                            الرقم الوطني
+                        </label>
+                        <input type="text" name="national_id" 
+                               class="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500"
+                               value="{% if mode == 'edit' %}{{ student.national_id or '' }}{% endif %}">
+                    </div>
+                    
+                    <div class="space-y-1">
+                        <label class="text-sm font-medium text-slate-700 dark:text-slate-300">
+                            الاسم الأول <span class="text-danger-500">*</span>
+                        </label>
+                        <input type="text" name="first_name" 
+                               class="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500"
+                               value="{% if mode == 'edit' %}{{ student.first_name or '' }}{% endif %}"
+                               required>
+                    </div>
+                    
+                    <div class="space-y-1">
+                        <label class="text-sm font-medium text-slate-700 dark:text-slate-300">
+                            اسم العائلة <span class="text-danger-500">*</span>
+                        </label>
+                        <input type="text" name="last_name" 
+                               class="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500"
+                               value="{% if mode == 'edit' %}{{ student.last_name or '' }}{% endif %}"
+                               required>
+                    </div>
+                    
+                    <div class="space-y-1">
+                        <label class="text-sm font-medium text-slate-700 dark:text-slate-300">الجنس</label>
+                        <select name="gender" class="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
+                            <option value="">اختر...</option>
+                            <option value="ذكر" {% if mode == 'edit' and student.gender == 'ذكر' %}selected{% endif %}>ذكر</option>
+                            <option value="أنثى" {% if mode == 'edit' and student.gender == 'أنثى' %}selected{% endif %}>أنثى</option>
+                        </select>
+                    </div>
+                    
+                    <div class="space-y-1">
+                        <label class="text-sm font-medium text-slate-700 dark:text-slate-300">تاريخ الميلاد</label>
+                        <input type="date" name="birth_date" 
+                               class="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500"
+                               value="{% if mode == 'edit' %}{{ student.birth_date or '' }}{% endif %}">
+                    </div>
+                </div>
+            </div>
+
+            <!-- معلومات ولي الأمر -->
+            <div class="border-b border-slate-100 dark:border-slate-700 pb-6">
+                <h3 class="text-lg font-semibold text-slate-800 dark:text-white mb-4">معلومات ولي الأمر</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="space-y-1">
+                        <label class="text-sm font-medium text-slate-700 dark:text-slate-300">اسم ولي الأمر</label>
+                        <input type="text" name="guardian_name" 
+                               class="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500"
+                               value="{% if mode == 'edit' %}{{ student.guardian_name or '' }}{% endif %}">
+                    </div>
+                    
+                    <div class="space-y-1">
+                        <label class="text-sm font-medium text-slate-700 dark:text-slate-300">هاتف ولي الأمر</label>
+                        <input type="tel" name="guardian_phone" 
+                               class="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500"
+                               value="{% if mode == 'edit' %}{{ student.guardian_phone or '' }}{% endif %}">
+                    </div>
+                    
+                    <div class="space-y-1 md:col-span-2">
+                        <label class="text-sm font-medium text-slate-700 dark:text-slate-300">البريد الإلكتروني لولي الأمر</label>
+                        <input type="email" name="guardian_email" 
+                               class="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500"
+                               value="{% if mode == 'edit' %}{{ student.guardian_email or '' }}{% endif %}">
+                    </div>
+                </div>
+            </div>
+
+            <!-- المعلومات الأكاديمية -->
+            <div class="border-b border-slate-100 dark:border-slate-700 pb-6">
+                <h3 class="text-lg font-semibold text-slate-800 dark:text-white mb-4">المعلومات الأكاديمية</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="space-y-1">
+                        <label class="text-sm font-medium text-slate-700 dark:text-slate-300">السنة الدراسية</label>
+                        <select name="year_id" class="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
+                            <option value="">اختر السنة...</option>
+                            {% for year in years %}
+                            <option value="{{ year.id }}" 
+                                    {% if mode == 'edit' and student.year_id == year.id %}selected{% endif %}>
+                                {{ year.name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="space-y-1">
+                        <label class="text-sm font-medium text-slate-700 dark:text-slate-300">القسم/الشعبة</label>
+                        <select name="section_id" class="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
+                            <option value="">اختر القسم...</option>
+                            {% for section in sections %}
+                            <option value="{{ section.id }}" 
+                                    {% if mode == 'edit' and student.section_id == section.id %}selected{% endif %}>
+                                {{ section.name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- معلومات إضافية -->
+            <div class="border-b border-slate-100 dark:border-slate-700 pb-6">
+                <h3 class="text-lg font-semibold text-slate-800 dark:text-white mb-4">معلومات إضافية</h3>
+                <div class="grid grid-cols-1 gap-4">
+                    <div class="space-y-1">
+                        <label class="text-sm font-medium text-slate-700 dark:text-slate-300">العنوان</label>
+                        <textarea name="address" 
+                                  class="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500 resize-y"
+                                  rows="3">{% if mode == 'edit' %}{{ student.address or '' }}{% endif %}</textarea>
+                    </div>
+                    
+                    {% if mode == 'edit' %}
+                    <div class="space-y-1">
+                        <label class="text-sm font-medium text-slate-700 dark:text-slate-300">الحالة</label>
+                        <div class="flex items-center gap-4">
+                            <label class="flex items-center gap-2 text-sm">
+                                <input type="radio" name="is_active" value="true" 
+                                       {% if student.is_active %}checked{% endif %}>
+                                نشط
+                            </label>
+                            <label class="flex items-center gap-2 text-sm">
+                                <input type="radio" name="is_active" value="false" 
+                                       {% if not student.is_active %}checked{% endif %}>
+                                معطل
+                            </label>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- أزرار الإجراءات -->
+            <div class="flex gap-3 pt-4 border-t border-slate-100 dark:border-slate-700">
+                <button type="submit" class="bg-primary-600 hover:bg-primary-700 text-white px-6 py-2 rounded-lg text-sm font-semibold">
+                    {% if mode == 'create' %}إضافة طالب{% else %}حفظ التعديلات{% endif %}
+                </button>
+                <a href="/students" class="bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 px-6 py-2 rounded-lg text-sm font-medium">إلغاء</a>
+            </div>
+        </form>
+    </div>
 </div>
 {% endblock %}
