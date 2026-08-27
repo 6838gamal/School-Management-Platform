@@ -1,5 +1,5 @@
 """Schedules web routes."""
-from fastapi import APIRouter, Depends, Request, HTTPException
+from fastapi import APIRouter, Depends, Request, HTTPException, status
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -58,8 +58,8 @@ async def create_schedule_page(
 ):
     """صفحة إنشاء جدول جديد"""
     service = ScheduleService(db)
-    sections = await service.get_sections_objects(user.school_id)  # استخدام ORM Objects
-    academic_years = await service.get_academic_years_objects(user.school_id)  # استخدام ORM Objects
+    sections = await service.get_sections_objects(user.school_id)
+    academic_years = await service.get_academic_years_objects(user.school_id)
     
     return templates.TemplateResponse(
         "schedules/create.html",
