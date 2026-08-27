@@ -53,9 +53,13 @@
         </div>
         <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-4">
             <div class="flex items-center justify-between">
-                <span class="text-sm text-slate-500 dark:text-slate-400">عدد الحصص</span>
+                <span class="text-sm text-slate-500 dark:text-slate-400">إجمالي الحصص</span>
                 <span class="text-2xl font-bold text-primary-600 dark:text-primary-400">
-                    {{ items|sum(attribute='entries')|length if items else 0 }}
+                    {% set total_entries = 0 %}
+                    {% for item in items %}
+                        {% set total_entries = total_entries + (item.entries|length if item.entries else 0) %}
+                    {% endfor %}
+                    {{ total_entries }}
                 </span>
             </div>
         </div>
