@@ -68,7 +68,7 @@ from app.routes.web.modules import (
     reports_router as web_reports,
 )
 
-from app.routes.teachers import router as teachers_router
+from app.routes.web.teachers import router as teachers_router
 
 from app.routes.api import router as api_router
 
