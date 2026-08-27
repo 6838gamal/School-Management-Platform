@@ -6,10 +6,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.dependencies import CurrentUser, require_any_permission, template_context
 from app.services.schedule_service import ScheduleService
-from app.schemas.schedules import (
-    ScheduleCreate, ScheduleUpdate, 
-    ScheduleEntryCreate, ScheduleEntryUpdate
-)
 
 router = APIRouter(prefix="/schedules", tags=["schedules"])
 templates = Jinja2Templates(directory="app/templates")
@@ -56,10 +52,19 @@ async def create_schedule_page(
 ):
     """صفحة إنشاء جدول جديد"""
     try:
+        print("=" * 50)
+        print("📄 صفحة إنشاء جدول جديد")
+        print(f"   user_id: {user.id}")
+        print(f"   school_id: {user.school_id}")
+        print("=" * 50)
+        
         service = ScheduleService(db)
         
         sections = await service.get_sections_objects(user.school_id)
         academic_years = await service.get_academic_years_objects(user.school_id)
+        
+        print(f"✅ تم جلب {len(sections)} شعبة")
+        print(f"✅ تم جلب {len(academic_years)} عام دراسي")
         
         return templates.TemplateResponse(
             "schedules/create.html",
@@ -72,6 +77,8 @@ async def create_schedule_page(
         )
     except Exception as e:
         print(f"❌ خطأ في صفحة إنشاء الجدول: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return templates.TemplateResponse(
             "schedules/create.html",
             {
@@ -139,177 +146,3 @@ async def view_schedule_page(
             "days": ["الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس"]
         }
     )
-
-
-# ============= مسارات API =============
-
-@router.post("/api/v1/schedules")
-async def create_schedule_api(
-    req: ScheduleCreate,
-    user: CurrentUser = Depends(require_any_permission("schedules.create")),
-    db: AsyncSession = Depends(get_db),
-):
-    """API: إنشاء جدول جديد"""
-    try:
-        print("=" * 50)
-        print("📝 محاولة إنشاء جدول جديد")
-        print(f"   - name: {req.name}")
-        print(f"   - section_id: {req.section_id}")
-        print(f"   - academic_year_id: {req.academic_year_id}")
-        print(f"   - is_active: {req.is_active}")
-        print(f"   - school_id: {user.school_id}")
-        print("=" * 50)
-        
-        service = ScheduleService(db)
-        result = await service.create_schedule(user.school_id, req)
-        
-        print(f"✅ تم إنشاء الجدول بنجاح: {result.id}")
-        
-        return {
-            "success": True, 
-            "id": result.id, 
-            "message": "تم إنشاء الجدول بنجاح"
-        }
-    except ValueError as e:
-        print(f"❌ خطأ في البيانات: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
-    except Exception as e:
-        print(f"❌ خطأ غير متوقع: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"حدث خطأ: {str(e)}"
-        )
-
-
-@router.put("/api/v1/schedules/{schedule_id}")
-async def update_schedule_api(
-    schedule_id: str,
-    req: ScheduleUpdate,
-    user: CurrentUser = Depends(require_any_permission("schedules.update")),
-    db: AsyncSession = Depends(get_db),
-):
-    """API: تحديث جدول"""
-    try:
-        service = ScheduleService(db)
-        result = await service.update_schedule(schedule_id, req)
-        return {
-            "success": True, 
-            "message": "تم تحديث الجدول بنجاح"
-        }
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
-
-
-@router.delete("/api/v1/schedules/{schedule_id}")
-async def delete_schedule_api(
-    schedule_id: str,
-    user: CurrentUser = Depends(require_any_permission("schedules.delete")),
-    db: AsyncSession = Depends(get_db),
-):
-    """API: حذف جدول"""
-    try:
-        service = ScheduleService(db)
-        await service.delete_schedule(schedule_id)
-        return {"success": True, "message": "تم حذف الجدول بنجاح"}
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
-
-
-@router.post("/api/v1/schedules/{schedule_id}/entries")
-async def add_schedule_entry_api(
-    schedule_id: str,
-    req: ScheduleEntryCreate,
-    user: CurrentUser = Depends(require_any_permission("schedules.create")),
-    db: AsyncSession = Depends(get_db),
-):
-    """API: إضافة مدخل إلى الجدول"""
-    try:
-        service = ScheduleService(db)
-        result = await service.add_entry(schedule_id, req)
-        return {
-            "success": True, 
-            "id": result.id, 
-            "message": "تم إضافة الحصة بنجاح"
-        }
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
-
-
-@router.put("/api/v1/schedules/entries/{entry_id}")
-async def update_schedule_entry_api(
-    entry_id: str,
-    req: ScheduleEntryUpdate,
-    user: CurrentUser = Depends(require_any_permission("schedules.update")),
-    db: AsyncSession = Depends(get_db),
-):
-    """API: تحديث مدخل في الجدول"""
-    try:
-        service = ScheduleService(db)
-        result = await service.update_entry(entry_id, req)
-        return {
-            "success": True, 
-            "message": "تم تحديث الحصة بنجاح"
-        }
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
-
-
-@router.delete("/api/v1/schedules/entries/{entry_id}")
-async def delete_schedule_entry_api(
-    entry_id: str,
-    user: CurrentUser = Depends(require_any_permission("schedules.delete")),
-    db: AsyncSession = Depends(get_db),
-):
-    """API: حذف مدخل من الجدول"""
-    try:
-        service = ScheduleService(db)
-        await service.delete_entry(entry_id)
-        return {"success": True, "message": "تم حذف الحصة بنجاح"}
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
-
-
-@router.get("/api/v1/schedules/data/{school_id}")
-async def get_schedule_data_api(
-    school_id: str,
-    user: CurrentUser = Depends(require_any_permission("schedules.view")),
-    db: AsyncSession = Depends(get_db),
-):
-    """API: جلب المواد والمعلمين والقاعات"""
-    try:
-        service = ScheduleService(db)
-        subjects = await service.get_subjects(school_id)
-        teachers = await service.get_teachers(school_id)
-        rooms = await service.get_rooms(school_id)
-        
-        return {
-            "success": True,
-            "subjects": subjects,
-            "teachers": teachers,
-            "rooms": rooms
-        }
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
