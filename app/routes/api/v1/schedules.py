@@ -10,10 +10,11 @@ from app.schemas.schedules import (
     ScheduleEntryCreate, ScheduleEntryUpdate
 )
 
-router = APIRouter(prefix="/api/v1/schedules", tags=["schedules-api"])
+# ✅ إزالة الـ prefix من هنا - سيتم إضافته من main.py
+router = APIRouter(tags=["schedules-api"])
 
 
-@router.post("")
+@router.post("/schedules")  # ✅ المسار الكامل سيكون /api/v1/schedules
 async def create_schedule(
     req: ScheduleCreate,
     user: CurrentUser = Depends(require_any_permission("schedules.create")),
@@ -28,7 +29,6 @@ async def create_schedule(
         print(f"   data: {req.model_dump()}")
         print("=" * 50)
         
-        # ✅ التحقق من وجود school_id
         if not user.school_id:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -60,7 +60,7 @@ async def create_schedule(
         )
 
 
-@router.put("/{schedule_id}")
+@router.put("/schedules/{schedule_id}")
 async def update_schedule(
     schedule_id: str,
     req: ScheduleUpdate,
@@ -82,7 +82,7 @@ async def update_schedule(
         )
 
 
-@router.delete("/{schedule_id}")
+@router.delete("/schedules/{schedule_id}")
 async def delete_schedule(
     schedule_id: str,
     user: CurrentUser = Depends(require_any_permission("schedules.delete")),
@@ -100,7 +100,7 @@ async def delete_schedule(
         )
 
 
-@router.post("/{schedule_id}/entries")
+@router.post("/schedules/{schedule_id}/entries")
 async def add_schedule_entry(
     schedule_id: str,
     req: ScheduleEntryCreate,
@@ -139,7 +139,7 @@ async def add_schedule_entry(
         )
 
 
-@router.put("/entries/{entry_id}")
+@router.put("/schedules/entries/{entry_id}")
 async def update_schedule_entry(
     entry_id: str,
     req: ScheduleEntryUpdate,
@@ -161,7 +161,7 @@ async def update_schedule_entry(
         )
 
 
-@router.delete("/entries/{entry_id}")
+@router.delete("/schedules/entries/{entry_id}")
 async def delete_schedule_entry(
     entry_id: str,
     user: CurrentUser = Depends(require_any_permission("schedules.delete")),
@@ -179,7 +179,7 @@ async def delete_schedule_entry(
         )
 
 
-@router.get("/data/{school_id}")
+@router.get("/schedules/data/{school_id}")
 async def get_schedule_data(
     school_id: str,
     user: CurrentUser = Depends(require_any_permission("schedules.view")),
@@ -206,7 +206,7 @@ async def get_schedule_data(
         )
 
 
-@router.get("/sections/{school_id}")
+@router.get("/schedules/sections/{school_id}")
 async def get_school_sections(
     school_id: str,
     user: CurrentUser = Depends(require_any_permission("schedules.view")),
@@ -227,7 +227,7 @@ async def get_school_sections(
         )
 
 
-@router.get("/academic-years/{school_id}")
+@router.get("/schedules/academic-years/{school_id}")
 async def get_school_academic_years(
     school_id: str,
     user: CurrentUser = Depends(require_any_permission("schedules.view")),
@@ -258,7 +258,7 @@ async def get_school_academic_years(
         )
 
 
-@router.get("/periods/{school_id}")
+@router.get("/schedules/periods/{school_id}")
 async def get_school_periods(
     school_id: str,
     user: CurrentUser = Depends(require_any_permission("schedules.view")),
@@ -279,7 +279,7 @@ async def get_school_periods(
         )
 
 
-@router.get("/{schedule_id}/entries")
+@router.get("/schedules/{schedule_id}/entries")
 async def get_schedule_entries(
     schedule_id: str,
     user: CurrentUser = Depends(require_any_permission("schedules.view")),
@@ -306,7 +306,7 @@ async def get_schedule_entries(
         )
 
 
-@router.get("/check-data")
+@router.get("/schedules/check-data")
 async def check_available_data(
     user: CurrentUser = Depends(require_any_permission("schedules.view")),
     db: AsyncSession = Depends(get_db),
