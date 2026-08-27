@@ -22,7 +22,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import select, delete
+from sqlalchemy import select, text
 
 from app.core.config import settings
 from app.core.database import engine, get_db, Base
@@ -54,7 +54,7 @@ from app.routes.web.auth import router as web_auth
 from app.routes.web.dashboard import router as web_dashboard
 from app.routes.web.students import router as web_students
 from app.routes.web.teachers import router as web_teachers
-from app.routes.web.schedules import router as web_schedules  # ✅ مباشر من الملف الصحيح
+from app.routes.web.schedules import router as web_schedules
 from app.routes.web.modules import (
     activities_router as web_activities,
     attendance_router as web_attendance,
@@ -84,7 +84,6 @@ async def ensure_user_exists(db, email: str, password: str, full_name: str, scho
     
     if user:
         print(f"ℹ️ المستخدم موجود بالفعل: {email}")
-        # تمرير school_id لتجنب تكرار الأدوار
         await service.ensure_user_has_role(user.id, role_name, school_id)
         return user
     
@@ -99,11 +98,41 @@ async def ensure_user_exists(db, email: str, password: str, full_name: str, scho
     db.add(user)
     await db.flush()
     
-    # تمرير school_id لتجنب تكرار الأدوار
     await service.ensure_user_has_role(user.id, role_name, school_id)
     
     print(f"✅ تم إنشاء المستخدم: {email} (الدور: {role_name})")
     return user
+
+
+async def ensure_database_schema():
+    """التأكد من وجود جميع الأعمدة المطلوبة في قاعدة البيانات"""
+    print("🔧 جاري التحقق من هيكل قاعدة البيانات...")
+    
+    async for db in get_db():
+        try:
+            # 1. التحقق من وجود عمود academic_year_id في جدول schedules
+            await db.execute(text("""
+                DO $$
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.columns 
+                        WHERE table_name = 'schedules' AND column_name = 'academic_year_id'
+                    ) THEN
+                        ALTER TABLE schedules ADD COLUMN academic_year_id VARCHAR(36);
+                        CREATE INDEX IF NOT EXISTS ix_schedules_academic_year_id ON schedules (academic_year_id);
+                        RAISE NOTICE '✅ تم إضافة العمود academic_year_id إلى جدول schedules';
+                    ELSE
+                        RAISE NOTICE 'ℹ️ العمود academic_year_id موجود بالفعل في جدول schedules';
+                    END IF;
+                END $$;
+            """))
+            await db.commit()
+            print("✅ تم التحقق من هيكل قاعدة البيانات بنجاح")
+            break
+        except Exception as e:
+            print(f"⚠️ خطأ في التحقق من هيكل قاعدة البيانات: {str(e)}")
+            await db.rollback()
+            break
 
 
 async def init_database():
@@ -122,7 +151,6 @@ async def init_database():
             school = result.scalar_one_or_none()
             
             if not school:
-                # إنشاء مدرسة
                 school = School(
                     name="مدرسة النموذج",
                     code="SCHOOL001",
@@ -201,7 +229,10 @@ async def lifespan(app: FastAPI):
     # تعيين القوالب
     set_templates(templates)
     
-    # تهيئة قاعدة البيانات
+    # 1. التحقق من هيكل قاعدة البيانات (إضافة الأعمدة المفقودة)
+    await ensure_database_schema()
+    
+    # 2. تهيئة قاعدة البيانات (المستخدمين والصلاحيات)
     await init_database()
     
     yield
@@ -229,7 +260,7 @@ app.include_router(web_dashboard)
 app.include_router(web_students)
 app.include_router(web_teachers)
 app.include_router(web_academics)
-app.include_router(web_schedules)      # ✅ Web schedules
+app.include_router(web_schedules)
 app.include_router(web_attendance)
 app.include_router(web_grades)
 app.include_router(web_homework)
@@ -246,7 +277,7 @@ app.include_router(api_teachers_router, prefix=api_prefix)
 app.include_router(api_academics, prefix=api_prefix)
 app.include_router(api_attendance, prefix=api_prefix)
 app.include_router(api_grades, prefix=api_prefix)
-app.include_router(api_schedules, prefix=api_prefix)  # ✅ API schedules
+app.include_router(api_schedules, prefix=api_prefix)
 app.include_router(api_homework, prefix=api_prefix)
 app.include_router(api_activities, prefix=api_prefix)
 app.include_router(api_behavior, prefix=api_prefix)
