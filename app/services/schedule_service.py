@@ -5,7 +5,7 @@ from sqlalchemy.orm import selectinload
 from typing import List, Optional, Dict, Any
 
 from app.core.exceptions import NotFoundException
-from app.models.academics import Section, Period, Subject, Room, AcademicYear
+from app.models.academics import Section, Period, Subject, Room, AcademicYear, Grade, Stage
 from app.models.schedules import Schedule, ScheduleEntry
 from app.models.users import User, UserRole, Role
 from app.schemas.schedules import (
@@ -66,7 +66,6 @@ class ScheduleService:
         )
         schedule = result.scalar_one_or_none()
         if schedule:
-            # ترتيب المدخلات حسب اليوم والفترة
             schedule.entries = sorted(schedule.entries, key=lambda x: (x.day_of_week, x.period.order if x.period else 0))
         return schedule
 
@@ -88,7 +87,7 @@ class ScheduleService:
         if not year:
             raise ValueError("العام الدراسي غير موجود")
         
-        # التحقق من عدم وجود جدول مكرر لنفس الشعبة والعام
+        # التحقق من عدم وجود جدول مكرر
         existing = await self.db.execute(
             select(Schedule)
             .where(
@@ -233,18 +232,28 @@ class ScheduleService:
     # ============= دوال جلب الشعب =============
 
     async def get_all_sections(self, school_id: str) -> List[Section]:
-        """جلب جميع الشعب المتاحة في المدرسة مع تفاصيلها"""
-        result = await self.db.execute(
-            select(Section)
-            .where(Section.school_id == school_id)
-            .where(Section.is_active == True)
-            .options(
-                selectinload(Section.grade)
-                .selectinload(Grade.stage)
+        """جلب جميع الشعب المتاحة في المدرسة"""
+        try:
+            result = await self.db.execute(
+                select(Section)
+                .where(Section.school_id == school_id)
+                .where(Section.is_active == True)
+                .options(
+                    selectinload(Section.grade)
+                    .selectinload(Grade.stage)
+                )
+                .order_by(Section.name)
             )
-            .order_by(Section.name)
-        )
-        return list(result.scalars().all())
+            sections = list(result.scalars().all())
+            print(f"✅ تم جلب {len(sections)} شعبة للمدرسة {school_id}")
+            return sections
+        except Exception as e:
+            print(f"❌ خطأ في جلب الشعب: {str(e)}")
+            return []
+
+    async def get_sections_objects(self, school_id: str) -> List[Section]:
+        """جلب جميع الشعب كـ ORM Objects (alias)"""
+        return await self.get_all_sections(school_id)
 
     async def get_section_by_id(self, section_id: str) -> Optional[Section]:
         """جلب شعبة بواسطة المعرف"""
@@ -260,12 +269,18 @@ class ScheduleService:
 
     async def get_academic_years_objects(self, school_id: str) -> List[AcademicYear]:
         """جلب جميع الأعوام الدراسية للمدرسة"""
-        result = await self.db.execute(
-            select(AcademicYear)
-            .where(AcademicYear.school_id == school_id)
-            .order_by(AcademicYear.name.desc())
-        )
-        return list(result.scalars().all())
+        try:
+            result = await self.db.execute(
+                select(AcademicYear)
+                .where(AcademicYear.school_id == school_id)
+                .order_by(AcademicYear.name.desc())
+            )
+            years = list(result.scalars().all())
+            print(f"✅ تم جلب {len(years)} عام دراسي للمدرسة {school_id}")
+            return years
+        except Exception as e:
+            print(f"❌ خطأ في جلب الأعوام الدراسية: {str(e)}")
+            return []
 
     async def get_current_academic_year(self, school_id: str) -> Optional[AcademicYear]:
         """جلب العام الدراسي الحالي"""
@@ -338,36 +353,39 @@ class ScheduleService:
 
     async def get_teachers(self, school_id: str) -> List[Dict[str, Any]]:
         """جلب جميع المعلمين مع تفاصيلهم"""
-        # جلب معرف دور المعلم
-        role_result = await self.db.execute(
-            select(Role).where(
-                Role.key == "teacher", 
-                Role.school_id == school_id
+        try:
+            role_result = await self.db.execute(
+                select(Role).where(
+                    Role.key == "teacher", 
+                    Role.school_id == school_id
+                )
             )
-        )
-        teacher_role = role_result.scalar_one_or_none()
-        
-        if not teacher_role:
+            teacher_role = role_result.scalar_one_or_none()
+            
+            if not teacher_role:
+                return []
+            
+            result = await self.db.execute(
+                select(User)
+                .join(UserRole, UserRole.user_id == User.id)
+                .where(UserRole.role_id == teacher_role.id)
+                .where(User.school_id == school_id)
+                .where(User.is_active == True)
+                .order_by(User.full_name)
+            )
+            teachers = list(result.scalars().all())
+            return [
+                {
+                    "id": t.id, 
+                    "full_name": t.full_name,
+                    "email": t.email,
+                    "phone": t.phone
+                } 
+                for t in teachers
+            ]
+        except Exception as e:
+            print(f"❌ خطأ في جلب المعلمين: {str(e)}")
             return []
-        
-        result = await self.db.execute(
-            select(User)
-            .join(UserRole, UserRole.user_id == User.id)
-            .where(UserRole.role_id == teacher_role.id)
-            .where(User.school_id == school_id)
-            .where(User.is_active == True)
-            .order_by(User.full_name)
-        )
-        teachers = list(result.scalars().all())
-        return [
-            {
-                "id": t.id, 
-                "full_name": t.full_name,
-                "email": t.email,
-                "phone": t.phone
-            } 
-            for t in teachers
-        ]
 
     async def get_teacher_by_id(self, teacher_id: str) -> Optional[User]:
         """جلب معلم بواسطة المعرف"""
