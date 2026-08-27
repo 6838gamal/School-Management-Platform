@@ -78,8 +78,8 @@ class StudentService:
             "address": student.address,
             "photo_url": student.photo_url,
             "is_active": student.is_active,
-            "created_at": student.created_at.isoformat() if student.created_at else None,
-            "updated_at": student.updated_at.isoformat() if student.updated_at else None,
+            #"created_at": student.created_at.isoformat() if student.created_at else None,
+            #"updated_at": student.updated_at.isoformat() if student.updated_at else None,
             "enrollments": []
         }
         
@@ -150,8 +150,8 @@ class StudentService:
             guardian_email=data.guardian_email,
             address=data.address,
             is_active=True,
-            created_by=user_id,
-            updated_by=user_id
+           # created_by=user_id,
+           # updated_by=user_id
         )
         
         self.db.add(student)
@@ -165,8 +165,8 @@ class StudentService:
                 section_id=data.section_id,
                 status="active",
                 enrolled_at=func.now(),
-                created_by=user_id,
-                updated_by=user_id
+               # created_by=user_id,
+               # updated_by=user_id
             )
             self.db.add(enrollment)
         
