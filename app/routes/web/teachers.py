@@ -9,42 +9,8 @@ import uuid
 from app.core.database import get_db
 from app.core.dependencies import CurrentUser, require_any_permission, template_context
 from app.services.teacher_service import TeacherService
-
-# محاولة استيراد الموديلات
-try:
-    from app.models.teacher import Teacher
-    from app.models.user import User
-except ImportError:
-    # تعريف الموديلات مؤقتاً
-    from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey
-    from sqlalchemy.sql import func
-    from app.core.database import Base
-    
-    class Teacher(Base):
-        __tablename__ = "teachers"
-        id = Column(String(36), primary_key=True)
-        school_id = Column(String(36), ForeignKey("schools.id"))
-        employee_number = Column(String(50), unique=True, nullable=False)
-        full_name = Column(String(255), nullable=False)
-        specialization = Column(String(255))
-        phone = Column(String(20))
-        email = Column(String(255))
-        is_active = Column(Boolean, default=True)
-        created_at = Column(DateTime(timezone=True), server_default=func.now())
-        updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-    
-    class User(Base):
-        __tablename__ = "users"
-        id = Column(String(36), primary_key=True)
-        email = Column(String(255), unique=True, nullable=False)
-        full_name = Column(String(255), nullable=False)
-        school_id = Column(String(36), ForeignKey("schools.id"))
-        hashed_password = Column(String(255), nullable=False)
-        is_active = Column(Boolean, default=True)
-        created_at = Column(DateTime(timezone=True), server_default=func.now())
-        updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-
-# استيراد دالة التشفير (الاسم الصحيح هو hash_password)
+from app.models.teachers import Teacher
+from app.models.users import User
 from app.core.security import hash_password
 
 router = APIRouter(prefix="/teachers", tags=["teachers"])
@@ -124,13 +90,12 @@ async def teacher_create(
                 select(User).where(User.email == email)
             )
             if not existing_user.scalar_one_or_none():
-                # استخدام hash_password بدلاً من get_password_hash
                 new_user = User(
                     id=str(uuid.uuid4()),
                     email=email,
                     full_name=full_name,
                     school_id=user.school_id,
-                    hashed_password=hash_password("password123"),  # ✅ استخدمنا الدالة الصحيحة
+                    hashed_password=hash_password("password123"),
                     is_active=is_active
                 )
                 db.add(new_user)
@@ -185,6 +150,7 @@ async def teacher_update(
         if not teacher:
             raise HTTPException(status_code=404, detail="المعلم غير موجود")
         
+        # التحقق من عدم وجود رقم موظف مكرر
         existing = await db.execute(
             select(Teacher).where(
                 Teacher.employee_number == employee_number,
@@ -194,6 +160,7 @@ async def teacher_update(
         if existing.scalar_one_or_none():
             raise HTTPException(status_code=400, detail="رقم الموظف موجود مسبقاً")
         
+        # تحديث البيانات
         teacher.full_name = full_name
         teacher.employee_number = employee_number
         teacher.specialization = specialization
