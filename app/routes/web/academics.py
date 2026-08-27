@@ -96,7 +96,7 @@ async def create_year_api(
 async def update_year_api(
     year_id: str,
     req: AcademicYearUpdate,
-    user: CurrentUser = Depends(require_any_permission("academics.edit")),
+    user: CurrentUser = Depends(require_any_permission("academics.update")),
     db: AsyncSession = Depends(get_db),
 ):
     service = AcademicService(db)
@@ -151,7 +151,7 @@ async def create_stage_page(
 async def edit_stage_page(
     request: Request,
     stage_id: str,
-    user: CurrentUser = Depends(require_any_permission("academics.edit")),
+    user: CurrentUser = Depends(require_any_permission("academics.update")),
     db: AsyncSession = Depends(get_db),
     ctx: dict = Depends(template_context),
 ):
@@ -181,7 +181,7 @@ async def create_stage_api(
 async def update_stage_api(
     stage_id: str,
     req: StageUpdate,
-    user: CurrentUser = Depends(require_any_permission("academics.edit")),
+    user: CurrentUser = Depends(require_any_permission("academics.update")),
     db: AsyncSession = Depends(get_db),
 ):
     service = AcademicService(db)
@@ -236,7 +236,7 @@ async def create_grade_page(
 async def edit_grade_page(
     request: Request,
     grade_id: str,
-    user: CurrentUser = Depends(require_any_permission("academics.edit")),
+    user: CurrentUser = Depends(require_any_permission("academics.update")),
     db: AsyncSession = Depends(get_db),
     ctx: dict = Depends(template_context),
 ):
@@ -266,7 +266,7 @@ async def create_grade_api(
 async def update_grade_api(
     grade_id: str,
     req: GradeUpdate,
-    user: CurrentUser = Depends(require_any_permission("academics.edit")),
+    user: CurrentUser = Depends(require_any_permission("academics.update")),
     db: AsyncSession = Depends(get_db),
 ):
     service = AcademicService(db)
@@ -321,7 +321,7 @@ async def create_section_page(
 async def edit_section_page(
     request: Request,
     section_id: str,
-    user: CurrentUser = Depends(require_any_permission("academics.edit")),
+    user: CurrentUser = Depends(require_any_permission("academics.update")),
     db: AsyncSession = Depends(get_db),
     ctx: dict = Depends(template_context),
 ):
@@ -351,7 +351,7 @@ async def create_section_api(
 async def update_section_api(
     section_id: str,
     req: SectionUpdate,
-    user: CurrentUser = Depends(require_any_permission("academics.edit")),
+    user: CurrentUser = Depends(require_any_permission("academics.update")),
     db: AsyncSession = Depends(get_db),
 ):
     service = AcademicService(db)
@@ -403,7 +403,7 @@ async def create_subject_page(
 async def edit_subject_page(
     request: Request,
     subject_id: str,
-    user: CurrentUser = Depends(require_any_permission("academics.edit")),
+    user: CurrentUser = Depends(require_any_permission("academics.update")),
     db: AsyncSession = Depends(get_db),
     ctx: dict = Depends(template_context),
 ):
@@ -432,7 +432,7 @@ async def create_subject_api(
 async def update_subject_api(
     subject_id: str,
     req: SubjectUpdate,
-    user: CurrentUser = Depends(require_any_permission("academics.edit")),
+    user: CurrentUser = Depends(require_any_permission("academics.update")),
     db: AsyncSession = Depends(get_db),
 ):
     service = AcademicService(db)
@@ -484,7 +484,7 @@ async def create_room_page(
 async def edit_room_page(
     request: Request,
     room_id: str,
-    user: CurrentUser = Depends(require_any_permission("academics.edit")),
+    user: CurrentUser = Depends(require_any_permission("academics.update")),
     db: AsyncSession = Depends(get_db),
     ctx: dict = Depends(template_context),
 ):
@@ -513,7 +513,7 @@ async def create_room_api(
 async def update_room_api(
     room_id: str,
     req: RoomUpdate,
-    user: CurrentUser = Depends(require_any_permission("academics.edit")),
+    user: CurrentUser = Depends(require_any_permission("academics.update")),
     db: AsyncSession = Depends(get_db),
 ):
     service = AcademicService(db)
@@ -565,7 +565,7 @@ async def create_period_page(
 async def edit_period_page(
     request: Request,
     period_id: str,
-    user: CurrentUser = Depends(require_any_permission("academics.edit")),
+    user: CurrentUser = Depends(require_any_permission("academics.update")),
     db: AsyncSession = Depends(get_db),
     ctx: dict = Depends(template_context),
 ):
@@ -594,7 +594,7 @@ async def create_period_api(
 async def update_period_api(
     period_id: str,
     req: PeriodUpdate,
-    user: CurrentUser = Depends(require_any_permission("academics.edit")),
+    user: CurrentUser = Depends(require_any_permission("academics.update")),
     db: AsyncSession = Depends(get_db),
 ):
     service = AcademicService(db)
