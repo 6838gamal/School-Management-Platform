@@ -26,7 +26,17 @@ class ScheduleService:
             .where(Schedule.school_id == school_id)
             .order_by(Schedule.name)
         )
-        return list(result.scalars().all())
+        schedules = list(result.scalars().all())
+        
+        # جلب المدخلات لكل جدول
+        for schedule in schedules:
+            entries_result = await self.db.execute(
+                select(ScheduleEntry)
+                .where(ScheduleEntry.schedule_id == schedule.id)
+            )
+            schedule.entries = list(entries_result.scalars().all())
+        
+        return schedules
 
     async def get_schedule(self, schedule_id: str) -> Optional[Schedule]:
         """جلب جدول بواسطة المعرف"""
@@ -157,37 +167,40 @@ class ScheduleService:
 
     # ============= دوال مساعدة لجلب البيانات =============
 
-    async def get_sections(self, school_id: str) -> List[Section]:
-        """جلب جميع الشعب لمدرسة معينة"""
+    async def get_sections(self, school_id: str) -> List[Dict[str, Any]]:
+        """جلب جميع الشعب لمدرسة معينة مع تفاصيلها"""
         result = await self.db.execute(
             select(Section)
             .where(Section.school_id == school_id)
             .where(Section.is_active == True)
             .order_by(Section.name)
         )
-        return list(result.scalars().all())
+        sections = list(result.scalars().all())
+        return [{"id": s.id, "name": s.name} for s in sections]
 
-    async def get_periods(self, school_id: str) -> List[Period]:
-        """جلب جميع الفترات لمدرسة معينة"""
+    async def get_periods(self, school_id: str) -> List[Dict[str, Any]]:
+        """جلب جميع الفترات لمدرسة معينة مع تفاصيلها"""
         result = await self.db.execute(
             select(Period)
             .where(Period.school_id == school_id)
             .order_by(Period.order)
         )
-        return list(result.scalars().all())
+        periods = list(result.scalars().all())
+        return [{"id": p.id, "name": p.name, "order": p.order, "start_time": p.start_time, "end_time": p.end_time} for p in periods]
 
-    async def get_subjects(self, school_id: str) -> List[Subject]:
-        """جلب جميع المواد لمدرسة معينة"""
+    async def get_subjects(self, school_id: str) -> List[Dict[str, Any]]:
+        """جلب جميع المواد لمدرسة معينة مع تفاصيلها"""
         result = await self.db.execute(
             select(Subject)
             .where(Subject.school_id == school_id)
             .where(Subject.is_active == True)
             .order_by(Subject.name)
         )
-        return list(result.scalars().all())
+        subjects = list(result.scalars().all())
+        return [{"id": s.id, "name": s.name} for s in subjects]
 
-    async def get_teachers(self, school_id: str) -> List[User]:
-        """جلب جميع المعلمين لمدرسة معينة"""
+    async def get_teachers(self, school_id: str) -> List[Dict[str, Any]]:
+        """جلب جميع المعلمين لمدرسة معينة مع تفاصيلهم"""
         role_result = await self.db.execute(
             select(Role).where(Role.key == "teacher", Role.school_id == school_id)
         )
@@ -204,20 +217,44 @@ class ScheduleService:
             .where(User.is_active == True)
             .order_by(User.full_name)
         )
-        return list(result.scalars().all())
+        teachers = list(result.scalars().all())
+        return [{"id": t.id, "full_name": t.full_name} for t in teachers]
 
-    async def get_rooms(self, school_id: str) -> List[Room]:
-        """جلب جميع القاعات لمدرسة معينة"""
+    async def get_rooms(self, school_id: str) -> List[Dict[str, Any]]:
+        """جلب جميع القاعات لمدرسة معينة مع تفاصيلها"""
         result = await self.db.execute(
             select(Room)
             .where(Room.school_id == school_id)
             .where(Room.is_active == True)
             .order_by(Room.name)
         )
+        rooms = list(result.scalars().all())
+        return [{"id": r.id, "name": r.name} for r in rooms]
+
+    async def get_academic_years(self, school_id: str) -> List[Dict[str, Any]]:
+        """جلب جميع الأعوام الدراسية لمدرسة معينة مع تفاصيلها"""
+        result = await self.db.execute(
+            select(AcademicYear)
+            .where(AcademicYear.school_id == school_id)
+            .order_by(AcademicYear.name.desc())
+        )
+        years = list(result.scalars().all())
+        return [{"id": y.id, "name": y.name, "is_current": y.is_current} for y in years]
+    
+    # ============= دوال لجلب البيانات كـ ORM Objects =============
+
+    async def get_sections_objects(self, school_id: str) -> List[Section]:
+        """جلب جميع الشعب كـ ORM Objects"""
+        result = await self.db.execute(
+            select(Section)
+            .where(Section.school_id == school_id)
+            .where(Section.is_active == True)
+            .order_by(Section.name)
+        )
         return list(result.scalars().all())
 
-    async def get_academic_years(self, school_id: str) -> List[AcademicYear]:
-        """جلب جميع الأعوام الدراسية لمدرسة معينة"""
+    async def get_academic_years_objects(self, school_id: str) -> List[AcademicYear]:
+        """جلب جميع الأعوام الدراسية كـ ORM Objects"""
         result = await self.db.execute(
             select(AcademicYear)
             .where(AcademicYear.school_id == school_id)
