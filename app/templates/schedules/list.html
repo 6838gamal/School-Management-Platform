@@ -26,7 +26,7 @@
     </div>
 
     <!-- الإحصائيات -->
-    <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-4">
             <div class="flex items-center justify-between">
                 <span class="text-sm text-slate-500 dark:text-slate-400">إجمالي الجداول</span>
@@ -51,6 +51,14 @@
                 </span>
             </div>
         </div>
+        <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-4">
+            <div class="flex items-center justify-between">
+                <span class="text-sm text-slate-500 dark:text-slate-400">عدد الحصص</span>
+                <span class="text-2xl font-bold text-primary-600 dark:text-primary-400">
+                    {{ items|sum(attribute='entries')|length if items else 0 }}
+                </span>
+            </div>
+        </div>
     </div>
 
     <!-- جدول البيانات -->
@@ -64,8 +72,9 @@
                         <th class="text-right px-6 py-3 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">اسم الجدول</th>
                         <th class="text-right px-6 py-3 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">الشعبة</th>
                         <th class="text-right px-6 py-3 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">العام الدراسي</th>
+                        <th class="text-right px-6 py-3 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">عدد الحصص</th>
                         <th class="text-right px-6 py-3 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">الحالة</th>
-                        <th class="text-center px-6 py-3 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider w-16">الإجراءات</th>
+                        <th class="text-center px-6 py-3 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider w-20">الإجراءات</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
@@ -75,6 +84,7 @@
                         <td class="px-6 py-4 text-sm font-medium text-slate-800 dark:text-white">{{ item.name }}</td>
                         <td class="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">{{ item.section_id }}</td>
                         <td class="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">{{ item.academic_year_id }}</td>
+                        <td class="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">{{ item.entries|length if item.entries else 0 }}</td>
                         <td class="px-6 py-4 text-sm">
                             {% if item.is_active %}
                             <span class="px-2 py-1 text-xs bg-green-50 text-green-600 dark:bg-green-900/20 dark:text-green-400 rounded-full">مفعل</span>
@@ -90,8 +100,18 @@
                                         <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z"/>
                                     </svg>
                                 </button>
-                                <div class="dropdown-menu hidden absolute left-0 mt-2 w-40 rounded-xl shadow-lg bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 z-50">
+                                <div class="dropdown-menu hidden absolute left-0 mt-2 w-44 rounded-xl shadow-lg bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 z-50">
                                     <div class="py-1">
+                                        {% if can('schedules.view') %}
+                                        <a href="/schedules/{{ item.id }}/view" 
+                                           class="flex items-center gap-2 px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors duration-200">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                                            </svg>
+                                            عرض
+                                        </a>
+                                        {% endif %}
                                         {% if can('schedules.update') %}
                                         <a href="/schedules/{{ item.id }}/update" 
                                            class="flex items-center gap-2 px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors duration-200">
@@ -138,10 +158,13 @@
 </div>
 
 <script>
+// ============= دوال القائمة المنسدلة =============
+
 function toggleDropdown(btn) {
     const container = btn.closest('.dropdown-container');
     const menu = container.querySelector('.dropdown-menu');
     
+    // إغلاق جميع القوائم المفتوحة الأخرى
     document.querySelectorAll('.dropdown-menu.show').forEach(function(m) {
         if (m !== menu) {
             m.classList.remove('show');
@@ -149,10 +172,12 @@ function toggleDropdown(btn) {
         }
     });
     
+    // تبديل حالة القائمة الحالية
     menu.classList.toggle('hidden');
     menu.classList.toggle('show');
 }
 
+// إغلاق القوائم عند الضغط في أي مكان خارجها
 document.addEventListener('click', function(event) {
     const isDropdownButton = event.target.closest('.dropdown-btn');
     const isDropdownMenu = event.target.closest('.dropdown-menu');
@@ -164,6 +189,8 @@ document.addEventListener('click', function(event) {
         });
     }
 });
+
+// ============= دوال الحذف =============
 
 function confirmDelete(url, message = 'هل أنت متأكد من الحذف؟') {
     if (confirm(message)) {
@@ -191,6 +218,8 @@ function confirmDelete(url, message = 'هل أنت متأكد من الحذف؟'
     }
 }
 
+// ============= دوال الرسائل =============
+
 function showMessage(message, type = 'success') {
     const colors = {
         success: 'bg-green-50 text-green-800 border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800',
@@ -214,15 +243,30 @@ function showMessage(message, type = 'success') {
 .animate-slide-in {
     animation: slideIn 0.3s ease-out;
 }
+
+/* تحسين مظهر القائمة المنسدلة */
 .dropdown-menu {
-    min-width: 120px;
+    min-width: 160px;
     transform-origin: top right;
 }
+
 .dropdown-menu.show {
     display: block !important;
 }
+
 .dropdown-menu.hidden {
     display: none !important;
+}
+
+/* تحسين مظهر الجدول */
+table {
+    min-width: 800px;
+}
+
+@media (max-width: 768px) {
+    table {
+        min-width: 600px;
+    }
 }
 </style>
 {% endblock %}
