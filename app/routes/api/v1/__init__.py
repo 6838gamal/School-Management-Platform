@@ -12,3 +12,9 @@ router = APIRouter()
 router.include_router(academics.router)
 
 __all__ = ["router"]
+
+from app.routes.api.v1 import academics, schedules
+
+router = APIRouter()
+router.include_router(academics.router)
+router.include_router(schedules.router)  # أضف هذا
