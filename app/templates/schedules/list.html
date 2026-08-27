@@ -55,11 +55,7 @@
             <div class="flex items-center justify-between">
                 <span class="text-sm text-slate-500 dark:text-slate-400">إجمالي الحصص</span>
                 <span class="text-2xl font-bold text-primary-600 dark:text-primary-400">
-                    {% set total_entries = 0 %}
-                    {% for item in items %}
-                        {% set total_entries = total_entries + (item.entries|length if item.entries else 0) %}
-                    {% endfor %}
-                    {{ total_entries }}
+                    {{ items|sum(attribute='entries_count') }}
                 </span>
             </div>
         </div>
@@ -87,20 +83,12 @@
                         <td class="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">{{ loop.index }}</td>
                         <td class="px-6 py-4 text-sm font-medium text-slate-800 dark:text-white">{{ item.name }}</td>
                         <td class="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">
-                            {% if item.section %}
-                                {{ item.section.name }}
-                            {% else %}
-                                {{ item.section_id }}
-                            {% endif %}
+                            {{ item.section_name or item.section_id }}
                         </td>
                         <td class="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">
-                            {% if item.academic_year %}
-                                {{ item.academic_year.name }}
-                            {% else %}
-                                {{ item.academic_year_id }}
-                            {% endif %}
+                            {{ item.academic_year_name or item.academic_year_id }}
                         </td>
-                        <td class="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">{{ item.entries|length if item.entries else 0 }}</td>
+                        <td class="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">{{ item.entries_count or 0 }}</td>
                         <td class="px-6 py-4 text-sm">
                             {% if item.is_active %}
                             <span class="px-2 py-1 text-xs bg-green-50 text-green-600 dark:bg-green-900/20 dark:text-green-400 rounded-full">مفعل</span>
@@ -192,8 +180,6 @@
 <script src="/static/js/schedule.js"></script>
 
 <script>
-// ============= دوال القائمة المنسدلة =============
-
 function toggleDropdown(btn) {
     const container = btn.closest('.dropdown-container');
     const menu = container.querySelector('.dropdown-menu');
@@ -209,7 +195,6 @@ function toggleDropdown(btn) {
     menu.classList.toggle('show');
 }
 
-// إغلاق القوائم عند الضغط في أي مكان خارجها
 document.addEventListener('click', function(event) {
     const isDropdownButton = event.target.closest('.dropdown-btn');
     const isDropdownMenu = event.target.closest('.dropdown-menu');
@@ -221,8 +206,6 @@ document.addEventListener('click', function(event) {
         });
     }
 });
-
-// ============= دوال الحذف =============
 
 function confirmDelete(url, message = 'هل أنت متأكد من الحذف؟') {
     if (confirm(message)) {
@@ -250,8 +233,6 @@ function confirmDelete(url, message = 'هل أنت متأكد من الحذف؟'
     }
 }
 
-// ============= دوال الرسائل =============
-
 function showMessage(message, type = 'success') {
     const colors = {
         success: 'bg-green-50 text-green-800 border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800',
@@ -275,24 +256,19 @@ function showMessage(message, type = 'success') {
 .animate-slide-in {
     animation: slideIn 0.3s ease-out;
 }
-
 .dropdown-menu {
     min-width: 160px;
     transform-origin: top right;
 }
-
 .dropdown-menu.show {
     display: block !important;
 }
-
 .dropdown-menu.hidden {
     display: none !important;
 }
-
 table {
     min-width: 800px;
 }
-
 @media (max-width: 768px) {
     table {
         min-width: 600px;
