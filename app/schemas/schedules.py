@@ -15,6 +15,7 @@ class ScheduleCreate(BaseModel):
 
 
 class ScheduleEntryCreate(BaseModel):
+    schedule_id: Optional[str] = Field(None, description="معرف الجدول")
     day_of_week: int = Field(..., ge=0, le=6, description="اليوم (0=الأحد, 1=الإثنين, ...)")
     period_id: str = Field(..., description="معرف الفترة")
     subject_id: str = Field(..., description="معرف المادة")
