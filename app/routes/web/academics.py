@@ -147,7 +147,7 @@ async def create_stage_page(
     )
 
 
-@router.get("/stages/{stage_id}/edit")
+@router.get("/stages/{stage_id}/update")
 async def edit_stage_page(
     request: Request,
     stage_id: str,
@@ -232,7 +232,7 @@ async def create_grade_page(
     )
 
 
-@router.get("/grades/{grade_id}/edit")
+@router.get("/grades/{grade_id}/update")
 async def edit_grade_page(
     request: Request,
     grade_id: str,
@@ -317,7 +317,7 @@ async def create_section_page(
     )
 
 
-@router.get("/sections/{section_id}/edit")
+@router.get("/sections/{section_id}/update")
 async def edit_section_page(
     request: Request,
     section_id: str,
@@ -399,7 +399,7 @@ async def create_subject_page(
     )
 
 
-@router.get("/subjects/{subject_id}/edit")
+@router.get("/subjects/{subject_id}/update")
 async def edit_subject_page(
     request: Request,
     subject_id: str,
@@ -480,7 +480,7 @@ async def create_room_page(
     )
 
 
-@router.get("/rooms/{room_id}/edit")
+@router.get("/rooms/{room_id}/update")
 async def edit_room_page(
     request: Request,
     room_id: str,
@@ -561,7 +561,7 @@ async def create_period_page(
     )
 
 
-@router.get("/periods/{period_id}/edit")
+@router.get("/periods/{period_id}/update")
 async def edit_period_page(
     request: Request,
     period_id: str,
