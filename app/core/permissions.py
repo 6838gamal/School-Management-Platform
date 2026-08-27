@@ -135,9 +135,9 @@ ROLE_PERMISSIONS: dict[str, list[str]] = {
         "schools.view", "schools.update",
         "academics.view", "academics.create", "academics.update", "academics.delete",
         "users.view", "users.create", "users.update", "users.delete", "users.assign_role",
-        # المدير لديه صلاحية عرض الوكيل ومدير الأنشطة
-        "deputy.view",
-        "activity_managers.view",
+        # المدير لديه صلاحيات كاملة على الوكلاء ومديري الأنشطة
+        "deputy.view", "deputy.create", "deputy.update", "deputy.delete",
+        "activity_managers.view", "activity_managers.create", "activity_managers.update", "activity_managers.delete",
         "students.view", "students.create", "students.update", "students.delete", "students.transfer",
         "teachers.view", "teachers.create", "teachers.update", "teachers.assign",
         "schedules.view", "schedules.create", "schedules.update", "schedules.delete",
