@@ -1,5 +1,6 @@
 """Teachers web routes."""
 from fastapi import APIRouter, Depends, Request
+from fastapi.responses import RedirectResponse  # ✅ أضف هذا السطر
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -57,7 +58,6 @@ async def teacher_new(
     )
 
 
-
 @router.get("/{teacher_id}/update")
 async def teacher_edit(
     request: Request,
@@ -72,6 +72,7 @@ async def teacher_edit(
         "teachers/form.html",
         {**ctx, "title": "تعديل معلم", "mode": "edit", "teacher": teacher},
     )
+
 
 @router.post("/{teacher_id}/delete")
 async def teacher_delete(
