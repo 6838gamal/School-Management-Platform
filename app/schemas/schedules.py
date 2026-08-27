@@ -41,7 +41,7 @@ class ScheduleEntryCreate(BaseModel):
     subject_id: str = Field(..., description="معرف المادة")
     teacher_id: str = Field(..., description="معرف المعلم")
     room_id: str = Field(..., description="معرف القاعة")
-    note: Optional[str] = Field(None, description="ملاحظة")
+    
 
 
 class ScheduleEntryUpdate(BaseModel):
@@ -51,7 +51,7 @@ class ScheduleEntryUpdate(BaseModel):
     subject_id: Optional[str] = None
     teacher_id: Optional[str] = None
     room_id: Optional[str] = None
-    note: Optional[str] = None
+    
 
 
 class ScheduleResponse(BaseModel):
@@ -82,4 +82,4 @@ class ScheduleEntryResponse(BaseModel):
     teacher_name: Optional[str] = None
     room_id: str
     room_name: Optional[str] = None
-    note: Optional[str] = None
+    
