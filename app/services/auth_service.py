@@ -261,11 +261,7 @@ class AuthService:
             return []
     
     # ============================================
-    # ✅ دوال إدارة الصلاحيات والأدوار (مضافة)
-    # ============================================
-    
-    # ============================================
-    # ✅ دالة جديدة: التأكد من وجود جميع الصلاحيات (الطريقة الرابعة)
+    # ✅ دوال إدارة الصلاحيات والأدوار
     # ============================================
     
     async def ensure_permissions_exist(self, school_id: str) -> None:
@@ -488,6 +484,78 @@ class AuthService:
             logger.error(f"❌ خطأ في إضافة دور للمستخدم: {str(e)}")
             return False
 
+    # ============================================
+    # ✅ دالة تحديث صلاحيات المستخدم عند تسجيل الدخول
+    # ============================================
+    
+    async def ensure_user_permissions_updated(self, user: User) -> None:
+        """
+        التأكد من أن المستخدم لديه جميع الصلاحيات المطلوبة لدوره
+        يتم استدعاؤها عند تسجيل الدخول لتحديث الصلاحيات تلقائياً
+        
+        Args:
+            user: كائن المستخدم
+        """
+        from app.core.permissions import ROLE_PERMISSIONS
+        from app.models.users import Permission, RolePermission, UserRole
+        
+        logger.info(f"🔄 جاري تحديث صلاحيات المستخدم: {user.email}")
+        
+        try:
+            # 1. جلب أدوار المستخدم
+            stmt = select(Role).join(UserRole).where(UserRole.user_id == user.id)
+            result = await self.db.execute(stmt)
+            user_roles = result.scalars().all()
+            
+            if not user_roles:
+                logger.warning(f"⚠️ المستخدم {user.email} ليس لديه أدوار")
+                return
+            
+            updated_count = 0
+            
+            # 2. لكل دور، تأكد من وجود جميع الصلاحيات المطلوبة
+            for role in user_roles:
+                # جلب الصلاحيات المطلوبة للدور
+                required_perm_keys = ROLE_PERMISSIONS.get(role.key, [])
+                
+                if not required_perm_keys:
+                    continue
+                
+                # جلب الصلاحيات الحالية للدور
+                stmt = select(RolePermission).where(RolePermission.role_id == role.id)
+                result = await self.db.execute(stmt)
+                existing_perms = {rp.permission_id for rp in result.scalars().all()}
+                
+                # جلب جميع الصلاحيات من قاعدة البيانات
+                stmt = select(Permission)
+                result = await self.db.execute(stmt)
+                all_perms = {p.key: p for p in result.scalars().all()}
+                
+                # إضافة الصلاحيات المفقودة
+                for perm_key in required_perm_keys:
+                    if perm_key in all_perms:
+                        perm = all_perms[perm_key]
+                        if perm.id not in existing_perms:
+                            role_perm = RolePermission(
+                                role_id=role.id,
+                                permission_id=perm.id
+                            )
+                            self.db.add(role_perm)
+                            updated_count += 1
+                            logger.info(f"   ✅ إضافة صلاحية '{perm_key}' لدور '{role.key}' للمستخدم {user.email}")
+                    else:
+                        logger.warning(f"   ⚠️ صلاحية '{perm_key}' غير موجودة في قاعدة البيانات")
+            
+            if updated_count > 0:
+                await self.db.commit()
+                logger.info(f"✅ تم تحديث صلاحيات المستخدم {user.email}: تم إضافة {updated_count} صلاحية جديدة")
+            else:
+                logger.info(f"ℹ️ صلاحيات المستخدم {user.email} محدثة بالفعل")
+                
+        except Exception as e:
+            logger.error(f"❌ خطأ في تحديث صلاحيات المستخدم {user.email}: {str(e)}")
+            await self.db.rollback()
+
     async def get_user_permissions(self, user_id: str) -> List[str]:
         """
         الحصول على جميع صلاحيات المستخدم
@@ -598,7 +666,7 @@ class AuthService:
                 logger.error(f"❌ الدور '{request.role_name}' غير موجود بعد التهيئة")
                 raise ValidationException(f"الدور '{request.role_name}' غير متاح")
             
-            # 5. إنشاء المستخدم - تم إزالة employee_number
+            # 5. إنشاء المستخدم
             logger.info("✅ جميع التحققات اجتازت بنجاح، جاري إنشاء المستخدم...")
             
             user = User(
@@ -619,11 +687,16 @@ class AuthService:
                 role_id=role.id,
             )
             self.db.add(user_role)
-            await self.db.commit()
-            await self.db.refresh(user)
+            await self.db.flush()
             logger.info(f"✅ تم ربط المستخدم بالدور: {role.key}")
             
-            # 7. تحويل إلى استجابة
+            # 7. تحديث صلاحيات المستخدم (للتأكد من حصوله على أحدث الصلاحيات)
+            await self.ensure_user_permissions_updated(user)
+            
+            await self.db.commit()
+            await self.db.refresh(user)
+            
+            # 8. تحويل إلى استجابة
             roles = await self._get_user_roles(user)
             permissions = await self.get_user_permissions(user.id)
             
@@ -710,11 +783,16 @@ class AuthService:
                 role_id=role.id,
             )
             self.db.add(user_role)
-            await self.db.commit()
-            await self.db.refresh(user)
+            await self.db.flush()
             logger.info(f"✅ تم ربط المدير بالدور: {role.key}")
             
-            # 8. تحويل إلى استجابة
+            # 8. تحديث صلاحيات المستخدم (للتأكد من حصوله على أحدث الصلاحيات)
+            await self.ensure_user_permissions_updated(user)
+            
+            await self.db.commit()
+            await self.db.refresh(user)
+            
+            # 9. تحويل إلى استجابة
             roles = await self._get_user_roles(user)
             permissions = await self.get_user_permissions(user.id)
             
@@ -785,7 +863,10 @@ class AuthService:
             
             logger.info("✅ الحساب نشط")
             
-            # 4. الحصول على الأدوار - استخدام الدالة المحدثة
+            # 4. تحديث صلاحيات المستخدم تلقائياً (مهم!)
+            await self.ensure_user_permissions_updated(user)
+            
+            # 5. الحصول على الأدوار
             roles = await self._get_user_roles(user)
             
             if not roles:
@@ -795,11 +876,11 @@ class AuthService:
             
             logger.info(f"✅ الأدوار المتاحة: {roles}")
             
-            # 5. إنشاء توكن
+            # 6. إنشاء توكن
             token = self._create_token(user.id, user.email, roles)
             logger.info(f"✅ تم إنشاء التوكن للمستخدم: {user.email}")
             
-            # 6. تحويل إلى استجابة
+            # 7. تحويل إلى استجابة
             permissions = await self.get_user_permissions(user.id)
             
             user_data = {
