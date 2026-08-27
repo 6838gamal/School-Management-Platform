@@ -204,3 +204,28 @@ async def delete_schedule_entry(
     service = ScheduleService(db)
     await service.delete_entry(entry_id)
     return {"success": True, "message": "تم حذف المدخل بنجاح"}
+
+
+
+
+# ============= API Routes (في نفس الملف) =============
+
+@router.get("/api/v1/schedules/data/{school_id}")
+async def get_schedule_data_api(
+    school_id: str,
+    user: CurrentUser = Depends(require_any_permission("schedules.view")),
+    db: AsyncSession = Depends(get_db),
+):
+    """API: جلب المواد والمعلمين والقاعات"""
+    service = ScheduleService(db)
+    
+    subjects = await service.get_subjects(school_id)
+    teachers = await service.get_teachers(school_id)
+    rooms = await service.get_rooms(school_id)
+    
+    return {
+        "success": True,
+        "subjects": [{"id": s.id, "name": s.name} for s in subjects],
+        "teachers": [{"id": t.id, "full_name": t.full_name} for t in teachers],
+        "rooms": [{"id": r.id, "name": r.name} for r in rooms]
+    }
