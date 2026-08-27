@@ -58,12 +58,8 @@ async def create_schedule_page(
     try:
         service = ScheduleService(db)
         
-        # جلب الشعب المتاحة
         sections = await service.get_sections_objects(user.school_id)
         academic_years = await service.get_academic_years_objects(user.school_id)
-        
-        print(f"📊 عدد الشعب: {len(sections)}")
-        print(f"📊 عدد الأعوام: {len(academic_years)}")
         
         return templates.TemplateResponse(
             "schedules/create.html",
@@ -155,20 +151,35 @@ async def create_schedule_api(
 ):
     """API: إنشاء جدول جديد"""
     try:
+        print("=" * 50)
+        print("📝 محاولة إنشاء جدول جديد")
+        print(f"   - name: {req.name}")
+        print(f"   - section_id: {req.section_id}")
+        print(f"   - academic_year_id: {req.academic_year_id}")
+        print(f"   - is_active: {req.is_active}")
+        print(f"   - school_id: {user.school_id}")
+        print("=" * 50)
+        
         service = ScheduleService(db)
         result = await service.create_schedule(user.school_id, req)
+        
+        print(f"✅ تم إنشاء الجدول بنجاح: {result.id}")
+        
         return {
             "success": True, 
             "id": result.id, 
             "message": "تم إنشاء الجدول بنجاح"
         }
     except ValueError as e:
+        print(f"❌ خطأ في البيانات: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
         )
     except Exception as e:
-        print(f"❌ خطأ في إنشاء الجدول: {str(e)}")
+        print(f"❌ خطأ غير متوقع: {str(e)}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"حدث خطأ: {str(e)}"
