@@ -76,7 +76,7 @@ async def edit_year_page(
     if not year:
         raise HTTPException(status_code=404, detail="العام الدراسي غير موجود")
     return templates.TemplateResponse(
-        "academics/years/edit.html",
+        "academics/years/update.html",
         {**ctx, "title": "تعديل عام دراسي", "item": year}
     )
 
