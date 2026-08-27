@@ -135,6 +135,69 @@ async def ensure_database_schema():
             break
 
 
+async def ensure_role_permissions_updated(school_id: str):
+    """
+    التأكد من أن جميع الأدوار لديها الصلاحيات المطلوبة
+    هذه الدالة تضمن إضافة الصلاحيات الجديدة للأدوار الموجودة
+    """
+    from app.core.permissions import ROLE_PERMISSIONS
+    from app.models.users import Role, Permission, RolePermission
+    from sqlalchemy import select
+    
+    print("🔄 جاري تحديث صلاحيات الأدوار...")
+    
+    async for db in get_db():
+        try:
+            # 1. جلب جميع الصلاحيات الموجودة
+            stmt = select(Permission)
+            result = await db.execute(stmt)
+            all_perms = {p.key: p for p in result.scalars().all()}
+            print(f"📊 عدد الصلاحيات الكلي: {len(all_perms)}")
+            
+            # 2. جلب جميع الأدوار للمدرسة
+            stmt = select(Role).where(Role.school_id == school_id)
+            result = await db.execute(stmt)
+            roles = result.scalars().all()
+            print(f"📊 عدد الأدوار: {len(roles)}")
+            
+            updated_count = 0
+            
+            # 3. لكل دور، تأكد من وجود جميع الصلاحيات المطلوبة
+            for role in roles:
+                # جلب الصلاحيات الحالية للدور
+                stmt = select(RolePermission).where(RolePermission.role_id == role.id)
+                result = await db.execute(stmt)
+                existing_perms = {rp.permission_id for rp in result.scalars().all()}
+                
+                # جلب الصلاحيات المطلوبة للدور من ROLE_PERMISSIONS
+                required_perm_keys = ROLE_PERMISSIONS.get(role.key, [])
+                
+                # إضافة الصلاحيات المفقودة
+                for perm_key in required_perm_keys:
+                    if perm_key in all_perms:
+                        perm = all_perms[perm_key]
+                        if perm.id not in existing_perms:
+                            role_perm = RolePermission(
+                                role_id=role.id,
+                                permission_id=perm.id
+                            )
+                            db.add(role_perm)
+                            updated_count += 1
+                            print(f"   ✅ إضافة صلاحية '{perm_key}' للدور '{role.key}'")
+                    else:
+                        print(f"   ⚠️ صلاحية '{perm_key}' غير موجودة في قاعدة البيانات")
+                
+                await db.flush()
+            
+            await db.commit()
+            print(f"✅ تم تحديث صلاحيات الأدوار: تم إضافة {updated_count} صلاحية جديدة")
+            
+        except Exception as e:
+            print(f"❌ خطأ في تحديث صلاحيات الأدوار: {str(e)}")
+            await db.rollback()
+        break
+
+
 async def init_database():
     """تهيئة قاعدة البيانات وإنشاء المستخدمين الأوليين."""
     from app.services.auth_service import AuthService
@@ -164,12 +227,15 @@ async def init_database():
             # 2. التأكد من وجود جميع الصلاحيات (إضافة المفقودة فقط)
             await service.ensure_permissions_exist(school.id)
             
-            # 3. تهيئة الصلاحيات والأدوار
+            # 3. تهيئة الصلاحيات والأدوار الأساسية
             await service.ensure_system_roles_and_permissions(school.id)
             await db.commit()
-            print("✅ تم تهيئة الصلاحيات والأدوار")
+            print("✅ تم تهيئة الصلاحيات والأدوار الأساسية")
             
-            # 4. إنشاء المستخدمين التجريبيين
+            # 4. تحديث صلاحيات الأدوار الموجودة (إضافة الصلاحيات الجديدة)
+            await ensure_role_permissions_updated(school.id)
+            
+            # 5. إنشاء المستخدمين التجريبيين
             demo_users = [
                 {"email": "admin@school.edu", "password": "admin123", "full_name": "أحمد المدير", "role": "director"},
                 {"email": "deputy@school.edu", "password": "deputy123", "full_name": "خالد الوكيل", "role": "deputy"},
