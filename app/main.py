@@ -69,6 +69,7 @@ from app.routes.web.modules import (
 
 from app.routes.api import router as api_router
 
+# ============= إنشاء مثيل templates =============
 templates = Jinja2Templates(directory="app/templates")
 
 
@@ -297,8 +298,9 @@ async def lifespan(app: FastAPI):
     print("🚀 Starting application...")
     print(f"📊 Database: {settings.DATABASE_URL}")
     
-    # تعيين القوالب
+    # تعيين القوالب للتطبيق
     set_templates(templates)
+    print("✅ تم تعيين القوالب للتطبيق")
     
     # 1. التحقق من هيكل قاعدة البيانات (إضافة الأعمدة المفقودة)
     await ensure_database_schema()
