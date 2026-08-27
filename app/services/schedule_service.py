@@ -167,16 +167,24 @@ class ScheduleService:
 
     # ============= دوال مساعدة لجلب البيانات =============
 
-    async def get_sections(self, school_id: str) -> List[Dict[str, Any]]:
-        """جلب جميع الشعب لمدرسة معينة مع تفاصيلها"""
+    async def get_sections_objects(self, school_id: str) -> List[Section]:
+        """جلب جميع الشعب كـ ORM Objects"""
         result = await self.db.execute(
             select(Section)
             .where(Section.school_id == school_id)
             .where(Section.is_active == True)
             .order_by(Section.name)
         )
-        sections = list(result.scalars().all())
-        return [{"id": s.id, "name": s.name} for s in sections]
+        return list(result.scalars().all())
+
+    async def get_academic_years_objects(self, school_id: str) -> List[AcademicYear]:
+        """جلب جميع الأعوام الدراسية كـ ORM Objects"""
+        result = await self.db.execute(
+            select(AcademicYear)
+            .where(AcademicYear.school_id == school_id)
+            .order_by(AcademicYear.name.desc())
+        )
+        return list(result.scalars().all())
 
     async def get_periods(self, school_id: str) -> List[Dict[str, Any]]:
         """جلب جميع الفترات لمدرسة معينة مع تفاصيلها"""
@@ -230,34 +238,3 @@ class ScheduleService:
         )
         rooms = list(result.scalars().all())
         return [{"id": r.id, "name": r.name} for r in rooms]
-
-    async def get_academic_years(self, school_id: str) -> List[Dict[str, Any]]:
-        """جلب جميع الأعوام الدراسية لمدرسة معينة مع تفاصيلها"""
-        result = await self.db.execute(
-            select(AcademicYear)
-            .where(AcademicYear.school_id == school_id)
-            .order_by(AcademicYear.name.desc())
-        )
-        years = list(result.scalars().all())
-        return [{"id": y.id, "name": y.name, "is_current": y.is_current} for y in years]
-    
-    # ============= دوال لجلب البيانات كـ ORM Objects =============
-
-    async def get_sections_objects(self, school_id: str) -> List[Section]:
-        """جلب جميع الشعب كـ ORM Objects"""
-        result = await self.db.execute(
-            select(Section)
-            .where(Section.school_id == school_id)
-            .where(Section.is_active == True)
-            .order_by(Section.name)
-        )
-        return list(result.scalars().all())
-
-    async def get_academic_years_objects(self, school_id: str) -> List[AcademicYear]:
-        """جلب جميع الأعوام الدراسية كـ ORM Objects"""
-        result = await self.db.execute(
-            select(AcademicYear)
-            .where(AcademicYear.school_id == school_id)
-            .order_by(AcademicYear.name.desc())
-        )
-        return list(result.scalars().all())
