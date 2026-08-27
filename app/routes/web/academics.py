@@ -647,3 +647,179 @@ async def academic_tree(
         "academics/tree.html",
         {**ctx, "title": "الشجرة الأكاديمية", "tree": tree}
                                )
+
+
+# ============================================================
+#  مسارات API المباشرة (للتوافق مع القوالب الحالية)
+# ============================================================
+
+@router.post("/api/years/create")
+async def api_create_year(
+    req: AcademicYearCreate,
+    user: CurrentUser = Depends(require_any_permission("academics.create")),
+    db: AsyncSession = Depends(get_db),
+):
+    """API: إنشاء عام دراسي جديد"""
+    service = AcademicService(db)
+    result = await service.create_year(user.school_id, req)
+    return {"success": True, "id": result.id, "message": "تم إضافة العام الدراسي بنجاح"}
+
+
+@router.post("/api/stages/create")
+async def api_create_stage(
+    req: StageCreate,
+    user: CurrentUser = Depends(require_any_permission("academics.create")),
+    db: AsyncSession = Depends(get_db),
+):
+    """API: إنشاء مرحلة جديدة"""
+    service = AcademicService(db)
+    result = await service.create_stage(user.school_id, req)
+    return {"success": True, "id": result.id, "message": "تم إضافة المرحلة بنجاح"}
+
+
+@router.post("/api/grades/create")
+async def api_create_grade(
+    req: GradeCreate,
+    user: CurrentUser = Depends(require_any_permission("academics.create")),
+    db: AsyncSession = Depends(get_db),
+):
+    """API: إنشاء صف جديد"""
+    service = AcademicService(db)
+    result = await service.create_grade(user.school_id, req)
+    return {"success": True, "id": result.id, "message": "تم إضافة الصف بنجاح"}
+
+
+@router.post("/api/sections/create")
+async def api_create_section(
+    req: SectionCreate,
+    user: CurrentUser = Depends(require_any_permission("academics.create")),
+    db: AsyncSession = Depends(get_db),
+):
+    """API: إنشاء شعبة جديدة"""
+    service = AcademicService(db)
+    result = await service.create_section(user.school_id, req)
+    return {"success": True, "id": result.id, "message": "تم إضافة الشعبة بنجاح"}
+
+
+@router.post("/api/subjects/create")
+async def api_create_subject(
+    req: SubjectCreate,
+    user: CurrentUser = Depends(require_any_permission("academics.create")),
+    db: AsyncSession = Depends(get_db),
+):
+    """API: إنشاء مادة جديدة"""
+    service = AcademicService(db)
+    result = await service.create_subject(user.school_id, req)
+    return {"success": True, "id": result.id, "message": "تم إضافة المادة بنجاح"}
+
+
+@router.post("/api/rooms/create")
+async def api_create_room(
+    req: RoomCreate,
+    user: CurrentUser = Depends(require_any_permission("academics.create")),
+    db: AsyncSession = Depends(get_db),
+):
+    """API: إنشاء قاعة جديدة"""
+    service = AcademicService(db)
+    result = await service.create_room(user.school_id, req)
+    return {"success": True, "id": result.id, "message": "تم إضافة القاعة بنجاح"}
+
+
+@router.post("/api/periods/create")
+async def api_create_period(
+    req: PeriodCreate,
+    user: CurrentUser = Depends(require_any_permission("academics.create")),
+    db: AsyncSession = Depends(get_db),
+):
+    """API: إنشاء فصل جديد"""
+    service = AcademicService(db)
+    result = await service.create_period(user.school_id, req)
+    return {"success": True, "id": result.id, "message": "تم إضافة الفصل بنجاح"}
+
+
+# ============================================================
+#  مسارات API للحذف (DELETE)
+# ============================================================
+
+@router.delete("/api/years/{year_id}")
+async def api_delete_year(
+    year_id: str,
+    user: CurrentUser = Depends(require_any_permission("academics.delete")),
+    db: AsyncSession = Depends(get_db),
+):
+    """API: حذف عام دراسي"""
+    service = AcademicService(db)
+    await service.delete_year(year_id)
+    return {"success": True, "message": "تم حذف العام الدراسي بنجاح"}
+
+
+@router.delete("/api/stages/{stage_id}")
+async def api_delete_stage(
+    stage_id: str,
+    user: CurrentUser = Depends(require_any_permission("academics.delete")),
+    db: AsyncSession = Depends(get_db),
+):
+    """API: حذف مرحلة"""
+    service = AcademicService(db)
+    await service.delete_stage(stage_id)
+    return {"success": True, "message": "تم حذف المرحلة بنجاح"}
+
+
+@router.delete("/api/grades/{grade_id}")
+async def api_delete_grade(
+    grade_id: str,
+    user: CurrentUser = Depends(require_any_permission("academics.delete")),
+    db: AsyncSession = Depends(get_db),
+):
+    """API: حذف صف"""
+    service = AcademicService(db)
+    await service.delete_grade(grade_id)
+    return {"success": True, "message": "تم حذف الصف بنجاح"}
+
+
+@router.delete("/api/sections/{section_id}")
+async def api_delete_section(
+    section_id: str,
+    user: CurrentUser = Depends(require_any_permission("academics.delete")),
+    db: AsyncSession = Depends(get_db),
+):
+    """API: حذف شعبة"""
+    service = AcademicService(db)
+    await service.delete_section(section_id)
+    return {"success": True, "message": "تم حذف الشعبة بنجاح"}
+
+
+@router.delete("/api/subjects/{subject_id}")
+async def api_delete_subject(
+    subject_id: str,
+    user: CurrentUser = Depends(require_any_permission("academics.delete")),
+    db: AsyncSession = Depends(get_db),
+):
+    """API: حذف مادة"""
+    service = AcademicService(db)
+    await service.delete_subject(subject_id)
+    return {"success": True, "message": "تم حذف المادة بنجاح"}
+
+
+@router.delete("/api/rooms/{room_id}")
+async def api_delete_room(
+    room_id: str,
+    user: CurrentUser = Depends(require_any_permission("academics.delete")),
+    db: AsyncSession = Depends(get_db),
+):
+    """API: حذف قاعة"""
+    service = AcademicService(db)
+    await service.delete_room(room_id)
+    return {"success": True, "message": "تم حذف القاعة بنجاح"}
+
+
+@router.delete("/api/periods/{period_id}")
+async def api_delete_period(
+    period_id: str,
+    user: CurrentUser = Depends(require_any_permission("academics.delete")),
+    db: AsyncSession = Depends(get_db),
+):
+    """API: حذف فصل"""
+    service = AcademicService(db)
+    await service.delete_period(period_id)
+    return {"success": True, "message": "تم حذف الفصل بنجاح"}
