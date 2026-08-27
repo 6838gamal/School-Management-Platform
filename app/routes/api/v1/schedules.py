@@ -21,17 +21,42 @@ async def create_schedule(
 ):
     """API: إنشاء جدول جديد"""
     try:
+        print("=" * 50)
+        print("📝 API: إنشاء جدول جديد")
+        print(f"   user_id: {user.id}")
+        print(f"   school_id: {user.school_id}")
+        print(f"   data: {req.model_dump()}")
+        print("=" * 50)
+        
+        # ✅ التحقق من وجود school_id
+        if not user.school_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="المستخدم ليس لديه مدرسة مرتبطة"
+            )
+        
         service = ScheduleService(db)
         result = await service.create_schedule(user.school_id, req)
+        
         return {
-            "success": True, 
-            "id": result.id, 
+            "success": True,
+            "id": result.id,
             "message": "تم إنشاء الجدول بنجاح"
         }
-    except Exception as e:
+        
+    except ValueError as e:
+        print(f"❌ خطأ في البيانات: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
+        )
+    except Exception as e:
+        print(f"❌ خطأ غير متوقع: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"حدث خطأ: {str(e)}"
         )
 
 
@@ -47,7 +72,7 @@ async def update_schedule(
         service = ScheduleService(db)
         result = await service.update_schedule(schedule_id, req)
         return {
-            "success": True, 
+            "success": True,
             "message": "تم تحديث الجدول بنجاح"
         }
     except Exception as e:
@@ -84,14 +109,30 @@ async def add_schedule_entry(
 ):
     """API: إضافة مدخل (حصة) إلى الجدول"""
     try:
+        print("=" * 50)
+        print("📝 API: إضافة حصة جديدة")
+        print(f"   schedule_id: {schedule_id}")
+        print(f"   data: {req.model_dump()}")
+        print("=" * 50)
+        
         service = ScheduleService(db)
         result = await service.add_entry(schedule_id, req)
+        
         return {
-            "success": True, 
-            "id": result.id, 
+            "success": True,
+            "id": result.id,
             "message": "تم إضافة الحصة بنجاح"
         }
+    except ValueError as e:
+        print(f"❌ خطأ في البيانات: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
     except Exception as e:
+        print(f"❌ خطأ غير متوقع: {str(e)}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
@@ -110,7 +151,7 @@ async def update_schedule_entry(
         service = ScheduleService(db)
         result = await service.update_entry(entry_id, req)
         return {
-            "success": True, 
+            "success": True,
             "message": "تم تحديث الحصة بنجاح"
         }
     except Exception as e:
@@ -148,16 +189,15 @@ async def get_schedule_data(
     try:
         service = ScheduleService(db)
         
-        # الدوال تعيد قوائم من Dictionaries
         subjects = await service.get_subjects(school_id)
         teachers = await service.get_teachers(school_id)
         rooms = await service.get_rooms(school_id)
         
         return {
             "success": True,
-            "subjects": subjects,  # بالفعل قائمة من {"id": ..., "name": ...}
-            "teachers": teachers,  # بالفعل قائمة من {"id": ..., "full_name": ...}
-            "rooms": rooms         # بالفعل قائمة من {"id": ..., "name": ...}
+            "subjects": subjects,
+            "teachers": teachers,
+            "rooms": rooms
         }
     except Exception as e:
         raise HTTPException(
@@ -178,17 +218,7 @@ async def get_school_sections(
         sections = await service.get_all_sections(school_id)
         return {
             "success": True,
-            "sections": [
-                {
-                    "id": s.id,
-                    "name": s.name,
-                    "grade_id": s.grade_id,
-                    "grade_name": s.grade.name if s.grade else None,
-                    "capacity": s.capacity,
-                    "is_active": s.is_active
-                }
-                for s in sections
-            ]
+            "sections": sections
         }
     except Exception as e:
         raise HTTPException(
@@ -240,7 +270,7 @@ async def get_school_periods(
         periods = await service.get_periods(school_id)
         return {
             "success": True,
-            "periods": periods  # بالفعل قائمة من Dictionaries
+            "periods": periods
         }
     except Exception as e:
         raise HTTPException(
@@ -262,28 +292,32 @@ async def get_schedule_entries(
         if not schedule:
             raise HTTPException(status_code=404, detail="الجدول غير موجود")
         
-        entries = []
-        for entry in schedule.entries:
-            entries.append({
-                "id": entry.id,
-                "day_of_week": entry.day_of_week,
-                "period_id": entry.period_id,
-                "period_name": entry.period.name if entry.period else None,
-                "subject_id": entry.subject_id,
-                "subject_name": entry.subject.name if entry.subject else None,
-                "teacher_id": entry.teacher_id,
-                "teacher_name": entry.teacher.full_name if entry.teacher else None,
-                "room_id": entry.room_id,
-                "room_name": entry.room.name if entry.room else None,
-                "note": entry.note
-            })
-        
         return {
             "success": True,
             "schedule_id": schedule_id,
-            "schedule_name": schedule.name,
-            "entries": entries,
-            "count": len(entries)
+            "schedule_name": schedule["name"],
+            "entries": schedule["entries"],
+            "count": schedule["entries_count"]
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+
+
+@router.get("/check-data")
+async def check_available_data(
+    user: CurrentUser = Depends(require_any_permission("schedules.view")),
+    db: AsyncSession = Depends(get_db),
+):
+    """API: التحقق من البيانات المتاحة للمستخدم الحالي"""
+    try:
+        service = ScheduleService(db)
+        data = await service.check_available_data(user.school_id)
+        return {
+            "success": True,
+            "data": data
         }
     except Exception as e:
         raise HTTPException(
