@@ -3,10 +3,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, or_
 from sqlalchemy.orm import selectinload
 
-# استيراد النماذج - استخدام StudentEnrollment
 from app.models.students import Student, StudentEnrollment
 from app.schemas.students import StudentCreate, StudentUpdate
-from app.core.exceptions import NotFoundError, ValidationError
+
+# استيراد الاستثناءات من ملفك الموجود
+from app.core.exceptions import (
+    AppException,
+    NotFoundException,
+    ValidationException,
+    ConflictException,
+    ForbiddenException,
+    UnauthorizedException
+)
 
 
 class StudentService:
@@ -45,13 +53,13 @@ class StudentService:
 
     async def get_student_detail(self, student_id: str) -> Dict[str, Any]:
         query = select(Student).where(Student.id == student_id).options(
-            selectinload(Student.enrollments)  # تأكد من أن العلاقة اسمها enrollments
+            selectinload(Student.enrollments)
         )
         result = await self.db.execute(query)
         student = result.scalar_one_or_none()
         
         if not student:
-            raise NotFoundError("الطالب غير موجود")
+            raise NotFoundException("الطالب غير موجود")
         
         # تحويل إلى قاموس مع معلومات إضافية
         detail = {
@@ -116,7 +124,7 @@ class StudentService:
             )
         )
         if existing.scalar_one_or_none():
-            raise ValidationError("رقم الطالب موجود بالفعل")
+            raise ConflictException("رقم الطالب موجود بالفعل")
         
         # التحقق من عدم تكرار الرقم الوطني
         if data.national_id:
@@ -127,7 +135,7 @@ class StudentService:
                 )
             )
             if existing.scalar_one_or_none():
-                raise ValidationError("الرقم الوطني موجود بالفعل")
+                raise ConflictException("الرقم الوطني موجود بالفعل")
         
         student = Student(
             school_id=school_id,
@@ -147,11 +155,11 @@ class StudentService:
         )
         
         self.db.add(student)
-        await self.db.flush()  # للحصول على ID
+        await self.db.flush()
         
         # إنشاء تسجيل إذا تم تحديد year_id
         if data.year_id:
-            enrollment = StudentEnrollment(  # استخدام StudentEnrollment
+            enrollment = StudentEnrollment(
                 student_id=student.id,
                 year_id=data.year_id,
                 section_id=data.section_id,
@@ -169,7 +177,7 @@ class StudentService:
     async def update_student(self, student_id: str, data: StudentUpdate) -> Student:
         student = await self.get_student(student_id)
         if not student:
-            raise NotFoundError("الطالب غير موجود")
+            raise NotFoundException("الطالب غير موجود")
         
         update_data = data.model_dump(exclude_unset=True)
         
@@ -183,7 +191,7 @@ class StudentService:
                 )
             )
             if existing.scalar_one_or_none():
-                raise ValidationError("الرقم الوطني موجود بالفعل")
+                raise ConflictException("الرقم الوطني موجود بالفعل")
         
         for key, value in update_data.items():
             setattr(student, key, value)
@@ -195,11 +203,11 @@ class StudentService:
     async def delete_student(self, student_id: str) -> None:
         student = await self.get_student(student_id)
         if not student:
-            raise NotFoundError("الطالب غير موجود")
+            raise NotFoundException("الطالب غير موجود")
         
         # حذف سجلات التسجيل المرتبطة
         enrollments = await self.db.execute(
-            select(StudentEnrollment).where(StudentEnrollment.student_id == student_id)  # استخدام StudentEnrollment
+            select(StudentEnrollment).where(StudentEnrollment.student_id == student_id)
         )
         for enrollment in enrollments.scalars().all():
             await self.db.delete(enrollment)
