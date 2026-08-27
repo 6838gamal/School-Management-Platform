@@ -67,13 +67,13 @@ class ScheduleService:
         section_id: str, 
         academic_year_id: str
     ) -> Optional[Schedule]:
-        """البحث عن جدول مكرر"""
+        """البحث عن جدول مكرر - استخدام year_id في قاعدة البيانات"""
         result = await self.db.execute(
             select(Schedule)
             .where(
                 Schedule.school_id == school_id,
                 Schedule.section_id == section_id,
-                Schedule.academic_year_id == academic_year_id  # ✅ استخدام academic_year_id
+                Schedule.year_id == academic_year_id  # ✅ استخدام year_id
             )
         )
         return result.scalar_one_or_none()
@@ -141,7 +141,8 @@ class ScheduleService:
         result_list = []
         for schedule in schedules:
             section_name = await self.get_section_name(schedule.section_id)
-            year_name = await self.get_academic_year_name(schedule.academic_year_id)
+            # ✅ استخدام year_id من النموذج
+            year_name = await self.get_academic_year_name(schedule.year_id)
             
             entries_result = await self.db.execute(
                 select(ScheduleEntry)
@@ -155,7 +156,7 @@ class ScheduleService:
                 "school_id": schedule.school_id,
                 "section_id": schedule.section_id,
                 "section_name": section_name,
-                "academic_year_id": schedule.academic_year_id,
+                "year_id": schedule.year_id,
                 "academic_year_name": year_name,
                 "is_active": schedule.is_active,
                 "created_at": schedule.created_at,
@@ -176,7 +177,8 @@ class ScheduleService:
             return None
         
         section_name = await self.get_section_name(schedule.section_id)
-        year_name = await self.get_academic_year_name(schedule.academic_year_id)
+        # ✅ استخدام year_id من النموذج
+        year_name = await self.get_academic_year_name(schedule.year_id)
         
         return {
             "id": schedule.id,
@@ -184,7 +186,7 @@ class ScheduleService:
             "school_id": schedule.school_id,
             "section_id": schedule.section_id,
             "section_name": section_name,
-            "academic_year_id": schedule.academic_year_id,
+            "year_id": schedule.year_id,
             "academic_year_name": year_name,
             "is_active": schedule.is_active,
             "created_at": schedule.created_at,
@@ -282,7 +284,7 @@ class ScheduleService:
         
         print(f"✅ تم العثور على العام الدراسي: {year.name}")
         
-        # ✅ التحقق من عدم وجود جدول مكرر
+        # ✅ التحقق من عدم وجود جدول مكرر - استخدام year_id
         duplicate = await self.find_schedule_duplicate(
             school_id, req.section_id, req.academic_year_id
         )
@@ -291,12 +293,12 @@ class ScheduleService:
         
         print("✅ لا يوجد جدول مكرر")
         
-        # ✅ إنشاء الجدول
+        # ✅ إنشاء الجدول - استخدام year_id
         schedule = Schedule(
             school_id=school_id,
             name=req.name,
             section_id=req.section_id,
-            academic_year_id=req.academic_year_id,
+            year_id=req.academic_year_id,  # ✅ year_id في قاعدة البيانات
             is_active=req.is_active,
         )
         self.db.add(schedule)
