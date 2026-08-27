@@ -5,7 +5,7 @@ from sqlalchemy import select
 import logging
 
 from app.core.database import get_db
-from app.core.templating import templates
+from app.core.templating import get_templates
 from app.core.dependencies import get_current_user
 from app.models.users import User, Role, UserRole
 from app.services.auth_service import AuthService
@@ -42,13 +42,12 @@ async def deputy_list(
         
         logger.info(f"📊 Found {len(deputies)} deputies")
         
-        # التحقق من وجود templates
+        templates = get_templates()
         if templates is None:
             logger.error("❌ Templates is None!")
             raise HTTPException(status_code=500, detail="Templates not initialized")
         
-        logger.info(f"✅ Templates is set: {templates is not None}")
-        logger.info(f"✅ Templates directory: {templates.directory}")
+        logger.info(f"✅ Templates is set successfully")
         
         return templates.TemplateResponse(
             "deputy/list.html",
@@ -62,7 +61,6 @@ async def deputy_list(
         
     except Exception as e:
         logger.error(f"❌ Error in deputy_list: {str(e)}")
-        logger.error(f"❌ Error type: {type(e)}")
         raise
 
 
@@ -74,11 +72,11 @@ async def deputy_create_form(
 ):
     """صفحة إنشاء وكيل جديد"""
     try:
-        # جلب المدارس للاختيار
         from app.models.schools import School
         result = await db.execute(select(School))
         schools = result.scalars().all()
         
+        templates = get_templates()
         if templates is None:
             raise HTTPException(status_code=500, detail="Templates not initialized")
         
@@ -109,7 +107,6 @@ async def deputy_create(
     try:
         service = AuthService(db)
         
-        # إنشاء مستخدم جديد بدور deputy
         user_data = RegisterUserRequest(
             email=form_data.get("email"),
             password=form_data.get("password"),
@@ -143,7 +140,6 @@ async def deputy_update_form(
 ):
     """صفحة تعديل وكيل"""
     try:
-        # جلب المستخدم
         result = await db.execute(
             select(User).where(User.id == deputy_id)
         )
@@ -152,11 +148,11 @@ async def deputy_update_form(
         if not deputy:
             raise HTTPException(status_code=404, detail="الوكيل غير موجود")
         
-        # جلب المدارس للاختيار
         from app.models.schools import School
         result = await db.execute(select(School))
         schools = result.scalars().all()
         
+        templates = get_templates()
         if templates is None:
             raise HTTPException(status_code=500, detail="Templates not initialized")
         
@@ -187,7 +183,6 @@ async def deputy_update(
     form_data = await request.form()
     
     try:
-        # جلب المستخدم
         result = await db.execute(
             select(User).where(User.id == deputy_id)
         )
@@ -196,12 +191,10 @@ async def deputy_update(
         if not deputy:
             raise HTTPException(status_code=404, detail="الوكيل غير موجود")
         
-        # تحديث البيانات
         deputy.full_name = form_data.get("full_name")
         deputy.phone = form_data.get("phone")
         deputy.is_active = form_data.get("is_active") == "on"
         
-        # تحديث كلمة المرور إذا تم إدخالها
         new_password = form_data.get("password")
         if new_password and len(new_password) >= 6:
             from app.core.security import hash_password
@@ -231,7 +224,6 @@ async def deputy_delete(
 ):
     """حذف وكيل"""
     try:
-        # جلب المستخدم
         result = await db.execute(
             select(User).where(User.id == deputy_id)
         )
@@ -240,13 +232,11 @@ async def deputy_delete(
         if not deputy:
             raise HTTPException(status_code=404, detail="الوكيل غير موجود")
         
-        # حذف العلاقات أولاً
         from sqlalchemy import delete
         await db.execute(
             delete(UserRole).where(UserRole.user_id == deputy_id)
         )
         
-        # حذف المستخدم
         await db.delete(deputy)
         await db.commit()
         
