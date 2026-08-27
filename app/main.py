@@ -55,6 +55,8 @@ from app.routes.web.dashboard import router as web_dashboard
 from app.routes.web.students import router as web_students
 from app.routes.web.teachers import router as web_teachers
 from app.routes.web.schedules import router as web_schedules
+from app.routes.web.deputy import router as web_deputy
+from app.routes.web.activity_managers import router as web_activity_managers
 from app.routes.web.modules import (
     activities_router as web_activities,
     attendance_router as web_attendance,
@@ -330,6 +332,8 @@ app.include_router(web_students)
 app.include_router(web_teachers)
 app.include_router(web_academics)
 app.include_router(web_schedules)
+app.include_router(web_deputy)
+app.include_router(web_activity_managers)
 app.include_router(web_attendance)
 app.include_router(web_grades)
 app.include_router(web_homework)
