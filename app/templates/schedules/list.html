@@ -86,8 +86,20 @@
                     <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/20 transition-colors duration-200">
                         <td class="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">{{ loop.index }}</td>
                         <td class="px-6 py-4 text-sm font-medium text-slate-800 dark:text-white">{{ item.name }}</td>
-                        <td class="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">{{ item.section_id }}</td>
-                        <td class="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">{{ item.academic_year_id }}</td>
+                        <td class="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">
+                            {% if item.section %}
+                                {{ item.section.name }}
+                            {% else %}
+                                {{ item.section_id }}
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">
+                            {% if item.academic_year %}
+                                {{ item.academic_year.name }}
+                            {% else %}
+                                {{ item.academic_year_id }}
+                            {% endif %}
+                        </td>
                         <td class="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">{{ item.entries|length if item.entries else 0 }}</td>
                         <td class="px-6 py-4 text-sm">
                             {% if item.is_active %}
@@ -161,7 +173,6 @@
     </div>
 </div>
 
-<script src="/static/js/schedule.js"></script>
 <script>
 // ============= دوال القائمة المنسدلة =============
 
@@ -169,7 +180,6 @@ function toggleDropdown(btn) {
     const container = btn.closest('.dropdown-container');
     const menu = container.querySelector('.dropdown-menu');
     
-    // إغلاق جميع القوائم المفتوحة الأخرى
     document.querySelectorAll('.dropdown-menu.show').forEach(function(m) {
         if (m !== menu) {
             m.classList.remove('show');
@@ -177,7 +187,6 @@ function toggleDropdown(btn) {
         }
     });
     
-    // تبديل حالة القائمة الحالية
     menu.classList.toggle('hidden');
     menu.classList.toggle('show');
 }
@@ -249,7 +258,6 @@ function showMessage(message, type = 'success') {
     animation: slideIn 0.3s ease-out;
 }
 
-/* تحسين مظهر القائمة المنسدلة */
 .dropdown-menu {
     min-width: 160px;
     transform-origin: top right;
@@ -263,7 +271,6 @@ function showMessage(message, type = 'success') {
     display: none !important;
 }
 
-/* تحسين مظهر الجدول */
 table {
     min-width: 800px;
 }
