@@ -10,7 +10,7 @@ class Schedule(UUIDPkMixin, TimestampMixin, Base):
     """جدول دراسي"""
     __tablename__ = "schedules"
     __table_args__ = (
-        UniqueConstraint("school_id", "section_id", "academic_year_id", name="uq_schedule_section_year"),
+        UniqueConstraint("school_id", "section_id", "year_id", name="uq_schedule_section_year"),
     )
 
     school_id: Mapped[str] = mapped_column(
@@ -20,16 +20,27 @@ class Schedule(UUIDPkMixin, TimestampMixin, Base):
     section_id: Mapped[str] = mapped_column(
         String(36), nullable=False, index=True
     )
-    # بدون مفتاح أجنبي - مجرد عمود نصي
-    academic_year_id: Mapped[str] = mapped_column(
+    # ✅ العمود الفعلي في قاعدة البيانات هو year_id
+    year_id: Mapped[str] = mapped_column(
         String(36), nullable=False, index=True
     )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 
-    # العلاقة مع المدخلات فقط
+    # العلاقة مع المدخلات
     entries: Mapped[list["ScheduleEntry"]] = relationship(
         "ScheduleEntry", back_populates="schedule", cascade="all, delete-orphan"
     )
+
+    # ============= Property للتوافق مع الكود =============
+    @property
+    def academic_year_id(self) -> str:
+        """Alias للتوافق مع الكود الذي يستخدم academic_year_id"""
+        return self.year_id
+    
+    @academic_year_id.setter
+    def academic_year_id(self, value: str) -> None:
+        """Setter للتوافق مع الكود الذي يستخدم academic_year_id"""
+        self.year_id = value
 
 
 class ScheduleEntry(UUIDPkMixin, TimestampMixin, Base):
