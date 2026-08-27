@@ -1,98 +1,226 @@
-"""Schedule service with conflict detection and replacement suggestions."""
+"""Schedule service."""
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, and_
+from typing import List, Optional, Dict, Any
 
-from app.core.exceptions import ConflictException, NotFoundException
-from app.repositories.academics import PeriodRepository, SectionRepository, SubjectRepository
-from app.repositories.attendance import TeacherAttendanceRepository
-from app.repositories.schedules import ScheduleEntryRepository, ScheduleRepository
-from app.repositories.teachers import AssignmentRepository, TeacherRepository
-from app.schemas.schedules import ScheduleEntryCreate, ScheduleEntryUpdate
+from app.core.exceptions import NotFoundException
+from app.models.academics import Section, Period, Subject, Room, AcademicYear
+from app.models.schedules import Schedule, ScheduleEntry
+from app.models.users import User, UserRole, Role
+from app.schemas.schedules import (
+    ScheduleCreate, ScheduleUpdate, 
+    ScheduleEntryCreate, ScheduleEntryUpdate
+)
 
 
 class ScheduleService:
-    def __init__(self, db: AsyncSession) -> None:
+    def __init__(self, db: AsyncSession):
         self.db = db
-        self.schedules = ScheduleRepository(db)
-        self.entries = ScheduleEntryRepository(db)
-        self.teachers = TeacherRepository(db)
-        self.assignments = AssignmentRepository(db)
-        self.periods = PeriodRepository(db)
-        self.sections = SectionRepository(db)
-        self.subjects = SubjectRepository(db)
-        self.teacher_att = TeacherAttendanceRepository(db)
 
-    async def get_or_create_schedule(self, school_id: str, year_id: str, section_id: str) -> str:
-        sched = await self.schedules.get_by_section(section_id, year_id)
-        if sched:
-            return sched.id
-        section = await self.sections.get(section_id)
-        name = f"جدول {section.name}" if section else "جدول"
-        sched = await self.schedules.create(
-            school_id=school_id, year_id=year_id, section_id=section_id, name=name, is_active=True,
+    # ============= الجداول =============
+
+    async def list_schedules(self, school_id: str) -> List[Schedule]:
+        """جلب جميع الجداول لمدرسة معينة"""
+        result = await self.db.execute(
+            select(Schedule)
+            .where(Schedule.school_id == school_id)
+            .order_by(Schedule.name)
         )
-        return sched.id
+        return list(result.scalars().all())
 
-    async def get_weekly_grid(self, schedule_id: str) -> dict:
-        entries = await self.entries.list_by_schedule(schedule_id)
-        periods = await self.periods.list_by_school(entries[0].school_id if entries else "")
-        grid: dict[int, dict[str, dict]] = {}
-        for e in entries:
-            grid.setdefault(e.day_of_week, {})[e.period_id] = {
-                "id": e.id, "subject_id": e.subject_id, "teacher_id": e.teacher_id, "room_id": e.room_id,
-            }
-        return {"periods": [{"id": p.id, "name": p.name, "order": p.order} for p in periods], "grid": grid}
-
-    async def add_entry(self, school_id: str, schedule_id: str, req: ScheduleEntryCreate) -> dict:
-        conflicts = await self.entries.check_conflicts(
-            school_id, req.day_of_week, req.period_id, req.teacher_id, req.room_id, req.section_id,
+    async def get_schedule(self, schedule_id: str) -> Optional[Schedule]:
+        """جلب جدول بواسطة المعرف"""
+        result = await self.db.execute(
+            select(Schedule).where(Schedule.id == schedule_id)
         )
-        conflict_list = {k: [{"id": e.id, "day": e.day_of_week} for e in v] for k, v in conflicts.items() if v}
-        if conflict_list:
-            raise ConflictException(f"تعارض: {conflict_list}")
-        entry = await self.entries.create(
-            schedule_id=schedule_id,
+        return result.scalar_one_or_none()
+
+    async def get_schedule_with_entries(self, schedule_id: str) -> Optional[Schedule]:
+        """جلب جدول مع جميع مدخلاته"""
+        result = await self.db.execute(
+            select(Schedule)
+            .where(Schedule.id == schedule_id)
+        )
+        schedule = result.scalar_one_or_none()
+        if schedule:
+            entries_result = await self.db.execute(
+                select(ScheduleEntry)
+                .where(ScheduleEntry.schedule_id == schedule_id)
+                .order_by(ScheduleEntry.day_of_week, ScheduleEntry.period_id)
+            )
+            schedule.entries = list(entries_result.scalars().all())
+        return schedule
+
+    async def create_schedule(self, school_id: str, req: ScheduleCreate) -> Schedule:
+        """إنشاء جدول جديد"""
+        schedule = Schedule(
             school_id=school_id,
+            name=req.name,
+            section_id=req.section_id,
+            academic_year_id=req.academic_year_id,
+            is_active=req.is_active,
+        )
+        self.db.add(schedule)
+        await self.db.flush()
+        await self.db.refresh(schedule)
+        return schedule
+
+    async def update_schedule(self, schedule_id: str, req: ScheduleUpdate) -> Schedule:
+        """تحديث جدول"""
+        schedule = await self.get_schedule(schedule_id)
+        if not schedule:
+            raise NotFoundException("الجدول غير موجود")
+        
+        update_data = req.model_dump(exclude_unset=True)
+        for key, value in update_data.items():
+            if hasattr(schedule, key):
+                setattr(schedule, key, value)
+        
+        await self.db.flush()
+        await self.db.refresh(schedule)
+        return schedule
+
+    async def delete_schedule(self, schedule_id: str) -> bool:
+        """حذف جدول"""
+        schedule = await self.get_schedule(schedule_id)
+        if not schedule:
+            raise NotFoundException("الجدول غير موجود")
+        
+        await self.db.delete(schedule)
+        await self.db.flush()
+        return True
+
+    # ============= مدخلات الجدول =============
+
+    async def add_entry(self, schedule_id: str, req: ScheduleEntryCreate) -> ScheduleEntry:
+        """إضافة مدخل إلى الجدول"""
+        schedule = await self.get_schedule(schedule_id)
+        if not schedule:
+            raise NotFoundException("الجدول غير موجود")
+        
+        # التحقق من عدم وجود تعارض
+        existing = await self.db.execute(
+            select(ScheduleEntry)
+            .where(
+                ScheduleEntry.schedule_id == schedule_id,
+                ScheduleEntry.day_of_week == req.day_of_week,
+                ScheduleEntry.period_id == req.period_id
+            )
+        )
+        if existing.scalar_one_or_none():
+            raise ValueError("يوجد بالفعل مدخل في هذا اليوم والفترة")
+        
+        entry = ScheduleEntry(
+            schedule_id=schedule_id,
             day_of_week=req.day_of_week,
             period_id=req.period_id,
             subject_id=req.subject_id,
             teacher_id=req.teacher_id,
             room_id=req.room_id,
-            section_id=req.section_id,
+            note=req.note,
         )
-        return {"id": entry.id}
+        self.db.add(entry)
+        await self.db.flush()
+        await self.db.refresh(entry)
+        return entry
 
-    async def update_entry(self, entry_id: str, req: ScheduleEntryUpdate) -> dict:
-        entry = await self.entries.get(entry_id)
+    async def update_entry(self, entry_id: str, req: ScheduleEntryUpdate) -> ScheduleEntry:
+        """تحديث مدخل في الجدول"""
+        result = await self.db.execute(
+            select(ScheduleEntry).where(ScheduleEntry.id == entry_id)
+        )
+        entry = result.scalar_one_or_none()
         if not entry:
-            raise NotFoundException("الحصة غير موجودة")
-        entry = await self.entries.update(entry, **req.model_dump(exclude_unset=True))
-        return {"id": entry.id}
+            raise NotFoundException("المدخل غير موجود")
+        
+        update_data = req.model_dump(exclude_unset=True)
+        for key, value in update_data.items():
+            if hasattr(entry, key):
+                setattr(entry, key, value)
+        
+        await self.db.flush()
+        await self.db.refresh(entry)
+        return entry
 
-    async def delete_entry(self, entry_id: str) -> None:
-        entry = await self.entries.get(entry_id)
+    async def delete_entry(self, entry_id: str) -> bool:
+        """حذف مدخل من الجدول"""
+        result = await self.db.execute(
+            select(ScheduleEntry).where(ScheduleEntry.id == entry_id)
+        )
+        entry = result.scalar_one_or_none()
         if not entry:
-            raise NotFoundException("الحصة غير موجودة")
-        await self.entries.delete(entry)
+            raise NotFoundException("المدخل غير موجود")
+        
+        await self.db.delete(entry)
+        await self.db.flush()
+        return True
 
-    async def suggest_replacements(self, school_id: str, absent_teacher_id: str, date: str) -> list[dict]:
-        """Find available teachers to replace an absent teacher's lessons."""
-        all_teachers = await self.teachers.list_by_school(school_id, page=1, page_size=200)
-        absent_entries = await self.entries.list_by_teacher(absent_teacher_id)
-        suggestions = []
-        for t in all_teachers[0]:
-            if t.id == absent_teacher_id or not t.is_active:
-                continue
-            teacher_entries = await self.entries.list_by_teacher(t.id)
-            busy_periods = {(e.day_of_week, e.period_id) for e in teacher_entries}
-            free_count = sum(
-                1 for e in absent_entries if (e.day_of_week, e.period_id) not in busy_periods
-            )
-            if free_count > 0:
-                suggestions.append({
-                    "teacher_id": t.id,
-                    "teacher_name": f"{t.first_name} {t.last_name}",
-                    "free_periods": free_count,
-                    "specialization": t.specialization,
-                })
-        suggestions.sort(key=lambda x: x["free_periods"], reverse=True)
-        return suggestions[:10]
+    # ============= دوال مساعدة لجلب البيانات =============
+
+    async def get_sections(self, school_id: str) -> List[Section]:
+        """جلب جميع الشعب لمدرسة معينة"""
+        result = await self.db.execute(
+            select(Section)
+            .where(Section.school_id == school_id)
+            .where(Section.is_active == True)
+            .order_by(Section.name)
+        )
+        return list(result.scalars().all())
+
+    async def get_periods(self, school_id: str) -> List[Period]:
+        """جلب جميع الفترات لمدرسة معينة"""
+        result = await self.db.execute(
+            select(Period)
+            .where(Period.school_id == school_id)
+            .order_by(Period.order)
+        )
+        return list(result.scalars().all())
+
+    async def get_subjects(self, school_id: str) -> List[Subject]:
+        """جلب جميع المواد لمدرسة معينة"""
+        result = await self.db.execute(
+            select(Subject)
+            .where(Subject.school_id == school_id)
+            .where(Subject.is_active == True)
+            .order_by(Subject.name)
+        )
+        return list(result.scalars().all())
+
+    async def get_teachers(self, school_id: str) -> List[User]:
+        """جلب جميع المعلمين لمدرسة معينة"""
+        role_result = await self.db.execute(
+            select(Role).where(Role.key == "teacher", Role.school_id == school_id)
+        )
+        teacher_role = role_result.scalar_one_or_none()
+        
+        if not teacher_role:
+            return []
+        
+        result = await self.db.execute(
+            select(User)
+            .join(UserRole, UserRole.user_id == User.id)
+            .where(UserRole.role_id == teacher_role.id)
+            .where(User.school_id == school_id)
+            .where(User.is_active == True)
+            .order_by(User.full_name)
+        )
+        return list(result.scalars().all())
+
+    async def get_rooms(self, school_id: str) -> List[Room]:
+        """جلب جميع القاعات لمدرسة معينة"""
+        result = await self.db.execute(
+            select(Room)
+            .where(Room.school_id == school_id)
+            .where(Room.is_active == True)
+            .order_by(Room.name)
+        )
+        return list(result.scalars().all())
+
+    async def get_academic_years(self, school_id: str) -> List[AcademicYear]:
+        """جلب جميع الأعوام الدراسية لمدرسة معينة"""
+        result = await self.db.execute(
+            select(AcademicYear)
+            .where(AcademicYear.school_id == school_id)
+            .order_by(AcademicYear.name.desc())
+        )
+        return list(result.scalars().all())
