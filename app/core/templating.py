@@ -7,4 +7,4 @@ def set_templates(templates_instance: Jinja2Templates):
     """تعيين مثيل الـ templates للاستخدام في جميع أنحاء التطبيق"""
     global templates
     templates = templates_instance
-    print("✅ تم تعيين templates بنجاح")
+    print(f"✅ تم تعيين templates بنجاح: {templates is not None}")
