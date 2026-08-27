@@ -8,7 +8,7 @@ from typing import Optional
 from app.core.database import get_db
 from app.core.dependencies import CurrentUser, require_any_permission, template_context
 from app.services.student_service import StudentService
-from app.schemas.student import StudentCreate, StudentUpdate
+from app.schemas.students import StudentCreate, StudentUpdate
 
 router = APIRouter(prefix="/students", tags=["students"])
 templates = Jinja2Templates(directory="app/templates")
