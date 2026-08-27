@@ -1,0 +1,295 @@
+{% extends "layouts/director.html" %}
+{% block content %}
+<div class="space-y-6">
+    <!-- العنوان -->
+    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div>
+            <h1 class="text-2xl font-bold text-slate-800 dark:text-white">{{ schedule.name }}</h1>
+            <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">عرض وإدارة حصص الجدول الدراسي</p>
+        </div>
+        <div class="flex items-center gap-3">
+            <a href="/schedules/list" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 text-sm flex items-center transition-colors duration-200">
+                <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+                </svg>
+                العودة للقائمة
+            </a>
+            {% if can('schedules.update') %}
+            <a href="/schedules/{{ schedule.id }}/update" class="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200 flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                </svg>
+                تعديل الجدول
+            </a>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- معلومات الجدول -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-4">
+            <span class="text-sm text-slate-500 dark:text-slate-400">الشعبة</span>
+            <p class="text-lg font-semibold text-slate-800 dark:text-white">{{ schedule.section_id }}</p>
+        </div>
+        <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-4">
+            <span class="text-sm text-slate-500 dark:text-slate-400">العام الدراسي</span>
+            <p class="text-lg font-semibold text-slate-800 dark:text-white">{{ schedule.academic_year_id }}</p>
+        </div>
+        <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-4">
+            <span class="text-sm text-slate-500 dark:text-slate-400">الحالة</span>
+            <p class="text-lg font-semibold">
+                {% if schedule.is_active %}
+                <span class="text-green-600 dark:text-green-400">✅ مفعل</span>
+                {% else %}
+                <span class="text-red-600 dark:text-red-400">❌ غير مفعل</span>
+                {% endif %}
+            </p>
+        </div>
+    </div>
+
+    <!-- الجدول الدراسي -->
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full">
+                <thead class="bg-slate-50 dark:bg-slate-700/30">
+                    <tr>
+                        <th class="text-center px-4 py-3 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">الفترة</th>
+                        {% for day in days %}
+                        <th class="text-center px-4 py-3 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">{{ day }}</th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
+                    {% for period in periods %}
+                    <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/20 transition-colors duration-200">
+                        <td class="text-center px-4 py-3 text-sm font-medium text-slate-700 dark:text-slate-300">
+                            {{ period.name }}
+                            <span class="text-xs text-slate-400 block">{{ period.start_time }} - {{ period.end_time }}</span>
+                        </td>
+                        {% for day in days %}
+                        <td class="text-center px-4 py-3">
+                            {% set entry = schedule.entries|selectattr('day_of_week', 'equalto', loop.index0)|selectattr('period_id', 'equalto', period.id)|first if schedule.entries else None %}
+                            {% if entry %}
+                            <div class="bg-primary-50 dark:bg-primary-900/20 rounded-lg p-2">
+                                <p class="text-sm font-medium text-primary-700 dark:text-primary-300">{{ entry.subject_id }}</p>
+                                <p class="text-xs text-slate-500 dark:text-slate-400">{{ entry.teacher_id }}</p>
+                                <p class="text-xs text-slate-400 dark:text-slate-500">{{ entry.room_id }}</p>
+                                {% if can('schedules.update') %}
+                                <button onclick="deleteEntry('{{ entry.id }}')" class="mt-1 text-xs text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300">
+                                    حذف
+                                </button>
+                                {% endif %}
+                            </div>
+                            {% else %}
+                            {% if can('schedules.create') %}
+                            <button onclick="showAddEntryModal('{{ period.id }}', {{ loop.index0 }})" 
+                                    class="text-slate-400 hover:text-primary-600 dark:hover:text-primary-400 text-sm transition-colors duration-200">
+                                +
+                            </button>
+                            {% endif %}
+                            {% endif %}
+                        </td>
+                        {% endfor %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- نافذة إضافة حصة -->
+<div id="entryModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm hidden items-center justify-center z-50" onclick="if(event.target===this) closeModal()">
+    <div class="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl max-w-md w-full mx-4 p-6" onclick="event.stopPropagation()">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-lg font-bold text-slate-800 dark:text-white">إضافة حصة</h3>
+            <button onclick="closeModal()" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
+                ✕
+            </button>
+        </div>
+        <form id="entryForm" onsubmit="return addEntry(event, this)">
+            <input type="hidden" name="day_of_week" id="entryDay">
+            <input type="hidden" name="period_id" id="entryPeriod">
+            <input type="hidden" name="schedule_id" value="{{ schedule.id }}">
+            
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                        المادة <span class="text-red-500">*</span>
+                    </label>
+                    <select name="subject_id" class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-primary-500 dark:bg-slate-700 dark:text-white" required>
+                        <option value="">اختر المادة</option>
+                        <!-- سيتم تعبئتها من الـ API -->
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                        المعلم <span class="text-red-500">*</span>
+                    </label>
+                    <select name="teacher_id" class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-primary-500 dark:bg-slate-700 dark:text-white" required>
+                        <option value="">اختر المعلم</option>
+                        <!-- سيتم تعبئتها من الـ API -->
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                        القاعة <span class="text-red-500">*</span>
+                    </label>
+                    <select name="room_id" class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-primary-500 dark:bg-slate-700 dark:text-white" required>
+                        <option value="">اختر القاعة</option>
+                        <!-- سيتم تعبئتها من الـ API -->
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                        ملاحظة
+                    </label>
+                    <input type="text" name="note" placeholder="ملاحظة إضافية (اختياري)" 
+                           class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-primary-500 dark:bg-slate-700 dark:text-white transition-colors duration-200">
+                </div>
+            </div>
+            <div class="flex gap-3 mt-6">
+                <button type="submit" class="flex-1 bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg font-medium transition-colors duration-200">
+                    إضافة
+                </button>
+                <button type="button" onclick="closeModal()" class="flex-1 bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 px-4 py-2 rounded-lg font-medium transition-colors duration-200">
+                    إلغاء
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+// دوال النافذة المنبثقة
+function showAddEntryModal(periodId, dayOfWeek) {
+    document.getElementById('entryPeriod').value = periodId;
+    document.getElementById('entryDay').value = dayOfWeek;
+    document.getElementById('entryModal').classList.remove('hidden');
+    document.getElementById('entryModal').classList.add('flex');
+    document.body.style.overflow = 'hidden';
+    
+    // جلب المواد والمعلمين والقاعات
+    fetchData();
+}
+
+function closeModal() {
+    document.getElementById('entryModal').classList.add('hidden');
+    document.getElementById('entryModal').classList.remove('flex');
+    document.body.style.overflow = 'auto';
+}
+
+// جلب البيانات
+async function fetchData() {
+    try {
+        const response = await fetch('/api/v1/schedules/data/{{ schedule.school_id }}');
+        const data = await response.json();
+        
+        if (data.success) {
+            // تعبئة المواد
+            const subjectSelect = document.querySelector('select[name="subject_id"]');
+            subjectSelect.innerHTML = '<option value="">اختر المادة</option>';
+            data.subjects.forEach(s => {
+                subjectSelect.innerHTML += `<option value="${s.id}">${s.name}</option>`;
+            });
+            
+            // تعبئة المعلمين
+            const teacherSelect = document.querySelector('select[name="teacher_id"]');
+            teacherSelect.innerHTML = '<option value="">اختر المعلم</option>';
+            data.teachers.forEach(t => {
+                teacherSelect.innerHTML += `<option value="${t.id}">${t.full_name}</option>`;
+            });
+            
+            // تعبئة القاعات
+            const roomSelect = document.querySelector('select[name="room_id"]');
+            roomSelect.innerHTML = '<option value="">اختر القاعة</option>';
+            data.rooms.forEach(r => {
+                roomSelect.innerHTML += `<option value="${r.id}">${r.name}</option>`;
+            });
+        }
+    } catch (error) {
+        console.error('خطأ في جلب البيانات:', error);
+    }
+}
+
+// إضافة حصة
+async function addEntry(event, form) {
+    event.preventDefault();
+    const formData = new FormData(form);
+    const data = Object.fromEntries(formData.entries());
+    
+    try {
+        const response = await fetch('/api/v1/schedules/{{ schedule.id }}/entries', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(data)
+        });
+        
+        if (response.ok) {
+            const result = await response.json();
+            showMessage('✅ ' + result.message, 'success');
+            closeModal();
+            setTimeout(() => window.location.reload(), 1500);
+        } else {
+            const error = await response.json();
+            showMessage('❌ ' + (error.detail || 'حدث خطأ أثناء الإضافة'), 'error');
+        }
+    } catch (error) {
+        showMessage('❌ حدث خطأ في الاتصال بالخادم', 'error');
+        console.error(error);
+    }
+}
+
+// حذف حصة
+async function deleteEntry(entryId) {
+    if (confirm('هل أنت متأكد من حذف هذه الحصة؟')) {
+        try {
+            const response = await fetch('/api/v1/schedules/entries/' + entryId, {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            });
+            
+            if (response.ok) {
+                const result = await response.json();
+                showMessage('✅ ' + result.message, 'success');
+                setTimeout(() => window.location.reload(), 1500);
+            } else {
+                const error = await response.json();
+                showMessage('❌ ' + (error.detail || 'حدث خطأ أثناء الحذف'), 'error');
+            }
+        } catch (error) {
+            showMessage('❌ حدث خطأ في الاتصال بالخادم', 'error');
+            console.error(error);
+        }
+    }
+}
+
+function showMessage(message, type = 'success') {
+    const colors = {
+        success: 'bg-green-50 text-green-800 border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800',
+        error: 'bg-red-50 text-red-800 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800',
+        warning: 'bg-yellow-50 text-yellow-800 border-yellow-200 dark:bg-yellow-900/20 dark:text-yellow-400 dark:border-yellow-800'
+    };
+    document.querySelectorAll('.toast-message').forEach(el => el.remove());
+    const div = document.createElement('div');
+    div.className = `toast-message fixed top-4 right-4 p-4 rounded-lg border ${colors[type]} shadow-lg z-50 max-w-md animate-slide-in`;
+    div.innerHTML = message;
+    document.body.appendChild(div);
+    setTimeout(() => { div.remove(); }, 5000);
+}
+</script>
+
+<style>
+@keyframes slideIn {
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+}
+.animate-slide-in {
+    animation: slideIn 0.3s ease-out;
+}
+</style>
+{% endblock %}
