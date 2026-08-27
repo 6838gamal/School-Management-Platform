@@ -161,7 +161,7 @@ async def edit_stage_page(
         raise HTTPException(status_code=404, detail="المرحلة غير موجودة")
     years = await service.years.list_by_school(user.school_id)
     return templates.TemplateResponse(
-        "academics/stages/edit.html",
+        "academics/stages/update.html",
         {**ctx, "title": "تعديل مرحلة", "item": stage, "years": years}
     )
 
@@ -246,7 +246,7 @@ async def edit_grade_page(
         raise HTTPException(status_code=404, detail="الصف غير موجود")
     stages = await service.stages.list_by_school(user.school_id)
     return templates.TemplateResponse(
-        "academics/grades/edit.html",
+        "academics/grades/update.html",
         {**ctx, "title": "تعديل صف", "item": grade, "stages": stages}
     )
 
@@ -331,7 +331,7 @@ async def edit_section_page(
         raise HTTPException(status_code=404, detail="الشعبة غير موجودة")
     grades = await service.grades.list_by_school(user.school_id)
     return templates.TemplateResponse(
-        "academics/sections/edit.html",
+        "academics/sections/update.html",
         {**ctx, "title": "تعديل شعبة", "item": section, "grades": grades}
     )
 
@@ -412,7 +412,7 @@ async def edit_subject_page(
     if not subject:
         raise HTTPException(status_code=404, detail="المادة غير موجودة")
     return templates.TemplateResponse(
-        "academics/subjects/edit.html",
+        "academics/subjects/update.html",
         {**ctx, "title": "تعديل مادة", "item": subject}
     )
 
@@ -493,7 +493,7 @@ async def edit_room_page(
     if not room:
         raise HTTPException(status_code=404, detail="القاعة غير موجودة")
     return templates.TemplateResponse(
-        "academics/rooms/edit.html",
+        "academics/rooms/update.html",
         {**ctx, "title": "تعديل قاعة", "item": room}
     )
 
@@ -574,7 +574,7 @@ async def edit_period_page(
     if not period:
         raise HTTPException(status_code=404, detail="الفصل غير موجود")
     return templates.TemplateResponse(
-        "academics/periods/edit.html",
+        "academics/periods/update.html",
         {**ctx, "title": "تعديل فصل (حصة)", "item": period}
     )
 
