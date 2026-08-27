@@ -10,7 +10,7 @@ from app.schemas.schedules import (
     ScheduleEntryCreate, ScheduleEntryUpdate
 )
 
-router = APIRouter(prefix="/schedules", tags=["schedules-api"])
+router = APIRouter(prefix="/api/v1/schedules", tags=["schedules-api"])
 
 
 @router.post("")
