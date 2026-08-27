@@ -9,7 +9,7 @@ the database directly.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Annotated, Any
+from typing import Annotated, Any, Optional
 
 from fastapi import Depends, Request
 from fastapi.responses import RedirectResponse
@@ -21,6 +21,7 @@ from app.core.exceptions import ForbiddenException, UnauthorizedException
 from app.core.security import decode_session
 from app.models.schools import School
 from app.models.users import User
+from app.models.users import UserRole, Role, Permission, RolePermission
 
 # ------------------------------------------------------------------
 # Session context
@@ -85,7 +86,7 @@ async def get_current_user(
     if not payload:
         return None
 
-    # ✅ استخدام "user_id" بدلاً من "uid" (مطابق لـ auth_service.py)
+    # استخدام "user_id" بدلاً من "uid" (مطابق لـ auth_service.py)
     user_id = payload.get("user_id")
     if not user_id:
         return None
@@ -97,17 +98,35 @@ async def get_current_user(
     if not user or not user.is_active:
         return None
 
-    # Load roles + permissions via relationship (lazy-loaded in async)
+    # جلب الأدوار والصلاحيات عبر استعلامات مباشرة
     roles: list[str] = []
     permissions: set[str] = set()
-    for ur in user.user_roles:
-        role = ur.role
-        roles.append(role.key)
-        for rp in role.role_permissions:
-            permissions.add(rp.permission.key)
+    
+    # 1. جلب أدوار المستخدم
+    result = await db.execute(
+        select(Role.key)
+        .join(UserRole, UserRole.role_id == Role.id)
+        .where(UserRole.user_id == user.id)
+    )
+    roles = list(result.scalars().all())
+    
+    # 2. جلب صلاحيات المستخدم من خلال أدواره
+    if roles:
+        result = await db.execute(
+            select(Permission.key)
+            .join(RolePermission, RolePermission.permission_id == Permission.id)
+            .join(UserRole, UserRole.role_id == RolePermission.role_id)
+            .where(UserRole.user_id == user.id)
+        )
+        permissions = set(result.scalars().all())
 
     if not roles:
         roles = ["guest"]
+
+    # تخزين المستخدم والصلاحيات في request.state للاستخدام في القوالب
+    request.state.user = user
+    request.state.permissions = permissions
+    request.state.roles = roles
 
     return CurrentUser(
         id=str(user.id),
@@ -171,6 +190,26 @@ def require_any_permission(*keys: str):
 
 
 # ------------------------------------------------------------------
+# Template helper function for can()
+# ------------------------------------------------------------------
+
+def can(request: Request, permission: str) -> bool:
+    """التحقق من أن المستخدم لديه صلاحية معينة (للاستخدام في القوالب)"""
+    if not hasattr(request, 'state'):
+        return False
+    
+    # التحقق من وجود المستخدم في request.state
+    if not hasattr(request.state, 'user') or request.state.user is None:
+        return False
+    
+    # التحقق من الصلاحيات
+    if hasattr(request.state, 'permissions'):
+        return permission in request.state.permissions
+    
+    return False
+
+
+# ------------------------------------------------------------------
 # Template-friendly globals
 # ------------------------------------------------------------------
 
@@ -184,14 +223,16 @@ async def template_context(request: Request) -> dict[str, Any]:
     """
     ctx: dict[str, Any] = {"request": request}
     user: CurrentUser | None = None
+    
     try:
-        db_gen = get_db()
-        db = await anext(db_gen)
-        try:
-            user = await get_current_user(request, db)
-        finally:
-            await db.aclose()
-    except Exception:
+        # محاولة جلب المستخدم من قاعدة البيانات
+        async for db in get_db():
+            try:
+                user = await get_current_user(request, db)
+            finally:
+                await db.close()
+            break
+    except Exception as e:
         user = None
 
     if user:
