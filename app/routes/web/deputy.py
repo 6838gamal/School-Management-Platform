@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.core.database import get_db
-from app.core.templating import templates  # ✅ استيراد templates من core.templating
+from app.core.templating import templates
 from app.core.dependencies import get_current_user
 from app.models.users import User, Role, UserRole
 from app.services.auth_service import AuthService
@@ -21,11 +21,11 @@ async def deputy_list(
 ):
     """صفحة قائمة وكلاء المدرسة"""
     
-    # جلب دور deputy
+    # ✅ استخدام first() بدلاً من scalar_one_or_none()
     result = await db.execute(
         select(Role).where(Role.key == 'deputy')
     )
-    deputy_role = result.scalar_one_or_none()
+    deputy_role = result.scalars().first()
     
     deputies = []
     if deputy_role:
@@ -35,6 +35,9 @@ async def deputy_list(
             .where(UserRole.role_id == deputy_role.id)
         )
         deputies = result.scalars().all()
+    
+    if templates is None:
+        raise HTTPException(status_code=500, detail="Templates not initialized")
     
     return templates.TemplateResponse(
         "deputy/list.html",
@@ -59,6 +62,9 @@ async def deputy_create_form(
     from app.models.schools import School
     result = await db.execute(select(School))
     schools = result.scalars().all()
+    
+    if templates is None:
+        raise HTTPException(status_code=500, detail="Templates not initialized")
     
     return templates.TemplateResponse(
         "deputy/create.html",
@@ -129,6 +135,9 @@ async def deputy_update_form(
     from app.models.schools import School
     result = await db.execute(select(School))
     schools = result.scalars().all()
+    
+    if templates is None:
+        raise HTTPException(status_code=500, detail="Templates not initialized")
     
     return templates.TemplateResponse(
         "deputy/update.html",
