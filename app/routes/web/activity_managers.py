@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.core.database import get_db
-from app.core.templating import templates
+from app.core.templating import templates  # ✅ استيراد templates من core.templating
 from app.core.dependencies import get_current_user
 from app.models.users import User, Role, UserRole
 from app.services.auth_service import AuthService
