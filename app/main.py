@@ -26,7 +26,8 @@ from sqlalchemy import select, text
 
 from app.core.config import settings
 from app.core.database import engine, get_db, Base
-from app.core.exceptions import register_exception_handlers, set_templates
+from app.core.exceptions import register_exception_handlers
+from app.core.templating import set_templates, get_templates
 from app.core.security import hash_password
 from app.models.users import User, Role, Permission, UserRole, RolePermission
 from app.models.schools import School
@@ -298,9 +299,15 @@ async def lifespan(app: FastAPI):
     print("🚀 Starting application...")
     print(f"📊 Database: {settings.DATABASE_URL}")
     
-    # تعيين القوالب للتطبيق
+    # تعيين القوالب للتطبيق - يجب أن يكون قبل أي استخدام
     set_templates(templates)
     print("✅ تم تعيين القوالب للتطبيق")
+    
+    # التحقق من تعيين templates
+    if get_templates() is None:
+        print("❌ فشل تعيين templates!")
+    else:
+        print(f"✅ تم تأكيد تعيين templates: {get_templates() is not None}")
     
     # 1. التحقق من هيكل قاعدة البيانات (إضافة الأعمدة المفقودة)
     await ensure_database_schema()
