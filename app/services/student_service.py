@@ -1,8 +1,9 @@
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, or_
 from sqlalchemy.orm import selectinload
 
+# استيراد النماذج - استخدام StudentEnrollment
 from app.models.students import Student, StudentEnrollment
 from app.schemas.students import StudentCreate, StudentUpdate
 from app.core.exceptions import NotFoundError, ValidationError
@@ -44,7 +45,7 @@ class StudentService:
 
     async def get_student_detail(self, student_id: str) -> Dict[str, Any]:
         query = select(Student).where(Student.id == student_id).options(
-            selectinload(Student.enrollments)
+            selectinload(Student.enrollments)  # تأكد من أن العلاقة اسمها enrollments
         )
         result = await self.db.execute(query)
         student = result.scalar_one_or_none()
@@ -84,8 +85,8 @@ class StudentService:
                 "status": enrollment.status,
                 "enrolled_at": enrollment.enrolled_at.isoformat() if enrollment.enrolled_at else None,
                 "ended_at": enrollment.ended_at.isoformat() if enrollment.ended_at else None,
-                "year_name": enrollment.year.name if enrollment.year else None,
-                "section_name": enrollment.section.name if enrollment.section else None,
+                "year_name": enrollment.year.name if hasattr(enrollment, 'year') and enrollment.year else None,
+                "section_name": enrollment.section.name if hasattr(enrollment, 'section') and enrollment.section else None,
             }
             detail["enrollments"].append(enrollment_data)
         
@@ -97,8 +98,8 @@ class StudentService:
         if active_enrollment:
             detail["year_id"] = active_enrollment.year_id
             detail["section_id"] = active_enrollment.section_id
-            detail["year_name"] = active_enrollment.year.name if active_enrollment.year else None
-            detail["section_name"] = active_enrollment.section.name if active_enrollment.section else None
+            detail["year_name"] = active_enrollment.year.name if hasattr(active_enrollment, 'year') and active_enrollment.year else None
+            detail["section_name"] = active_enrollment.section.name if hasattr(active_enrollment, 'section') and active_enrollment.section else None
         
         return detail
 
@@ -150,7 +151,7 @@ class StudentService:
         
         # إنشاء تسجيل إذا تم تحديد year_id
         if data.year_id:
-            enrollment = Enrollment(
+            enrollment = StudentEnrollment(  # استخدام StudentEnrollment
                 student_id=student.id,
                 year_id=data.year_id,
                 section_id=data.section_id,
@@ -198,7 +199,7 @@ class StudentService:
         
         # حذف سجلات التسجيل المرتبطة
         enrollments = await self.db.execute(
-            select(Enrollment).where(Enrollment.student_id == student_id)
+            select(StudentEnrollment).where(StudentEnrollment.student_id == student_id)  # استخدام StudentEnrollment
         )
         for enrollment in enrollments.scalars().all():
             await self.db.delete(enrollment)
