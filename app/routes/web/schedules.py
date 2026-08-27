@@ -15,8 +15,6 @@ router = APIRouter(prefix="/schedules", tags=["schedules"])
 templates = Jinja2Templates(directory="app/templates")
 
 
-# ============= صفحات الويب =============
-
 @router.get("")
 async def schedules_page(
     request: Request,
@@ -57,19 +55,37 @@ async def create_schedule_page(
     ctx: dict = Depends(template_context),
 ):
     """صفحة إنشاء جدول جديد"""
-    service = ScheduleService(db)
-    sections = await service.get_sections_objects(user.school_id)
-    academic_years = await service.get_academic_years_objects(user.school_id)
-    
-    return templates.TemplateResponse(
-        "schedules/create.html",
-        {
-            **ctx,
-            "title": "إنشاء جدول دراسي",
-            "sections": sections,
-            "academic_years": academic_years,
-        }
-    )
+    try:
+        service = ScheduleService(db)
+        
+        # جلب الشعب المتاحة
+        sections = await service.get_sections_objects(user.school_id)
+        academic_years = await service.get_academic_years_objects(user.school_id)
+        
+        print(f"📊 عدد الشعب: {len(sections)}")
+        print(f"📊 عدد الأعوام: {len(academic_years)}")
+        
+        return templates.TemplateResponse(
+            "schedules/create.html",
+            {
+                **ctx,
+                "title": "إنشاء جدول دراسي",
+                "sections": sections,
+                "academic_years": academic_years,
+            }
+        )
+    except Exception as e:
+        print(f"❌ خطأ في صفحة إنشاء الجدول: {str(e)}")
+        return templates.TemplateResponse(
+            "schedules/create.html",
+            {
+                **ctx,
+                "title": "إنشاء جدول دراسي",
+                "sections": [],
+                "academic_years": [],
+                "error": str(e)
+            }
+        )
 
 
 @router.get("/{schedule_id}/update")
@@ -146,10 +162,16 @@ async def create_schedule_api(
             "id": result.id, 
             "message": "تم إنشاء الجدول بنجاح"
         }
-    except Exception as e:
+    except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
+        )
+    except Exception as e:
+        print(f"❌ خطأ في إنشاء الجدول: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"حدث خطأ: {str(e)}"
         )
 
 
@@ -207,7 +229,7 @@ async def add_schedule_entry_api(
         return {
             "success": True, 
             "id": result.id, 
-            "message": "تم إضافة المدخل بنجاح"
+            "message": "تم إضافة الحصة بنجاح"
         }
     except Exception as e:
         raise HTTPException(
@@ -229,7 +251,7 @@ async def update_schedule_entry_api(
         result = await service.update_entry(entry_id, req)
         return {
             "success": True, 
-            "message": "تم تحديث المدخل بنجاح"
+            "message": "تم تحديث الحصة بنجاح"
         }
     except Exception as e:
         raise HTTPException(
@@ -248,7 +270,7 @@ async def delete_schedule_entry_api(
     try:
         service = ScheduleService(db)
         await service.delete_entry(entry_id)
-        return {"success": True, "message": "تم حذف المدخل بنجاح"}
+        return {"success": True, "message": "تم حذف الحصة بنجاح"}
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -263,15 +285,20 @@ async def get_schedule_data_api(
     db: AsyncSession = Depends(get_db),
 ):
     """API: جلب المواد والمعلمين والقاعات"""
-    service = ScheduleService(db)
-    
-    subjects = await service.get_subjects(school_id)
-    teachers = await service.get_teachers(school_id)
-    rooms = await service.get_rooms(school_id)
-    
-    return {
-        "success": True,
-        "subjects": subjects,
-        "teachers": teachers,
-        "rooms": rooms
-    }
+    try:
+        service = ScheduleService(db)
+        subjects = await service.get_subjects(school_id)
+        teachers = await service.get_teachers(school_id)
+        rooms = await service.get_rooms(school_id)
+        
+        return {
+            "success": True,
+            "subjects": subjects,
+            "teachers": teachers,
+            "rooms": rooms
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
