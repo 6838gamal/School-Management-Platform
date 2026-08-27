@@ -55,3 +55,30 @@ async def teacher_new(
         "teachers/form.html",
         {**ctx, "title": "إضافة معلم", "mode": "create"},
     )
+
+
+
+@router.get("/{teacher_id}/update")
+async def teacher_edit(
+    request: Request,
+    teacher_id: str,
+    user: CurrentUser = Depends(require_any_permission("teachers.update")),
+    db: AsyncSession = Depends(get_db),
+    ctx: dict = Depends(template_context),
+):
+    service = TeacherService(db)
+    teacher = await service.get_teacher_detail(teacher_id)
+    return templates.TemplateResponse(
+        "teachers/form.html",
+        {**ctx, "title": "تعديل معلم", "mode": "edit", "teacher": teacher},
+    )
+
+@router.post("/{teacher_id}/delete")
+async def teacher_delete(
+    teacher_id: str,
+    user: CurrentUser = Depends(require_any_permission("teachers.delete")),
+    db: AsyncSession = Depends(get_db),
+):
+    service = TeacherService(db)
+    await service.delete_teacher(teacher_id)
+    return RedirectResponse(url="/teachers", status_code=303)
