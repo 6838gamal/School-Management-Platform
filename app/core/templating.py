@@ -12,8 +12,6 @@ def set_templates(templates_instance: Jinja2Templates):
     global _templates
     _templates = templates_instance
     print(f"✅ تم تعيين templates بنجاح: {_templates is not None}")
-    if _templates:
-        print(f"✅ مجلد templates: {_templates.directory}")
 
 # للتوافق مع الكود القديم
 templates = None
