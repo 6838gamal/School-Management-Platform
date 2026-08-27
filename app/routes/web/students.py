@@ -20,53 +20,12 @@ router = APIRouter(prefix="/students", tags=["students"])
 templates = Jinja2Templates(directory="app/templates")
 
 
-@router.get("")
-async def students_list(
-    request: Request,
-    page: int = 1,
-    search: str = "",
-    user: CurrentUser = Depends(require_any_permission("students.view")),
-    db: AsyncSession = Depends(get_db),
-    ctx: dict = Depends(template_context),
-):
-    service = StudentService(db)
-    result = await service.list_students(user.school_id, page, 20, search or None)
-    return templates.TemplateResponse(
-        "students/list.html",
-        {**ctx, "title": "الطلاب", "students": result["items"], "total": result["total"],
-         "page": page, "page_size": 20, "search": search},
-    )
+# ============================================================
+# 🔴 IMPORTANT: الترتيب مهم جداً!
+#    المسارات الثابتة (مثل /new) يجب أن تأتي قبل المسارات الديناميكية (مثل /{student_id})
+# ============================================================
 
-
-@router.get("/{student_id}")
-async def student_detail(
-    request: Request,
-    student_id: str,
-    user: CurrentUser = Depends(require_any_permission("students.view")),
-    db: AsyncSession = Depends(get_db),
-    ctx: dict = Depends(template_context),
-):
-    service = StudentService(db)
-    try:
-        detail = await service.get_student_detail(student_id)
-        return templates.TemplateResponse(
-            "students/detail.html",
-            {**ctx, "title": detail["full_name"], "student": detail},
-        )
-    except NotFoundException as e:
-        return templates.TemplateResponse(
-            "errors/404.html",
-            {**ctx, "message": str(e)},
-            status_code=404
-        )
-    except AppException as e:
-        return templates.TemplateResponse(
-            "errors/error.html",
-            {**ctx, "message": str(e)},
-            status_code=e.status_code if hasattr(e, 'status_code') else 400
-        )
-
-
+# 1️⃣ GET /students/new - صفحة إضافة طالب جديد (يجب أن يكون أولاً!)
 @router.get("/new")
 async def student_new(
     request: Request,
@@ -91,6 +50,7 @@ async def student_new(
         )
 
 
+# 2️⃣ POST /students - إنشاء طالب جديد
 @router.post("")
 async def student_create(
     request: Request,
@@ -194,6 +154,26 @@ async def student_create(
         )
 
 
+# 3️⃣ GET /students - قائمة الطلاب
+@router.get("")
+async def students_list(
+    request: Request,
+    page: int = 1,
+    search: str = "",
+    user: CurrentUser = Depends(require_any_permission("students.view")),
+    db: AsyncSession = Depends(get_db),
+    ctx: dict = Depends(template_context),
+):
+    service = StudentService(db)
+    result = await service.list_students(user.school_id, page, 20, search or None)
+    return templates.TemplateResponse(
+        "students/list.html",
+        {**ctx, "title": "الطلاب", "students": result["items"], "total": result["total"],
+         "page": page, "page_size": 20, "search": search},
+    )
+
+
+# 4️⃣ GET /students/{student_id}/edit - صفحة تعديل الطالب (يجب أن يأتي قبل /{student_id})
 @router.get("/{student_id}/edit")
 async def student_edit(
     request: Request,
@@ -229,6 +209,7 @@ async def student_edit(
         )
 
 
+# 5️⃣ POST /students/{student_id}/edit - تحديث بيانات الطالب
 @router.post("/{student_id}/edit")
 async def student_update(
     request: Request,
@@ -311,6 +292,7 @@ async def student_update(
         )
 
 
+# 6️⃣ POST /students/{student_id} - حذف الطالب
 @router.post("/{student_id}")
 async def student_delete(
     request: Request,
@@ -323,9 +305,36 @@ async def student_delete(
         await service.delete_student(student_id)
         return RedirectResponse(url="/students", status_code=303)
     except NotFoundException:
-        # إذا لم يتم العثور على الطالب، نعيد التوجيه إلى القائمة
         return RedirectResponse(url="/students", status_code=303)
+    except AppException:
+        return RedirectResponse(url="/students", status_code=303)
+
+
+# 7️⃣ GET /students/{student_id} - تفاصيل الطالب (يجب أن يكون في النهاية!)
+@router.get("/{student_id}")
+async def student_detail(
+    request: Request,
+    student_id: str,
+    user: CurrentUser = Depends(require_any_permission("students.view")),
+    db: AsyncSession = Depends(get_db),
+    ctx: dict = Depends(template_context),
+):
+    service = StudentService(db)
+    try:
+        detail = await service.get_student_detail(student_id)
+        return templates.TemplateResponse(
+            "students/detail.html",
+            {**ctx, "title": detail["full_name"], "student": detail},
+        )
+    except NotFoundException as e:
+        return templates.TemplateResponse(
+            "errors/404.html",
+            {**ctx, "message": str(e)},
+            status_code=404
+        )
     except AppException as e:
-        # في حالة أي خطأ آخر، نعيد التوجيه إلى القائمة مع رسالة خطأ
-        # يمكن إضافة رسالة خطأ في session إذا كان لديك نظام رسائل
-        return RedirectResponse(url="/students", status_code=303)
+        return templates.TemplateResponse(
+            "errors/error.html",
+            {**ctx, "message": str(e)},
+            status_code=e.status_code if hasattr(e, 'status_code') else 400
+        )
