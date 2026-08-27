@@ -65,7 +65,7 @@ class ScheduleService:
         self, 
         school_id: str, 
         section_id: str, 
-        year_id: str
+        academic_year_id: str
     ) -> Optional[Schedule]:
         """البحث عن جدول مكرر"""
         result = await self.db.execute(
@@ -73,7 +73,7 @@ class ScheduleService:
             .where(
                 Schedule.school_id == school_id,
                 Schedule.section_id == section_id,
-                Schedule.year_id == year_id
+                Schedule.academic_year_id == academic_year_id  # ✅ استخدام academic_year_id
             )
         )
         return result.scalar_one_or_none()
@@ -102,9 +102,9 @@ class ScheduleService:
         section = await self.find_section_by_id(section_id)
         return section.name if section else None
 
-    async def get_academic_year_name(self, year_id: str) -> Optional[str]:
+    async def get_academic_year_name(self, academic_year_id: str) -> Optional[str]:
         """جلب اسم العام الدراسي"""
-        year = await self.find_academic_year_by_id(year_id)
+        year = await self.find_academic_year_by_id(academic_year_id)
         return year.name if year else None
 
     async def get_subject_name(self, subject_id: str) -> Optional[str]:
@@ -141,7 +141,7 @@ class ScheduleService:
         result_list = []
         for schedule in schedules:
             section_name = await self.get_section_name(schedule.section_id)
-            year_name = await self.get_academic_year_name(schedule.year_id)
+            year_name = await self.get_academic_year_name(schedule.academic_year_id)
             
             entries_result = await self.db.execute(
                 select(ScheduleEntry)
@@ -155,7 +155,7 @@ class ScheduleService:
                 "school_id": schedule.school_id,
                 "section_id": schedule.section_id,
                 "section_name": section_name,
-                "year_id": schedule.year_id,
+                "academic_year_id": schedule.academic_year_id,
                 "academic_year_name": year_name,
                 "is_active": schedule.is_active,
                 "created_at": schedule.created_at,
@@ -176,7 +176,7 @@ class ScheduleService:
             return None
         
         section_name = await self.get_section_name(schedule.section_id)
-        year_name = await self.get_academic_year_name(schedule.year_id)
+        year_name = await self.get_academic_year_name(schedule.academic_year_id)
         
         return {
             "id": schedule.id,
@@ -184,7 +184,7 @@ class ScheduleService:
             "school_id": schedule.school_id,
             "section_id": schedule.section_id,
             "section_name": section_name,
-            "year_id": schedule.year_id,
+            "academic_year_id": schedule.academic_year_id,
             "academic_year_name": year_name,
             "is_active": schedule.is_active,
             "created_at": schedule.created_at,
@@ -238,7 +238,7 @@ class ScheduleService:
         print(f"   school_id: {school_id}")
         print(f"   name: {req.name}")
         print(f"   section_id: {req.section_id}")
-        print(f"   year_id: {req.academic_year_id}")
+        print(f"   academic_year_id: {req.academic_year_id}")
         print(f"   is_active: {req.is_active}")
         print("=" * 50)
         
@@ -296,7 +296,7 @@ class ScheduleService:
             school_id=school_id,
             name=req.name,
             section_id=req.section_id,
-            year_id=req.academic_year_id,
+            academic_year_id=req.academic_year_id,
             is_active=req.is_active,
         )
         self.db.add(schedule)
