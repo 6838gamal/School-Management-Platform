@@ -42,16 +42,16 @@ PERMISSIONS: list[PermissionDef] = [
     PermissionDef("users.assign_role", "تعيين دور لمستخدم", "Assign role to user", "users"),
     
     # Deputy (وكلاء المدرسة)
-    PermissionDef("deputy.view", "عرض الوكلاء", "View deputies", "users"),
-    PermissionDef("deputy.create", "إنشاء وكيل", "Create deputy", "users"),
-    PermissionDef("deputy.update", "تعديل وكيل", "Update deputy", "users"),
-    PermissionDef("deputy.delete", "حذف وكيل", "Delete deputy", "users"),
+    PermissionDef("deputy.view", "عرض الوكلاء", "View deputies", "deputy"),
+    PermissionDef("deputy.create", "إنشاء وكيل", "Create deputy", "deputy"),
+    PermissionDef("deputy.update", "تعديل وكيل", "Update deputy", "deputy"),
+    PermissionDef("deputy.delete", "حذف وكيل", "Delete deputy", "deputy"),
     
     # Activity Managers (مديرو الأنشطة)
-    PermissionDef("activity_managers.view", "عرض مديري الأنشطة", "View activity managers", "users"),
-    PermissionDef("activity_managers.create", "إنشاء مدير نشاط", "Create activity manager", "users"),
-    PermissionDef("activity_managers.update", "تعديل مدير نشاط", "Update activity manager", "users"),
-    PermissionDef("activity_managers.delete", "حذف مدير نشاط", "Delete activity manager", "users"),
+    PermissionDef("activity_managers.view", "عرض مديري الأنشطة", "View activity managers", "activity_managers"),
+    PermissionDef("activity_managers.create", "إنشاء مدير نشاط", "Create activity manager", "activity_managers"),
+    PermissionDef("activity_managers.update", "تعديل مدير نشاط", "Update activity manager", "activity_managers"),
+    PermissionDef("activity_managers.delete", "حذف مدير نشاط", "Delete activity manager", "activity_managers"),
     
     # Students
     PermissionDef("students.view", "عرض الطلاب", "View students", "students"),
@@ -135,8 +135,9 @@ ROLE_PERMISSIONS: dict[str, list[str]] = {
         "schools.view", "schools.update",
         "academics.view", "academics.create", "academics.update", "academics.delete",
         "users.view", "users.create", "users.update", "users.delete", "users.assign_role",
-        "deputy.view", "deputy.create", "deputy.update", "deputy.delete",
-        "activity_managers.view", "activity_managers.create", "activity_managers.update", "activity_managers.delete",
+        # المدير لديه صلاحية عرض الوكيل ومدير الأنشطة
+        "deputy.view",
+        "activity_managers.view",
         "students.view", "students.create", "students.update", "students.delete", "students.transfer",
         "teachers.view", "teachers.create", "teachers.update", "teachers.assign",
         "schedules.view", "schedules.create", "schedules.update", "schedules.delete",
@@ -153,6 +154,7 @@ ROLE_PERMISSIONS: dict[str, list[str]] = {
         "schools.view",
         "academics.view",
         "users.view",
+        # الوكيل لديه صلاحية عرض نفسه فقط
         "deputy.view",
         "students.view",
         "teachers.view", "teachers.assign",
@@ -167,6 +169,7 @@ ROLE_PERMISSIONS: dict[str, list[str]] = {
         "schools.view",
         "academics.view",
         "users.view",
+        # مدير الأنشطة لديه صلاحية عرض نفسه فقط
         "activity_managers.view",
         "students.view", "students.update",
         "activities.view", "activities.create", "activities.update", "activities.delete",
