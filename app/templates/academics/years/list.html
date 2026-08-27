@@ -97,18 +97,14 @@
                             </div>
                         </td>
                         <td class="px-6 py-4 text-center">
-                            <div class="relative inline-block text-left" x-data="{ open: false }">
-                                <button @click="open = !open" @click.away="open = false" 
-                                        class="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors duration-200">
+                            <div class="dropdown-container relative inline-block">
+                                <button onclick="toggleDropdown(this)" 
+                                        class="dropdown-btn p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors duration-200">
                                     <svg class="w-5 h-5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300" fill="currentColor" viewBox="0 0 20 20">
                                         <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z"/>
                                     </svg>
                                 </button>
-                                <div x-show="open" 
-                                     x-transition:enter="transition ease-out duration-100" 
-                                     x-transition:enter-start="transform opacity-0 scale-95" 
-                                     x-transition:enter-end="transform opacity-100 scale-100"
-                                     class="absolute left-0 mt-2 w-36 rounded-xl shadow-lg bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 z-50">
+                                <div class="dropdown-menu hidden absolute left-0 mt-2 w-36 rounded-xl shadow-lg bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 z-50">
                                     <div class="py-1">
                                         {% if can('academics.edit') %}
                                         <a href="/academics/years/{{ item.id }}/edit" 
@@ -156,6 +152,40 @@
 </div>
 
 <script>
+// ============= دوال القائمة المنسدلة (Dropdown Toggle) =============
+
+function toggleDropdown(btn) {
+    const container = btn.closest('.dropdown-container');
+    const menu = container.querySelector('.dropdown-menu');
+    
+    // إغلاق جميع القوائم المفتوحة الأخرى
+    document.querySelectorAll('.dropdown-menu.show').forEach(function(m) {
+        if (m !== menu) {
+            m.classList.remove('show');
+            m.classList.add('hidden');
+        }
+    });
+    
+    // تبديل حالة القائمة الحالية
+    menu.classList.toggle('hidden');
+    menu.classList.toggle('show');
+}
+
+// إغلاق القوائم عند الضغط في أي مكان خارجها
+document.addEventListener('click', function(event) {
+    const isDropdownButton = event.target.closest('.dropdown-btn');
+    const isDropdownMenu = event.target.closest('.dropdown-menu');
+    
+    if (!isDropdownButton && !isDropdownMenu) {
+        document.querySelectorAll('.dropdown-menu.show').forEach(function(menu) {
+            menu.classList.remove('show');
+            menu.classList.add('hidden');
+        });
+    }
+});
+
+// ============= دوال الحذف =============
+
 function confirmDelete(url, message = 'هل أنت متأكد من الحذف؟') {
     if (confirm(message)) {
         const buttons = document.querySelectorAll('button');
@@ -204,6 +234,20 @@ function showMessage(message, type = 'success') {
 }
 .animate-slide-in {
     animation: slideIn 0.3s ease-out;
+}
+
+/* تحسين مظهر القائمة المنسدلة */
+.dropdown-menu {
+    min-width: 120px;
+    transform-origin: top right;
+}
+
+.dropdown-menu.show {
+    display: block !important;
+}
+
+.dropdown-menu.hidden {
+    display: none !important;
 }
 </style>
 {% endblock %}
