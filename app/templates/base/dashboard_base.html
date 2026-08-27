@@ -23,6 +23,13 @@
                     <aside class="w-64 bg-white dark:bg-slate-800 shadow-lg border-l border-slate-200 dark:border-slate-700 flex-shrink-0 h-screen sticky top-0 overflow-y-auto p-4">
                         <p class="text-slate-500">لا توجد قائمة متاحة</p>
                     </aside>
+
+        <!-- أضفه في أعلى القائمة الجانبية، تحت <aside> مباشرة -->
+<div class="p-2 bg-yellow-100 text-xs rounded m-2" dir="ltr">
+    <strong>Debug Permissions:</strong><br>
+    deputy.view: {{ can('deputy.view') }}<br>
+    activity_managers.view: {{ can('activity_managers.view') }}
+</div>
                 {% endif %}
             {% endif %}
         {% endblock %}
