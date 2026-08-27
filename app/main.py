@@ -12,7 +12,6 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 
-# تعيين مستوى logging لخدمة المصادقة
 logger = logging.getLogger("app.services.auth_service")
 logger.setLevel(logging.INFO)
 
@@ -32,6 +31,7 @@ from app.models.users import User, Role, Permission, UserRole, RolePermission
 from app.models.schools import School
 from app.core.permissions import PERMISSIONS, ROLE_PERMISSIONS, ROLE_LABELS
 
+# ============= استيراد API routes =============
 from app.routes.api.v1.auth import router as api_auth_router
 from app.routes.api.v1.modules import (
     academics_router as api_academics,
@@ -42,10 +42,12 @@ from app.routes.api.v1.modules import (
     homework_router as api_homework,
     notifications_router as api_notifications,
     reports_router as api_reports,
-    schedules_router as api_schedules,
+    schedules_router as api_schedules,  # ✅ API schedules
 )
 from app.routes.api.v1.students import router as api_students_router
 from app.routes.api.v1.teachers import router as api_teachers_router
+
+# ============= استيراد Web routes =============
 from app.routes.web.academics import router as web_academics
 from app.routes.web.auth import router as web_auth
 from app.routes.web.dashboard import router as web_dashboard
@@ -57,14 +59,12 @@ from app.routes.web.modules import (
     homework_router as web_homework,
     notifications_router as web_notifications,
     reports_router as web_reports,
-    schedules_router as web_schedules,
+    schedules_router as web_schedules,  # ✅ Web schedules
 )
 from app.routes.web.students import router as web_students
 from app.routes.web.teachers import router as web_teachers
 
 from app.routes.api import router as api_router
-
-from app.routes.web.schedules import router as schedules_router
 
 templates = Jinja2Templates(directory="app/templates")
 
@@ -76,18 +76,15 @@ async def ensure_user_exists(db, email: str, password: str, full_name: str, scho
     
     service = AuthService(db)
     
-    # التحقق من وجود المستخدم
     stmt = select(User).where(User.email == email)
     result = await db.execute(stmt)
     user = result.scalar_one_or_none()
     
     if user:
         print(f"ℹ️ المستخدم موجود بالفعل: {email}")
-        # تمرير school_id لتجنب تكرار الأدوار
         await service.ensure_user_has_role(user.id, role_name, school_id)
         return user
     
-    # إنشاء المستخدم الجديد
     user = User(
         email=email,
         password_hash=hash_password(password),
@@ -98,7 +95,6 @@ async def ensure_user_exists(db, email: str, password: str, full_name: str, scho
     db.add(user)
     await db.flush()
     
-    # تمرير school_id لتجنب تكرار الأدوار
     await service.ensure_user_has_role(user.id, role_name, school_id)
     
     print(f"✅ تم إنشاء المستخدم: {email} (الدور: {role_name})")
@@ -121,7 +117,6 @@ async def init_database():
             school = result.scalar_one_or_none()
             
             if not school:
-                # إنشاء مدرسة
                 school = School(
                     name="مدرسة النموذج",
                     code="SCHOOL001",
@@ -197,15 +192,11 @@ async def lifespan(app: FastAPI):
     print("🚀 Starting application...")
     print(f"📊 Database: {settings.DATABASE_URL}")
     
-    # تعيين القوالب
     set_templates(templates)
-    
-    # تهيئة قاعدة البيانات
     await init_database()
     
     yield
     
-    # إغلاق اتصال قاعدة البيانات عند الإيقاف
     await engine.dispose()
     print("✅ Database connection closed.")
 
@@ -220,7 +211,7 @@ app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 register_exception_handlers(app)
 
-# ---- Web routes ----
+# ============= Web routes =============
 app.include_router(web_auth)
 app.include_router(web_dashboard)
 app.include_router(web_students)
@@ -228,14 +219,14 @@ app.include_router(web_teachers)
 app.include_router(web_academics)
 app.include_router(web_attendance)
 app.include_router(web_grades)
-app.include_router(web_schedules)
+app.include_router(web_schedules)      # ✅ Web schedules (مرة واحدة)
 app.include_router(web_homework)
 app.include_router(web_activities)
 app.include_router(web_behavior)
 app.include_router(web_notifications)
 app.include_router(web_reports)
 
-# ---- API v1 routes ----
+# ============= API v1 routes =============
 api_prefix = "/api/v1"
 app.include_router(api_auth_router, prefix=api_prefix)
 app.include_router(api_students_router, prefix=api_prefix)
@@ -243,15 +234,15 @@ app.include_router(api_teachers_router, prefix=api_prefix)
 app.include_router(api_academics, prefix=api_prefix)
 app.include_router(api_attendance, prefix=api_prefix)
 app.include_router(api_grades, prefix=api_prefix)
-app.include_router(api_schedules, prefix=api_prefix)
+app.include_router(api_schedules, prefix=api_prefix)  # ✅ API schedules (مرة واحدة)
 app.include_router(api_homework, prefix=api_prefix)
 app.include_router(api_activities, prefix=api_prefix)
 app.include_router(api_behavior, prefix=api_prefix)
 app.include_router(api_notifications, prefix=api_prefix)
 app.include_router(api_reports, prefix=api_prefix)
 
-app.include_router(api_router)
-app.include_router(schedules_router)
+# ============= Routes إضافية =============
+app.include_router(api_router)  # ✅ API router العام
 
 
 @app.get("/")
