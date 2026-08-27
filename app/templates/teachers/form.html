@@ -1,19 +1,100 @@
 {% extends "layouts/director.html" %}
 {% block content %}
 <div class="space-y-6 max-w-2xl">
-    <h1 class="text-2xl font-bold text-slate-800 dark:text-white">{{ title }}</h1>
-    <form class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-6 space-y-4" id="teacher-form">
+    <div>
+        <h1 class="text-2xl font-bold text-slate-800 dark:text-white">{{ title }}</h1>
+        <p class="text-slate-400 text-sm mt-1">
+            {% if mode == 'create' %}أدخل بيانات المعلم الجديد{% else %}قم بتحديث بيانات المعلم{% endif %}
+        </p>
+    </div>
+
+    <form method="POST" 
+          action="{% if mode == 'create' %}/teachers{% else %}/teachers/{{ teacher.id }}/update{% endif %}" 
+          class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-6 space-y-4"
+          id="teacher-form">
+        
         <div class="grid grid-cols-2 gap-4">
-            <div><label class="block text-sm font-medium mb-1">رقم الموظف</label><input name="employee_number" required class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 outline-none focus:ring-2 focus:ring-primary-500"></div>
-            <div><label class="block text-sm font-medium mb-1">الرقم الوطني</label><input name="national_id" class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 outline-none focus:ring-2 focus:ring-primary-500"></div>
-            <div><label class="block text-sm font-medium mb-1">الاسم الأول</label><input name="first_name" required class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 outline-none focus:ring-2 focus:ring-primary-500"></div>
-            <div><label class="block text-sm font-medium mb-1">الاسم الأخير</label><input name="last_name" required class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 outline-none focus:ring-2 focus:ring-primary-500"></div>
-            <div><label class="block text-sm font-medium mb-1">التخصص</label><input name="specialization" class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 outline-none focus:ring-2 focus:ring-primary-500"></div>
-            <div><label class="block text-sm font-medium mb-1">الهاتف</label><input name="phone" class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 outline-none focus:ring-2 focus:ring-primary-500"></div>
-            <div class="col-span-2"><label class="flex items-center gap-2 text-sm font-medium"><input type="checkbox" name="create_user" class="rounded"> إنشاء حساب دخ للمعلم</label></div>
+            <!-- رقم الموظف -->
+            <div>
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">رقم الموظف *</label>
+                <input type="text" 
+                       name="employee_number" 
+                       value="{{ teacher.employee_number if teacher else '' }}" 
+                       required 
+                       class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 outline-none focus:ring-2 focus:ring-primary-500">
+            </div>
+            
+            <!-- الاسم الكامل -->
+            <div class="col-span-2">
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">الاسم الكامل *</label>
+                <input type="text" 
+                       name="full_name" 
+                       value="{{ teacher.full_name if teacher else '' }}" 
+                       required 
+                       class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 outline-none focus:ring-2 focus:ring-primary-500">
+            </div>
+            
+            <!-- التخصص -->
+            <div>
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">التخصص</label>
+                <input type="text" 
+                       name="specialization" 
+                       value="{{ teacher.specialization if teacher else '' }}" 
+                       class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 outline-none focus:ring-2 focus:ring-primary-500">
+            </div>
+            
+            <!-- الهاتف -->
+            <div>
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">الهاتف</label>
+                <input type="tel" 
+                       name="phone" 
+                       value="{{ teacher.phone if teacher else '' }}" 
+                       class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 outline-none focus:ring-2 focus:ring-primary-500">
+            </div>
+            
+            <!-- البريد الإلكتروني -->
+            <div class="col-span-2">
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">البريد الإلكتروني</label>
+                <input type="email" 
+                       name="email" 
+                       value="{{ teacher.email if teacher else '' }}" 
+                       class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 outline-none focus:ring-2 focus:ring-primary-500">
+            </div>
+            
+            <!-- حالة الحساب -->
+            <div class="col-span-2 flex items-center gap-6">
+                <label class="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-300">
+                    <input type="checkbox" 
+                           name="is_active" 
+                           {% if not teacher or teacher.is_active %}checked{% endif %}
+                           class="rounded border-slate-300 text-primary-600 focus:ring-primary-500">
+                    حساب نشط
+                </label>
+                
+                {% if mode == 'create' %}
+                <label class="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-300">
+                    <input type="checkbox" 
+                           name="create_user" 
+                           class="rounded border-slate-300 text-primary-600 focus:ring-primary-500">
+                    إنشاء حساب دخول للمعلم
+                </label>
+                {% endif %}
+            </div>
         </div>
-        <button type="submit" class="bg-primary-600 hover:bg-primary-700 text-white px-6 py-2.5 rounded-lg font-semibold">حفظ</button>
+        
+        <!-- أزرار التحكم -->
+        <div class="flex items-center gap-3 pt-4 border-t border-slate-100 dark:border-slate-700">
+            <button type="submit" 
+                    class="bg-primary-600 hover:bg-primary-700 text-white px-6 py-2.5 rounded-lg font-semibold transition-colors">
+                {% if mode == 'create' %}إضافة المعلم{% else %}حفظ التغييرات{% endif %}
+            </button>
+            <a href="/teachers" 
+               class="px-6 py-2.5 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors text-sm">
+                إلغاء
+            </a>
+        </div>
     </form>
 </div>
+
 <script src="/static/js/teachers.js"></script>
 {% endblock %}
