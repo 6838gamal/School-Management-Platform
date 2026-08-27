@@ -73,6 +73,29 @@ from app.routes.api import router as api_router
 # ============= إنشاء مثيل templates =============
 templates = Jinja2Templates(directory="app/templates")
 
+# ============= إضافة دالة can إلى القوالب =============
+def can(request: Request, permission: str) -> bool:
+    """التحقق من أن المستخدم لديه صلاحية معينة"""
+    if not hasattr(request, 'state') or not hasattr(request.state, 'user'):
+        return False
+    
+    user = request.state.user
+    if not user:
+        return False
+    
+    # إذا كان المستخدم مديراً (director) لديه جميع الصلاحيات
+    if hasattr(user, 'role') and user.role == 'director':
+        return True
+    
+    # التحقق من الصلاحية في قائمة صلاحيات المستخدم
+    if hasattr(user, 'permissions'):
+        return permission in user.permissions
+    
+    return False
+
+# تسجيل دالة can في Jinja2
+templates.env.globals['can'] = can
+
 
 async def ensure_user_exists(db, email: str, password: str, full_name: str, school_id: int, role_name: str):
     """التأكد من وجود المستخدم، وإنشائه إذا لم يكن موجوداً"""
