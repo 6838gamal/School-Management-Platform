@@ -63,11 +63,11 @@ async def create_year_page(
     )
 
 
-@router.get("/years/{year_id}/edit")
+@router.get("/years/{year_id}/update")
 async def edit_year_page(
     request: Request,
     year_id: str,
-    user: CurrentUser = Depends(require_any_permission("academics.edit")),
+    user: CurrentUser = Depends(require_any_permission("academics.update")),
     db: AsyncSession = Depends(get_db),
     ctx: dict = Depends(template_context),
 ):
