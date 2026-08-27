@@ -1,6 +1,6 @@
 {% extends "layouts/director.html" %}
 {% block content %}
-<div class="max-w-4xl mx-auto">
+<div class="max-w-2xl mx-auto">
     <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-6">
         <div class="flex items-center justify-between mb-6">
             <div>
@@ -13,7 +13,7 @@
         </div>
 
         <form id="createForm" method="POST" action="/api/v1/schedules" onsubmit="return handleSubmit(event, this)">
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="space-y-4">
                 <div>
                     <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                         اسم الجدول <span class="text-red-500">*</span>
@@ -54,30 +54,19 @@
                 </div>
             </div>
             
-            <div class="mt-6 pt-6 border-t border-slate-200 dark:border-slate-700">
-                <button type="submit" id="submitBtn" class="w-full bg-primary-600 hover:bg-primary-700 text-white px-4 py-2.5 rounded-lg font-medium transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed">
-                    إنشاء الجدول
+            <div class="flex gap-3 mt-6 pt-6 border-t border-slate-200 dark:border-slate-700">
+                <button type="submit" id="submitBtn" class="flex-1 bg-primary-600 hover:bg-primary-700 text-white px-4 py-2.5 rounded-lg font-medium transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed">
+                    إنشاء
                 </button>
+                <a href="/schedules/list" class="flex-1 bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 px-4 py-2.5 rounded-lg font-medium transition-colors duration-200 text-center">
+                    إلغاء
+                </a>
             </div>
         </form>
     </div>
-
-    <!-- معلومات إضافية -->
-    <div class="mt-6 bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-100 dark:border-blue-800 p-4">
-        <div class="flex items-start gap-3">
-            <svg class="w-5 h-5 text-blue-600 dark:text-blue-400 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-            </svg>
-            <div>
-                <p class="text-sm text-blue-700 dark:text-blue-300 font-medium">كيفية إضافة الحصص للجدول</p>
-                <p class="text-sm text-blue-600 dark:text-blue-400 mt-1">
-                    بعد إنشاء الجدول، يمكنك إضافة الحصص من خلال صفحة <strong>عرض الجدول</strong>.
-                    ستظهر لك خيارات لإضافة المواد والمعلمين والقاعات لكل يوم وفترة.
-                </p>
-            </div>
-        </div>
-    </div>
 </div>
+
+<script src="/static/js/schedule.js"></script>
 
 <script>
 async function handleSubmit(event, form) {
@@ -103,8 +92,7 @@ async function handleSubmit(event, form) {
             const result = await response.json();
             showMessage('✅ ' + result.message, 'success');
             setTimeout(() => {
-                // التوجيه إلى صفحة عرض الجدول لإضافة الحصص
-                window.location.href = '/schedules/' + result.id + '/view';
+                window.location.href = '/schedules/list';
             }, 1500);
         } else {
             const error = await response.json();
@@ -118,20 +106,6 @@ async function handleSubmit(event, form) {
         submitBtn.textContent = 'إنشاء';
         console.error(error);
     }
-}
-
-function showMessage(message, type = 'success') {
-    const colors = {
-        success: 'bg-green-50 text-green-800 border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800',
-        error: 'bg-red-50 text-red-800 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800',
-        warning: 'bg-yellow-50 text-yellow-800 border-yellow-200 dark:bg-yellow-900/20 dark:text-yellow-400 dark:border-yellow-800'
-    };
-    document.querySelectorAll('.toast-message').forEach(el => el.remove());
-    const div = document.createElement('div');
-    div.className = `toast-message fixed top-4 right-4 p-4 rounded-lg border ${colors[type]} shadow-lg z-50 max-w-md animate-slide-in`;
-    div.innerHTML = message;
-    document.body.appendChild(div);
-    setTimeout(() => { div.remove(); }, 5000);
 }
 </script>
 
