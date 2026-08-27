@@ -224,7 +224,7 @@ class ScheduleService:
                 "teacher_name": teacher_name,
                 "room_id": entry.room_id,
                 "room_name": room_name,
-                "note": entry.note
+                
             })
         
         schedule_data["entries"] = entries_with_names
@@ -402,7 +402,7 @@ class ScheduleService:
             subject_id=req.subject_id,
             teacher_id=req.teacher_id,
             room_id=req.room_id,
-            note=req.note,
+            
         )
         self.db.add(entry)
         await self.db.flush()
