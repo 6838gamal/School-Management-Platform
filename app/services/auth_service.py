@@ -264,6 +264,104 @@ class AuthService:
     # ✅ دوال إدارة الصلاحيات والأدوار (مضافة)
     # ============================================
     
+    # ============================================
+    # ✅ دالة جديدة: التأكد من وجود جميع الصلاحيات (الطريقة الرابعة)
+    # ============================================
+    
+    async def ensure_permissions_exist(self, school_id: str) -> None:
+        """
+        التأكد من وجود جميع الصلاحيات المطلوبة وإضافة المفقودة فقط
+        
+        هذه الدالة تقوم بـ:
+        1. جلب الصلاحيات الموجودة في قاعدة البيانات
+        2. مقارنتها مع الصلاحيات المطلوبة من PERMISSIONS
+        3. إضافة الصلاحيات المفقودة فقط
+        4. تحديث الأدوار بالصلاحيات الجديدة
+        
+        Args:
+            school_id: معرف المدرسة
+        """
+        from app.core.permissions import PERMISSIONS, ROLE_PERMISSIONS
+        from app.models.users import Permission, RolePermission
+        
+        logger.info("=" * 60)
+        logger.info(f"🔍 جاري التحقق من الصلاحيات للمدرسة: {school_id}")
+        
+        try:
+            # 1. جلب الصلاحيات الموجودة
+            stmt = select(Permission)
+            result = await self.db.execute(stmt)
+            existing_perms = {p.key: p for p in result.scalars().all()}
+            logger.info(f"📊 الصلاحيات الموجودة: {len(existing_perms)}")
+            
+            # 2. إضافة الصلاحيات المفقودة
+            added_perms = []
+            for perm_def in PERMISSIONS:
+                if perm_def.key not in existing_perms:
+                    perm = Permission(
+                        key=perm_def.key,
+                        label_ar=perm_def.label_ar,
+                        label_en=perm_def.label_en,
+                        group=perm_def.group
+                    )
+                    self.db.add(perm)
+                    added_perms.append(perm_def.key)
+                    logger.info(f"   ✅ إضافة صلاحية: {perm_def.key}")
+            
+            await self.db.flush()
+            
+            if added_perms:
+                logger.info(f"✅ تم إضافة {len(added_perms)} صلاحية جديدة")
+                
+                # 3. جلب جميع الصلاحيات بعد الإضافة
+                stmt = select(Permission)
+                result = await self.db.execute(stmt)
+                all_perms = {p.key: p for p in result.scalars().all()}
+                
+                # 4. تحديث الأدوار بالصلاحيات الجديدة
+                for role_key, perm_keys in ROLE_PERMISSIONS.items():
+                    # جلب الدور للمدرسة المحددة
+                    stmt = select(Role).where(
+                        Role.school_id == school_id,
+                        Role.key == role_key
+                    )
+                    result = await self.db.execute(stmt)
+                    role = result.scalar_one_or_none()
+                    
+                    if role:
+                        # جلب الصلاحيات الحالية للدور
+                        stmt = select(RolePermission).where(
+                            RolePermission.role_id == role.id
+                        )
+                        result = await self.db.execute(stmt)
+                        existing_role_perms = {rp.permission_id for rp in result.scalars().all()}
+                        
+                        # إضافة الصلاحيات الجديدة فقط
+                        for perm_key in perm_keys:
+                            if perm_key in all_perms:
+                                perm = all_perms[perm_key]
+                                if perm.id not in existing_role_perms:
+                                    role_perm = RolePermission(
+                                        role_id=role.id,
+                                        permission_id=perm.id
+                                    )
+                                    self.db.add(role_perm)
+                                    logger.info(f"      🔑 إضافة صلاحية '{perm_key}' للدور '{role_key}'")
+                        
+                        await self.db.flush()
+                
+                await self.db.commit()
+                logger.info("✅ تم تحديث الأدوار بالصلاحيات الجديدة")
+            else:
+                logger.info("ℹ️ جميع الصلاحيات موجودة مسبقاً")
+            
+            logger.info("=" * 60)
+            
+        except Exception as e:
+            logger.error(f"❌ خطأ في التحقق من الصلاحيات: {str(e)}")
+            logger.info("=" * 60)
+            raise
+    
     async def ensure_system_roles_and_permissions(self, school_id: str) -> None:
         """
         التأكد من وجود جميع الأدوار والصلاحيات للنظام في مدرسة معينة
@@ -279,27 +377,8 @@ class AuthService:
         logger.info(f"🔧 بدء تهيئة الصلاحيات والأدوار للمدرسة: {school_id}")
         
         try:
-            # 1. إنشاء جميع الصلاحيات
-            logger.info("📝 جاري إنشاء الصلاحيات...")
-            for perm_def in PERMISSIONS:
-                stmt = select(Permission).where(Permission.key == perm_def.key)
-                result = await self.db.execute(stmt)
-                existing_perm = result.scalar_one_or_none()
-                
-                if not existing_perm:
-                    perm = Permission(
-                        key=perm_def.key,
-                        label_ar=perm_def.label_ar,
-                        label_en=perm_def.label_en,
-                        group=perm_def.group
-                    )
-                    self.db.add(perm)
-                    logger.info(f"   ✅ تم إنشاء صلاحية: {perm_def.key}")
-                else:
-                    logger.info(f"   ⏭️ صلاحية موجودة: {perm_def.key}")
-            
-            await self.db.flush()
-            logger.info("✅ تم إنشاء جميع الصلاحيات")
+            # 1. التأكد من وجود جميع الصلاحيات (إضافة المفقودة فقط)
+            await self.ensure_permissions_exist(school_id)
             
             # 2. جلب جميع الصلاحيات لاستخدامها لاحقاً
             stmt = select(Permission)
