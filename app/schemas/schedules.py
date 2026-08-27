@@ -15,7 +15,7 @@ class ScheduleCreate(BaseModel):
 
 
 class ScheduleEntryCreate(BaseModel):
-    day_of_week: int = Field(..., description="اليوم (0=الأحد, 1=الإثنين, ...)")
+    day_of_week: int = Field(..., ge=0, le=6, description="اليوم (0=الأحد, 1=الإثنين, ...)")
     period_id: str = Field(..., description="معرف الفترة")
     subject_id: str = Field(..., description="معرف المادة")
     teacher_id: str = Field(..., description="معرف المعلم")
@@ -33,7 +33,7 @@ class ScheduleUpdate(BaseModel):
 
 
 class ScheduleEntryUpdate(BaseModel):
-    day_of_week: Optional[int] = Field(None, description="اليوم")
+    day_of_week: Optional[int] = Field(None, ge=0, le=6, description="اليوم")
     period_id: Optional[str] = Field(None, description="معرف الفترة")
     subject_id: Optional[str] = Field(None, description="معرف المادة")
     teacher_id: Optional[str] = Field(None, description="معرف المعلم")
