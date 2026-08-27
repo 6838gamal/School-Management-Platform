@@ -5,7 +5,7 @@ from sqlalchemy import select
 import logging
 
 from app.core.database import get_db
-from app.core.templating import templates
+from app.core.templating import get_templates
 from app.core.dependencies import get_current_user
 from app.models.users import User, Role, UserRole
 from app.services.auth_service import AuthService
@@ -25,7 +25,6 @@ async def activity_managers_list(
     try:
         logger.info(f"📄 Activity Managers list page requested by user: {current_user.email}")
         
-        # جلب دور activity_managers
         result = await db.execute(
             select(Role).where(Role.key == 'activity_managers')
         )
@@ -42,9 +41,12 @@ async def activity_managers_list(
         
         logger.info(f"📊 Found {len(managers)} activity managers")
         
+        templates = get_templates()
         if templates is None:
             logger.error("❌ Templates is None!")
             raise HTTPException(status_code=500, detail="Templates not initialized")
+        
+        logger.info(f"✅ Templates is set successfully")
         
         return templates.TemplateResponse(
             "activity_managers/list.html",
@@ -69,11 +71,11 @@ async def activity_managers_create_form(
 ):
     """صفحة إنشاء مدير نشاط جديد"""
     try:
-        # جلب المدارس للاختيار
         from app.models.schools import School
         result = await db.execute(select(School))
         schools = result.scalars().all()
         
+        templates = get_templates()
         if templates is None:
             raise HTTPException(status_code=500, detail="Templates not initialized")
         
@@ -104,7 +106,6 @@ async def activity_managers_create(
     try:
         service = AuthService(db)
         
-        # إنشاء مستخدم جديد بدور activity_managers
         user_data = RegisterUserRequest(
             email=form_data.get("email"),
             password=form_data.get("password"),
@@ -138,7 +139,6 @@ async def activity_managers_update_form(
 ):
     """صفحة تعديل مدير نشاط"""
     try:
-        # جلب المستخدم
         result = await db.execute(
             select(User).where(User.id == manager_id)
         )
@@ -147,11 +147,11 @@ async def activity_managers_update_form(
         if not manager:
             raise HTTPException(status_code=404, detail="مدير النشاط غير موجود")
         
-        # جلب المدارس للاختيار
         from app.models.schools import School
         result = await db.execute(select(School))
         schools = result.scalars().all()
         
+        templates = get_templates()
         if templates is None:
             raise HTTPException(status_code=500, detail="Templates not initialized")
         
@@ -182,7 +182,6 @@ async def activity_managers_update(
     form_data = await request.form()
     
     try:
-        # جلب المستخدم
         result = await db.execute(
             select(User).where(User.id == manager_id)
         )
@@ -191,12 +190,10 @@ async def activity_managers_update(
         if not manager:
             raise HTTPException(status_code=404, detail="مدير النشاط غير موجود")
         
-        # تحديث البيانات
         manager.full_name = form_data.get("full_name")
         manager.phone = form_data.get("phone")
         manager.is_active = form_data.get("is_active") == "on"
         
-        # تحديث كلمة المرور إذا تم إدخالها
         new_password = form_data.get("password")
         if new_password and len(new_password) >= 6:
             from app.core.security import hash_password
@@ -226,7 +223,6 @@ async def activity_managers_delete(
 ):
     """حذف مدير نشاط"""
     try:
-        # جلب المستخدم
         result = await db.execute(
             select(User).where(User.id == manager_id)
         )
@@ -235,13 +231,11 @@ async def activity_managers_delete(
         if not manager:
             raise HTTPException(status_code=404, detail="مدير النشاط غير موجود")
         
-        # حذف العلاقات أولاً
         from sqlalchemy import delete
         await db.execute(
             delete(UserRole).where(UserRole.user_id == manager_id)
         )
         
-        # حذف المستخدم
         await db.delete(manager)
         await db.commit()
         
