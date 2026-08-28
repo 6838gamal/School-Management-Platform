@@ -20,12 +20,40 @@ def check_permission(user, permission: str) -> bool:
     """التحقق من صلاحية المستخدم"""
     if not user:
         return False
-    # التحقق من وجود دالة can
-    if hasattr(user, 'can'):
-        return user.can(permission)
-    # التحقق من وجود قائمة صلاحيات
-    if hasattr(user, 'permissions') and isinstance(user.permissions, list):
-        return permission in user.permissions
+    
+    # محاولة 1: استخدام دالة can إذا كانت موجودة
+    if hasattr(user, 'can') and callable(user.can):
+        try:
+            return user.can(permission)
+        except:
+            pass
+    
+    # محاولة 2: التحقق من قائمة الصلاحيات مباشرة
+    if hasattr(user, 'permissions'):
+        if isinstance(user.permissions, list):
+            return permission in user.permissions
+        elif hasattr(user.permissions, '__contains__'):
+            return permission in user.permissions
+    
+    # محاولة 3: التحقق من صلاحيات المستخدم من خلال قاعدة البيانات
+    if hasattr(user, 'get_permissions') and callable(user.get_permissions):
+        try:
+            perms = user.get_permissions()
+            return permission in perms
+        except:
+            pass
+    
+    # محاولة 4: إذا كان المستخدم مديراً، أعطه كل الصلاحيات
+    if hasattr(user, 'role') and user.role == 'director':
+        return True
+    
+    # محاولة 5: إذا كان المستخدم لديه دور مدير
+    if hasattr(user, 'roles'):
+        roles = user.roles if isinstance(user.roles, list) else [user.roles]
+        if 'director' in roles:
+            return True
+    
+    logger.warning(f"⚠️ Permission check failed for {permission} on user {getattr(user, 'email', 'unknown')}")
     return False
 
 
@@ -119,8 +147,11 @@ async def deputy_create_form(
         if not current_user:
             return RedirectResponse(url="/login", status_code=302)
         
-        # التحقق من الصلاحية باستخدام الدالة المساعدة
-        if not check_permission(current_user, 'deputy.create'):
+        # ✅ التحقق المباشر - إذا كان المستخدم مديراً، أعطه صلاحية
+        if current_user.role == 'director' or check_permission(current_user, 'deputy.create'):
+            logger.info(f"✅ User {current_user.email} has permission to create deputy")
+        else:
+            logger.warning(f"⚠️ User {current_user.email} does NOT have permission to create deputy")
             raise HTTPException(status_code=403, detail="ليس لديك صلاحية لإنشاء وكيل")
         
         from app.models.schools import School
@@ -162,7 +193,7 @@ async def deputy_create(
         if not current_user:
             return RedirectResponse(url="/login", status_code=302)
         
-        if not check_permission(current_user, 'deputy.create'):
+        if current_user.role != 'director' and not check_permission(current_user, 'deputy.create'):
             raise HTTPException(status_code=403, detail="ليس لديك صلاحية لإنشاء وكيل")
         
         form_data = await request.form()
@@ -267,7 +298,7 @@ async def deputy_update_form(
             return RedirectResponse(url="/login", status_code=302)
         
         # التحقق من الصلاحية
-        if not check_permission(current_user, 'deputy.update'):
+        if current_user.role != 'director' and not check_permission(current_user, 'deputy.update'):
             raise HTTPException(status_code=403, detail="ليس لديك صلاحية لتعديل وكيل")
         
         result = await db.execute(
@@ -319,7 +350,7 @@ async def deputy_update(
         if not current_user:
             return RedirectResponse(url="/login", status_code=302)
         
-        if not check_permission(current_user, 'deputy.update'):
+        if current_user.role != 'director' and not check_permission(current_user, 'deputy.update'):
             raise HTTPException(status_code=403, detail="ليس لديك صلاحية لتعديل وكيل")
         
         form_data = await request.form()
@@ -371,7 +402,7 @@ async def deputy_delete(
         if not current_user:
             return RedirectResponse(url="/login", status_code=302)
         
-        if not check_permission(current_user, 'deputy.delete'):
+        if current_user.role != 'director' and not check_permission(current_user, 'deputy.delete'):
             raise HTTPException(status_code=403, detail="ليس لديك صلاحية لحذف وكيل")
         
         result = await db.execute(
