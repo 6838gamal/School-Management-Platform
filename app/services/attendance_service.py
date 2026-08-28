@@ -4,6 +4,7 @@ import logging
 from typing import Optional, List, Dict, Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, func, and_
 
 from app.core.exceptions import NotFoundException, ValidationException
 from app.repositories.attendance import StudentAttendanceRepository, TeacherAttendanceRepository
@@ -49,7 +50,10 @@ class AttendanceService:
         logger.info(f"Recording student attendance: student_id={req.student_id}, date={req.date}")
         
         # --- 1. التحقق من وجود الطالب من Students Routes ---
-        student = await self.db.get(Student, req.student_id)
+        result = await self.db.execute(
+            select(Student).where(Student.id == req.student_id)
+        )
+        student = result.scalar_one_or_none()
         if not student:
             raise NotFoundException(f"الطالب {req.student_id} غير موجود")
         
@@ -61,7 +65,10 @@ class AttendanceService:
         
         # --- 2. التحقق من وجود الشعبة من Academics Routes (إذا تم تحديدها) ---
         if req.section_id:
-            section = await self.db.get(Section, req.section_id)
+            result = await self.db.execute(
+                select(Section).where(Section.id == req.section_id)
+            )
+            section = result.scalar_one_or_none()
             if not section:
                 raise NotFoundException(f"الشعبة {req.section_id} غير موجودة")
             
@@ -73,7 +80,10 @@ class AttendanceService:
         
         # --- 3. التحقق من وجود الحصة من Academics Routes (إذا تم تحديدها) ---
         if req.period_id:
-            period = await self.db.get(Period, req.period_id)
+            result = await self.db.execute(
+                select(Period).where(Period.id == req.period_id)
+            )
+            period = result.scalar_one_or_none()
             if not period:
                 raise NotFoundException(f"الحصة {req.period_id} غير موجودة")
             
@@ -150,7 +160,10 @@ class AttendanceService:
         
         # --- 1. التحقق من وجود الشعبة من Academics Routes ---
         if req.section_id:
-            section = await self.db.get(Section, req.section_id)
+            result = await self.db.execute(
+                select(Section).where(Section.id == req.section_id)
+            )
+            section = result.scalar_one_or_none()
             if not section:
                 raise NotFoundException(f"الشعبة {req.section_id} غير موجودة")
             
@@ -162,7 +175,10 @@ class AttendanceService:
         
         # --- 2. التحقق من وجود الحصة من Academics Routes ---
         if req.period_id:
-            period = await self.db.get(Period, req.period_id)
+            result = await self.db.execute(
+                select(Period).where(Period.id == req.period_id)
+            )
+            period = result.scalar_one_or_none()
             if not period:
                 raise NotFoundException(f"الحصة {req.period_id} غير موجودة")
             
@@ -189,7 +205,10 @@ class AttendanceService:
             
             try:
                 # --- التحقق من وجود الطالب من Students Routes ---
-                student = await self.db.get(Student, student_id)
+                result = await self.db.execute(
+                    select(Student).where(Student.id == student_id)
+                )
+                student = result.scalar_one_or_none()
                 if not student:
                     errors.append(f"الطالب {student_id} غير موجود")
                     skipped_count += 1
@@ -277,7 +296,10 @@ class AttendanceService:
         logger.info(f"Recording teacher attendance: teacher_id={req.teacher_id}, date={req.date}")
         
         # --- 1. التحقق من وجود المعلم ---
-        teacher = await self.db.get(Teacher, req.teacher_id)
+        result = await self.db.execute(
+            select(Teacher).where(Teacher.id == req.teacher_id)
+        )
+        teacher = result.scalar_one_or_none()
         if not teacher:
             raise NotFoundException(f"المعلم {req.teacher_id} غير موجود")
         
@@ -355,15 +377,14 @@ class AttendanceService:
             }
         
         # --- جلب إجمالي عدد الطلاب من Students Routes ---
-        total_students_query = self.db.query(Student).filter(
+        stmt = select(func.count()).select_from(Student).where(
             Student.school_id == school_id,
             Student.is_active == True
         )
         if section_id:
-            total_students_query = total_students_query.filter(
-                Student.section_id == section_id
-            )
-        total_students = await total_students_query.count()
+            stmt = stmt.where(Student.section_id == section_id)
+        
+        total_students = (await self.db.execute(stmt)).scalar() or 0
         
         # --- حساب النسبة المئوية ---
         present = summary.get("present", 0)
@@ -394,7 +415,10 @@ class AttendanceService:
         result = []
         for r in records:
             # جلب تفاصيل المعلم
-            teacher = await self.db.get(Teacher, r.teacher_id)
+            res = await self.db.execute(
+                select(Teacher).where(Teacher.id == r.teacher_id)
+            )
+            teacher = res.scalar_one_or_none()
             if teacher:
                 result.append({
                     "teacher_id": r.teacher_id,
@@ -440,7 +464,10 @@ class AttendanceService:
         # --- جلب تفاصيل الطلاب ---
         result = []
         for r in records:
-            student = await self.db.get(Student, r.student_id)
+            res = await self.db.execute(
+                select(Student).where(Student.id == r.student_id)
+            )
+            student = res.scalar_one_or_none()
             if student:
                 result.append({
                     "student_id": r.student_id,
