@@ -1,40 +1,291 @@
 {% extends "layouts/director.html" %}
+{% load humanize %}
+
 {% block content %}
 <div class="space-y-6">
-    <div class="flex items-center justify-between">
-        <div><h1 class="text-2xl font-bold text-slate-800 dark:text-white">الحضور والغياب</h1><p class="text-slate-400 text-sm mt-1">حالة الحضور اليوم</p></div>
-        {% if can('attendance.create') %}
-        <button id="mark-all-present" class="bg-success-600 hover:bg-success-700 text-white px-4 py-2 rounded-lg text-sm font-semibold">تسجيل الكل حاضر</button>
+    <!-- Header -->
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+            <h1 class="text-2xl font-bold text-slate-800 dark:text-white">الطلاب</h1>
+            <p class="text-slate-400 text-sm mt-1">
+                {{ total|default:0 }} طالب 
+                {% if search %} - نتائج البحث عن "{{ search }}"{% endif %}
+            </p>
+        </div>
+        {% if can('students.create') %}
+        <a href="/students/new" 
+           class="bg-primary-600 hover:bg-primary-700 text-white px-6 py-2.5 rounded-lg text-sm font-semibold inline-flex items-center gap-2 transition-colors">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+            </svg>
+            إضافة طالب
+        </a>
         {% endif %}
     </div>
 
-    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <div class="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-100 dark:border-slate-700 text-center">
-            <p class="text-2xl font-bold text-success-600">{{ summary.present or 0 }}</p><p class="text-xs text-slate-400">حاضر</p>
-        </div>
-        <div class="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-100 dark:border-slate-700 text-center">
-            <p class="text-2xl font-bold text-danger-600">{{ summary.absent or 0 }}</p><p class="text-xs text-slate-400">غائب</p>
-        </div>
-        <div class="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-100 dark:border-slate-700 text-center">
-            <p class="text-2xl font-bold text-warning-600">{{ summary.late or 0 }}</p><p class="text-xs text-slate-400">متأخر</p>
-        </div>
-        <div class="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-100 dark:border-slate-700 text-center">
-            <p class="text-2xl font-bold text-slate-600">{{ summary.excused or 0 }}</p><p class="text-xs text-slate-400">بعذر</p>
+    <!-- Filters & Search -->
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 overflow-hidden">
+        <div class="p-4">
+            <form method="GET" class="flex flex-col sm:flex-row gap-3">
+                <div class="flex-1 relative">
+                    <input type="text" 
+                           name="search" 
+                           value="{{ search }}" 
+                           placeholder="ابحث بالاسم أو الرقم الدراسي..." 
+                           class="w-full px-4 py-2.5 pr-10 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500 transition-shadow">
+                    <svg class="absolute left-3 top-3 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                    </svg>
+                </div>
+                
+                <div class="flex gap-2">
+                    <select name="status" class="px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
+                        <option value="">جميع الحالات</option>
+                        <option value="active" {% if status == 'active' %}selected{% endif %}>نشط</option>
+                        <option value="inactive" {% if status == 'inactive' %}selected{% endif %}>معطل</option>
+                    </select>
+                    
+                    <button type="submit" 
+                            class="bg-primary-600 hover:bg-primary-700 text-white px-6 py-2.5 rounded-lg text-sm font-medium transition-colors">
+                        بحث
+                    </button>
+                    
+                    {% if search or status %}
+                    <a href="?" 
+                       class="bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors">
+                        مسح
+                    </a>
+                    {% endif %}
+                </div>
+            </form>
         </div>
     </div>
 
-    {% if absent_teachers %}
-    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-6">
-        <h3 class="font-semibold text-slate-700 dark:text-slate-200 mb-3">المعلمون الغائبون اليوم</h3>
-        <div class="space-y-2">
-            {% for t in absent_teachers %}
-            <div class="flex items-center justify-between p-3 bg-danger-50 rounded-lg">
-                <span class="text-sm font-medium">{{ t.teacher_id[:8] }}</span>
-                <span class="text-xs text-danger-600">{{ t.status }}</span>
+    <!-- Students Table -->
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead class="bg-slate-50 dark:bg-slate-700/50 text-slate-500 dark:text-slate-300">
+                    <tr>
+                        <th class="text-right p-3 font-medium whitespace-nowrap">#</th>
+                        <th class="text-right p-3 font-medium whitespace-nowrap">الرقم الدراسي</th>
+                        <th class="text-right p-3 font-medium whitespace-nowrap">الاسم</th>
+                        <th class="text-right p-3 font-medium whitespace-nowrap">الجنس</th>
+                        <th class="text-right p-3 font-medium whitespace-nowrap">الحالة</th>
+                        <th class="text-right p-3 font-medium whitespace-nowrap">المجموعة</th>
+                        <th class="text-right p-3 font-medium whitespace-nowrap">المستوى</th>
+                        <th class="text-right p-3 font-medium whitespace-nowrap">العمليات</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
+                    {% for student in students %}
+                    <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">
+                        <td class="p-3 text-slate-400 text-xs">
+                            {{ forloop.counter|add:start_index }}
+                        </td>
+                        <td class="p-3 font-mono text-xs font-semibold text-slate-600 dark:text-slate-300">
+                            {{ student.student_number }}
+                        </td>
+                        <td class="p-3">
+                            <a href="/students/{{ student.id }}" 
+                               class="text-primary-600 hover:text-primary-700 hover:underline font-medium transition-colors">
+                                {{ student.full_name }}
+                            </a>
+                        </td>
+                        <td class="p-3 text-slate-600 dark:text-slate-300">
+                            {% if student.gender == 'male' %}
+                                ذكر
+                            {% elif student.gender == 'female' %}
+                                أنثى
+                            {% else %}
+                                <span class="text-slate-400">—</span>
+                            {% endif %}
+                        </td>
+                        <td class="p-3">
+                            {% if student.is_active %}
+                            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-full bg-success-50 text-success-700 dark:bg-success-900/20 dark:text-success-400 border border-success-200 dark:border-success-800">
+                                <span class="w-1.5 h-1.5 rounded-full bg-success-500"></span>
+                                نشط
+                            </span>
+                            {% else %}
+                            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-full bg-danger-50 text-danger-700 dark:bg-danger-900/20 dark:text-danger-400 border border-danger-200 dark:border-danger-800">
+                                <span class="w-1.5 h-1.5 rounded-full bg-danger-500"></span>
+                                معطل
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td class="p-3 text-slate-600 dark:text-slate-300">
+                            {{ student.section_name|default:'—' }}
+                        </td>
+                        <td class="p-3 text-slate-600 dark:text-slate-300">
+                            {{ student.level|default:'—' }}
+                        </td>
+                        <td class="p-3">
+                            <div class="flex items-center gap-1.5">
+                                <a href="/students/{{ student.id }}" 
+                                   class="p-1.5 text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded-lg transition-colors" 
+                                   title="عرض">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                                    </svg>
+                                </a>
+                                
+                                {% if can('students.update') %}
+                                <a href="/students/{{ student.id }}/edit" 
+                                   class="p-1.5 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg transition-colors"
+                                   title="تعديل">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                                    </svg>
+                                </a>
+                                {% endif %}
+                                
+                                {% if can('students.delete') %}
+                                <button onclick="confirmDelete('{{ student.id }}', '{{ student.full_name }}')" 
+                                        class="p-1.5 text-danger-600 hover:bg-danger-50 dark:hover:bg-danger-900/20 rounded-lg transition-colors"
+                                        title="حذف">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                                    </svg>
+                                </button>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="8" class="p-12 text-center">
+                            <div class="flex flex-col items-center gap-3">
+                                <div class="w-16 h-16 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center">
+                                    <svg class="w-8 h-8 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
+                                    </svg>
+                                </div>
+                                <div>
+                                    <p class="text-slate-600 dark:text-slate-300 font-medium">لا يوجد طلاب</p>
+                                    <p class="text-slate-400 text-sm mt-1">
+                                        {% if search %}
+                                        لم يتم العثور على نتائج مطابقة لـ "{{ search }}"
+                                        {% else %}
+                                        ابدأ بإضافة طالب جديد
+                                        {% endif %}
+                                    </p>
+                                </div>
+                                {% if can('students.create') and not search %}
+                                <a href="/students/new" 
+                                   class="mt-2 text-primary-600 hover:text-primary-700 text-sm font-medium inline-flex items-center gap-1">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                                    </svg>
+                                    إضافة طالب
+                                </a>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- Pagination -->
+        {% if total > page_size %}
+        <div class="p-4 border-t border-slate-100 dark:border-slate-700 flex flex-col sm:flex-row justify-between items-center gap-3">
+            <div class="text-sm text-slate-400">
+                عرض {{ start_index|add:1 }} - {{ end_index|default:total }} من {{ total|intcomma }}
             </div>
-            {% endfor %}
+            <div class="flex gap-2">
+                {% if page > 1 %}
+                <a href="?page={{ page|add:-1 }}{% if search %}&search={{ search }}{% endif %}{% if status %}&status={{ status }}{% endif %}" 
+                   class="bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+                    السابق
+                </a>
+                {% endif %}
+                
+                <span class="px-4 py-2 bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-400 rounded-lg text-sm font-medium">
+                    {{ page }}
+                </span>
+                
+                {% if page * page_size < total %}
+                <a href="?page={{ page|add:1 }}{% if search %}&search={{ search }}{% endif %}{% if status %}&status={{ status }}{% endif %}" 
+                   class="bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+                    التالي
+                </a>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div id="deleteModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm hidden items-center justify-center z-50" role="dialog" aria-modal="true">
+    <div class="bg-white dark:bg-slate-800 rounded-2xl max-w-md w-full mx-4 p-6 shadow-2xl transform transition-all">
+        <div class="flex items-center gap-3 mb-4">
+            <div class="w-10 h-10 rounded-full bg-danger-50 dark:bg-danger-900/20 flex items-center justify-center flex-shrink-0">
+                <svg class="w-5 h-5 text-danger-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                </svg>
+            </div>
+            <div>
+                <h3 class="text-lg font-bold text-slate-800 dark:text-white">تأكيد الحذف</h3>
+                <p class="text-sm text-slate-500 dark:text-slate-400">لا يمكن التراجع عن هذا الإجراء</p>
+            </div>
+        </div>
+        
+        <p class="text-slate-600 dark:text-slate-300 mb-6">
+            هل أنت متأكد من حذف الطالب 
+            <span id="deleteStudentName" class="font-semibold text-slate-800 dark:text-white"></span>؟
+        </p>
+        
+        <div class="flex flex-col-reverse sm:flex-row gap-3 justify-end">
+            <button onclick="closeDeleteModal()" 
+                    class="bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 px-6 py-2.5 rounded-lg text-sm font-medium transition-colors">
+                إلغاء
+            </button>
+            <form id="deleteForm" method="POST" action="">
+                {% csrf_token %}
+                <input type="hidden" name="_method" value="DELETE">
+                <button type="submit" 
+                        class="bg-danger-600 hover:bg-danger-700 text-white px-6 py-2.5 rounded-lg text-sm font-semibold transition-colors w-full sm:w-auto">
+                    تأكيد الحذف
+                </button>
+            </form>
         </div>
     </div>
-    {% endif %}
 </div>
+
+<script>
+function confirmDelete(id, name) {
+    document.getElementById('deleteStudentName').textContent = name;
+    document.getElementById('deleteForm').action = '/students/' + id;
+    const modal = document.getElementById('deleteModal');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    // Focus trap
+    setTimeout(() => modal.querySelector('button').focus(), 100);
+}
+
+function closeDeleteModal() {
+    const modal = document.getElementById('deleteModal');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+}
+
+// Close modal on backdrop click
+document.getElementById('deleteModal').addEventListener('click', function(e) {
+    if (e.target === this) closeDeleteModal();
+});
+
+// Close modal on Escape key
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        const modal = document.getElementById('deleteModal');
+        if (!modal.classList.contains('hidden')) {
+            closeDeleteModal();
+        }
+    }
+});
+</script>
 {% endblock %}
