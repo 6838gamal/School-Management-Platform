@@ -106,7 +106,7 @@ async def deputy_list(
                 "user": current_user,
                 "deputies": deputies,
                 "page_title": "وكلاء المدرسة",
-                "is_director": True,  # ✅ تمرير للمدير
+                "is_director": True,
             }
         )
         
@@ -207,16 +207,20 @@ async def deputy_create(
         
         result = await service.register_user(user_data)
         
-        # التحقق من نجاح التسجيل
-        if result and result.get("user"):
-            new_user = result['user']
-            logger.info(f"✅ Deputy created successfully: {new_user.email}")
+        # ✅ التحقق من نجاح التسجيل والتعامل مع النتيجة بشكل صحيح
+        if result and isinstance(result, dict) and result.get("user"):
+            # النتيجة هي قاموس يحتوي على مفتاح 'user'
+            new_user = result.get("user")
+            logger.info(f"✅ Deputy created successfully: {new_user.email if hasattr(new_user, 'email') else new_user.get('email')}")
             
-            # التأكد من ربط المستخدم بدور deputy
+            # ✅ الحصول على ID المستخدم بشكل آمن
+            user_id = new_user.id if hasattr(new_user, 'id') else new_user.get('id')
+            
+            # التحقق من ربط المستخدم بدور deputy
             user_role_result = await db.execute(
                 select(UserRole)
                 .where(
-                    UserRole.user_id == new_user.id,
+                    UserRole.user_id == user_id,
                     UserRole.role_id == deputy_role.id
                 )
             )
@@ -226,14 +230,14 @@ async def deputy_create(
                 # ربط المستخدم بدور deputy
                 user_role = UserRole(
                     id=str(uuid.uuid4()),
-                    user_id=new_user.id,
+                    user_id=user_id,
                     role_id=deputy_role.id
                 )
                 db.add(user_role)
                 await db.commit()
-                logger.info(f"✅ User {new_user.email} linked to deputy role")
+                logger.info(f"✅ User {new_user.email if hasattr(new_user, 'email') else new_user.get('email')} linked to deputy role")
             else:
-                logger.info(f"✅ User {new_user.email} already has deputy role")
+                logger.info(f"✅ User already has deputy role")
         else:
             logger.error(f"❌ Failed to create deputy: {result}")
             return RedirectResponse(
@@ -251,7 +255,7 @@ async def deputy_create(
     except Exception as e:
         logger.error(f"❌ Error creating deputy: {str(e)}", exc_info=True)
         return RedirectResponse(
-            url="/deputy/create?error=" + str(e),
+            url=f"/deputy/create?error={str(e)}",
             status_code=303
         )
 
