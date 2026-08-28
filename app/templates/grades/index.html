@@ -8,12 +8,12 @@
             <p class="text-slate-400 text-sm mt-1">إدارة التقييمات والدرجات</p>
         </div>
         {% if can('grades.create') %}
-        <button id="create-assessment-btn" class="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center gap-2">
+        <a href="{{ url_for('grades.create') }}" class="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center gap-2">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
             </svg>
             تقييم جديد
-        </button>
+        </a>
         {% endif %}
     </div>
 
@@ -22,9 +22,15 @@
         <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
             <select id="filter-section" class="px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
                 <option value="">جميع الشعب</option>
+                {% for section in sections %}
+                <option value="{{ section.id }}">{{ section.name }}</option>
+                {% endfor %}
             </select>
             <select id="filter-subject" class="px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
                 <option value="">جميع المواد</option>
+                {% for subject in subjects %}
+                <option value="{{ subject.id }}">{{ subject.name }}</option>
+                {% endfor %}
             </select>
             <select id="filter-type" class="px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
                 <option value="">جميع الأنواع</option>
@@ -100,20 +106,29 @@
             </button>
         </div>
         
-        <form id="assessment-form" class="space-y-4">
+        <form id="assessment-form" class="space-y-4" method="POST" action="{{ url_for('grades.store') }}">
+            <!-- CSRF Token -->
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" id="assessment-id" name="assessment_id">
+            <input type="hidden" name="_method" id="form-method" value="POST">
             
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                     <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">الشعبة *</label>
                     <select name="section_id" id="modal-section" required class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
                         <option value="">اختر الشعبة</option>
+                        {% for section in sections %}
+                        <option value="{{ section.id }}">{{ section.name }}</option>
+                        {% endfor %}
                     </select>
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">المادة *</label>
                     <select name="subject_id" id="modal-subject" required class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
                         <option value="">اختر المادة</option>
+                        {% for subject in subjects %}
+                        <option value="{{ subject.id }}">{{ subject.name }}</option>
+                        {% endfor %}
                     </select>
                 </div>
             </div>
@@ -161,7 +176,8 @@
                 <textarea name="description" id="modal-description" placeholder="وصف التقييم (اختياري)" rows="3" class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500 resize-none"></textarea>
             </div>
 
-            <input type="hidden" name="teacher_id" value="{{ user.id }}">
+            <!-- حقل المعلم - سيتم تعبئته من السياق -->
+            <input type="hidden" name="teacher_id" value="{{ current_user.id if current_user else '' }}">
 
             <div class="flex gap-2 pt-2">
                 <button type="button" onclick="closeModal('assessment-modal')" class="flex-1 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
@@ -206,33 +222,24 @@
 
 <script>
 // ============================================
-// 📡 API Configuration - جاهز للربط مع نقاط النهاية الخارجية
+// 📡 API Configuration
 // ============================================
 
-/**
- * 🔧 قم بتعديل هذه المتغيرات لتتناسب مع نقاط النهاية الخاصة بك
- */
 const API_CONFIG = {
-    // النقطة الأساسية لـ API
-    baseURL: '/api',
-    
-    // نقاط النهاية
+    baseURL: '{{ api_base_url|default("/api") }}',
     endpoints: {
         assessments: '/assessments',
         sections: '/sections',
         subjects: '/subjects',
     },
-    
-    // رؤوس الطلبات (يمكن إضافة Token هنا)
     headers: {
         'Content-Type': 'application/json',
-        // 'Authorization': 'Bearer YOUR_TOKEN',
-        // 'X-CSRFToken': getCsrfToken(),
+        'X-CSRFToken': '{{ csrf_token() }}',
     }
 };
 
 // ============================================
-// 🌐 API Service - خدمة الاتصال بالخادم
+// 🌐 API Service
 // ============================================
 
 class ApiService {
@@ -242,9 +249,6 @@ class ApiService {
         this.headers = config.headers;
     }
 
-    /**
-     * دالة أساسية للطلبات
-     */
     async request(endpoint, options = {}) {
         const url = `${this.baseURL}${endpoint}`;
         const config = {
@@ -258,8 +262,6 @@ class ApiService {
 
         try {
             const response = await fetch(url, config);
-            
-            // محاولة قراءة الرد كـ JSON
             let data = null;
             const contentType = response.headers.get('content-type');
             if (contentType && contentType.includes('application/json')) {
@@ -278,10 +280,8 @@ class ApiService {
             return data;
         } catch (error) {
             if (error.status) {
-                // خطأ من الخادم
                 throw error;
             }
-            // خطأ في الشبكة
             throw {
                 status: 0,
                 message: 'فشل الاتصال بالخادم. تأكد من اتصال الإنترنت.',
@@ -290,11 +290,6 @@ class ApiService {
         }
     }
 
-    // ========== نقاط النهاية ==========
-
-    /**
-     * جلب قائمة التقييمات مع إمكانية التصفية
-     */
     async getAssessments(params = {}) {
         const query = new URLSearchParams();
         Object.keys(params).forEach(key => {
@@ -306,16 +301,10 @@ class ApiService {
         return this.request(endpoint);
     }
 
-    /**
-     * جلب تقييم معين بواسطة ID
-     */
     async getAssessment(id) {
         return this.request(`${this.endpoints.assessments}/${id}`);
     }
 
-    /**
-     * إنشاء تقييم جديد
-     */
     async createAssessment(data) {
         return this.request(this.endpoints.assessments, {
             method: 'POST',
@@ -323,9 +312,6 @@ class ApiService {
         });
     }
 
-    /**
-     * تحديث تقييم موجود
-     */
     async updateAssessment(id, data) {
         return this.request(`${this.endpoints.assessments}/${id}`, {
             method: 'PUT',
@@ -333,42 +319,19 @@ class ApiService {
         });
     }
 
-    /**
-     * حذف تقييم
-     */
     async deleteAssessment(id) {
         return this.request(`${this.endpoints.assessments}/${id}`, {
             method: 'DELETE'
         });
     }
-
-    /**
-     * جلب قائمة الشعب
-     */
-    async getSections(params = {}) {
-        const query = new URLSearchParams(params).toString();
-        const endpoint = query ? `${this.endpoints.sections}?${query}` : this.endpoints.sections;
-        return this.request(endpoint);
-    }
-
-    /**
-     * جلب قائمة المواد
-     */
-    async getSubjects(params = {}) {
-        const query = new URLSearchParams(params).toString();
-        const endpoint = query ? `${this.endpoints.subjects}?${query}` : this.endpoints.subjects;
-        return this.request(endpoint);
-    }
 }
 
 // ============================================
-// 🎯 State Management - إدارة الحالة
+// 🎯 State Management
 // ============================================
 
 const state = {
     assessments: [],
-    sections: [],
-    subjects: [],
     currentPage: 1,
     pageSize: 10,
     totalItems: 0,
@@ -385,7 +348,7 @@ const state = {
 };
 
 // ============================================
-// 🛠️ Utilities - دوال مساعدة
+// 🛠️ Utilities
 // ============================================
 
 function getAssessmentTypeLabel(type) {
@@ -403,15 +366,11 @@ function getAssessmentTypeLabel(type) {
 function getStatusBadge(assessment) {
     const now = new Date();
     const date = assessment.date ? new Date(assessment.date) : null;
-    const hasGrades = assessment.has_grades || false;
     
-    if (hasGrades) {
-        return '<span class="text-xs px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-full">مكتمل</span>';
-    }
     if (date && date < now) {
         return '<span class="text-xs px-2 py-1 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded-full">منتهي</span>';
     }
-    return '<span class="text-xs px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded-full">قادم</span>';
+    return '<span class="text-xs px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-full">قادم</span>';
 }
 
 function formatDate(dateString) {
@@ -427,8 +386,28 @@ function formatDate(dateString) {
     }
 }
 
+function showToast(message, type = 'success') {
+    const colors = {
+        success: 'bg-green-600',
+        error: 'bg-red-600',
+        warning: 'bg-yellow-600',
+        info: 'bg-blue-600'
+    };
+    
+    const toast = document.createElement('div');
+    toast.className = `fixed bottom-4 right-4 ${colors[type] || colors.info} text-white px-6 py-3 rounded-lg shadow-lg z-50 transition-all duration-300 transform translate-y-0 opacity-100 flex items-center gap-3 max-w-md`;
+    toast.innerHTML = `<span>${message}</span>`;
+    document.body.appendChild(toast);
+    
+    setTimeout(() => {
+        toast.style.transform = 'translateY(100px)';
+        toast.style.opacity = '0';
+        setTimeout(() => toast.remove(), 300);
+    }, 3500);
+}
+
 // ============================================
-# 🖥️ UI Functions - دوال الواجهة
+// 🖥️ UI Functions
 // ============================================
 
 function showLoading() {
@@ -457,38 +436,8 @@ function closeModal(id) {
     }
 }
 
-function showToast(message, type = 'success') {
-    const colors = {
-        success: 'bg-green-600',
-        error: 'bg-red-600',
-        warning: 'bg-yellow-600',
-        info: 'bg-blue-600'
-    };
-    
-    const icons = {
-        success: '✓',
-        error: '✕',
-        warning: '⚠',
-        info: 'ℹ'
-    };
-    
-    const toast = document.createElement('div');
-    toast.className = `fixed bottom-4 right-4 ${colors[type] || colors.info} text-white px-6 py-3 rounded-lg shadow-lg z-50 transition-all duration-300 transform translate-y-0 opacity-100 flex items-center gap-3 max-w-md`;
-    toast.innerHTML = `
-        <span class="font-bold text-lg">${icons[type] || ''}</span>
-        <span>${message}</span>
-    `;
-    document.body.appendChild(toast);
-    
-    setTimeout(() => {
-        toast.style.transform = 'translateY(100px)';
-        toast.style.opacity = '0';
-        setTimeout(() => toast.remove(), 300);
-    }, 3500);
-}
-
 // ============================================
-# 📊 Render Functions - دوال العرض
+// 📊 Render Functions
 // ============================================
 
 function renderAssessments(assessments, page = 1, total = 0) {
@@ -546,13 +495,13 @@ function renderAssessments(assessments, page = 1, total = 0) {
                         </svg>
                     </button>
                     {% endif %}
-                    <button onclick="viewGrades('${assessment.id}')" 
+                    <a href="{{ url_for('grades.show', id='') }}${assessment.id}" 
                             class="p-2 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/30 rounded-lg transition-colors group" 
                             title="عرض/إدخال الدرجات">
                         <svg class="w-5 h-5 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
                         </svg>
-                    </button>
+                    </a>
                 </div>
             </td>
         </tr>
@@ -579,15 +528,12 @@ function updatePagination(currentPage, total) {
     }
     
     let html = '';
-    
-    // Previous
     html += `<button onclick="changePage(${currentPage - 1})" 
                     class="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors text-sm ${currentPage <= 1 ? 'opacity-40 cursor-not-allowed' : ''}"
                     ${currentPage <= 1 ? 'disabled' : ''}>
                 السابق
             </button>`;
     
-    // Page numbers
     const pages = [];
     if (state.totalPages <= 7) {
         for (let i = 1; i <= state.totalPages; i++) pages.push(i);
@@ -612,7 +558,6 @@ function updatePagination(currentPage, total) {
         }
     });
     
-    // Next
     html += `<button onclick="changePage(${currentPage + 1})" 
                     class="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors text-sm ${currentPage >= state.totalPages ? 'opacity-40 cursor-not-allowed' : ''}"
                     ${currentPage >= state.totalPages ? 'disabled' : ''}>
@@ -623,10 +568,9 @@ function updatePagination(currentPage, total) {
 }
 
 // ============================================
-# 📡 Data Loading - تحميل البيانات
+// 📡 Data Loading
 // ============================================
 
-// إنشاء نسخة من خدمة API
 const api = new ApiService(API_CONFIG);
 
 async function loadAssessments() {
@@ -641,14 +585,11 @@ async function loadAssessments() {
             ...state.filters
         };
         
-        // إزالة الفلاتر الفارغة
         Object.keys(params).forEach(key => {
             if (!params[key] || params[key] === '') delete params[key];
         });
         
         const response = await api.getAssessments(params);
-        
-        // التعامل مع صيغ مختلفة للرد
         state.assessments = response.items || response.results || response.data || [];
         const total = response.total || response.count || state.assessments.length;
         
@@ -657,17 +598,8 @@ async function loadAssessments() {
         console.error('Error loading assessments:', error);
         document.getElementById('assessments-tbody').innerHTML = `
             <tr>
-                <td colspan="8" class="text-center py-8">
-                    <div class="text-red-600 dark:text-red-400">
-                        <svg class="w-12 h-12 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                        </svg>
-                        <p class="font-medium">حدث خطأ في تحميل البيانات</p>
-                        <p class="text-sm mt-1">${error.message || 'يرجى المحاولة مرة أخرى'}</p>
-                        <button onclick="loadAssessments()" class="mt-3 px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg text-sm transition-colors">
-                            إعادة المحاولة
-                        </button>
-                    </div>
+                <td colspan="8" class="text-center py-8 text-red-600">
+                    حدث خطأ في تحميل البيانات: ${error.message || 'يرجى المحاولة مرة أخرى'}
                 </td>
             </tr>
         `;
@@ -677,51 +609,8 @@ async function loadAssessments() {
     }
 }
 
-async function loadSections() {
-    try {
-        const sections = await api.getSections({ active: true });
-        state.sections = sections.items || sections.results || sections || [];
-        populateSelect('filter-section', state.sections, 'id', 'name', 'جميع الشعب');
-        populateSelect('modal-section', state.sections, 'id', 'name', 'اختر الشعبة');
-    } catch (error) {
-        console.error('Error loading sections:', error);
-    }
-}
-
-async function loadSubjects() {
-    try {
-        const subjects = await api.getSubjects({ active: true });
-        state.subjects = subjects.items || subjects.results || subjects || [];
-        populateSelect('filter-subject', state.subjects, 'id', 'name', 'جميع المواد');
-        populateSelect('modal-subject', state.subjects, 'id', 'name', 'اختر المادة');
-    } catch (error) {
-        console.error('Error loading subjects:', error);
-    }
-}
-
-function populateSelect(elementId, items, valueKey, labelKey, defaultLabel = 'اختر') {
-    const select = document.getElementById(elementId);
-    if (!select) return;
-    
-    const currentValue = select.value;
-    select.innerHTML = `<option value="">${defaultLabel}</option>`;
-    
-    if (items && items.length > 0) {
-        items.forEach(item => {
-            const option = document.createElement('option');
-            option.value = item[valueKey];
-            option.textContent = item[labelKey] || item.name || 'بدون اسم';
-            select.appendChild(option);
-        });
-    }
-    
-    if (currentValue) {
-        select.value = currentValue;
-    }
-}
-
 // ============================================
-# 🎮 CRUD Operations - عمليات الإدارة
+// 🎮 CRUD Operations
 // ============================================
 
 function changePage(page) {
@@ -730,71 +619,39 @@ function changePage(page) {
     loadAssessments();
 }
 
-// ========== Create ==========
-function openCreateAssessment() {
-    const form = document.getElementById('assessment-form');
-    form.reset();
-    document.getElementById('modal-title').textContent = 'إنشاء تقييم جديد';
-    document.getElementById('modal-submit-btn').textContent = 'إنشاء';
-    document.getElementById('assessment-id').value = '';
-    state.editingId = null;
+function openEditAssessment(id) {
+    const assessment = state.assessments.find(a => a.id === id);
+    if (!assessment) {
+        showToast('لم يتم العثور على التقييم', 'error');
+        return;
+    }
     
-    // تعيين القيم الافتراضية
-    document.getElementById('modal-max-score').value = 100;
-    document.getElementById('modal-passing-score').value = 50;
-    document.getElementById('modal-weight').value = 1.0;
+    document.getElementById('modal-title').textContent = 'تعديل التقييم';
+    document.getElementById('modal-submit-btn').textContent = 'تحديث';
+    document.getElementById('assessment-id').value = assessment.id;
+    document.getElementById('form-method').value = 'PUT';
+    document.getElementById('modal-title-input').value = assessment.title || '';
+    document.getElementById('modal-section').value = assessment.section_id || '';
+    document.getElementById('modal-subject').value = assessment.subject_id || '';
+    document.getElementById('modal-type').value = assessment.assessment_type || 'exam';
+    document.getElementById('modal-date').value = assessment.date || '';
+    document.getElementById('modal-max-score').value = assessment.max_score || 100;
+    document.getElementById('modal-passing-score').value = assessment.passing_score || 50;
+    document.getElementById('modal-weight').value = assessment.weight || 1.0;
+    document.getElementById('modal-description').value = assessment.description || '';
     
+    // تحديث action للنموذج
+    document.getElementById('assessment-form').action = "{{ url_for('grades.update', id='') }}" + id;
+    
+    state.editingId = id;
     openModal('assessment-modal');
 }
 
-// ========== Edit ==========
-async function openEditAssessment(id) {
-    try {
-        // محاولة جلب البيانات من الحالة أولاً
-        let assessment = state.assessments.find(a => a.id === id);
-        
-        if (!assessment) {
-            // إذا لم تكن موجودة، نجلبها من الخادم
-            assessment = await api.getAssessment(id);
-        }
-        
-        if (!assessment) {
-            showToast('لم يتم العثور على التقييم', 'error');
-            return;
-        }
-        
-        // تعبئة النموذج
-        document.getElementById('modal-title').textContent = 'تعديل التقييم';
-        document.getElementById('modal-submit-btn').textContent = 'تحديث';
-        document.getElementById('assessment-id').value = assessment.id;
-        document.getElementById('modal-title-input').value = assessment.title || '';
-        document.getElementById('modal-section').value = assessment.section_id || '';
-        document.getElementById('modal-subject').value = assessment.subject_id || '';
-        document.getElementById('modal-type').value = assessment.assessment_type || 'exam';
-        document.getElementById('modal-date').value = assessment.date || '';
-        document.getElementById('modal-max-score').value = assessment.max_score || 100;
-        document.getElementById('modal-passing-score').value = assessment.passing_score || 50;
-        document.getElementById('modal-weight').value = assessment.weight || 1.0;
-        document.getElementById('modal-description').value = assessment.description || '';
-        
-        state.editingId = assessment.id;
-        openModal('assessment-modal');
-    } catch (error) {
-        console.error('Error loading assessment:', error);
-        showToast('حدث خطأ في تحميل بيانات التقييم', 'error');
-    }
-}
-
-// ========== Delete ==========
 function openDeleteModal(id) {
     state.deletingId = id;
     openModal('delete-modal');
 }
 
-/**
- * 🗑️ دالة الحذف - جاهزة للربط مع نقاط النهاية الخارجية
- * يمكن استدعاؤها مباشرة من أي مكان
- */
 async function deleteAssessment(id) {
     if (!id) {
         showToast('معرف التقييم مطلوب', 'error');
@@ -802,7 +659,7 @@ async function deleteAssessment(id) {
     }
     
     try {
-        const result = await api.deleteAssessment(id);
+        await api.deleteAssessment(id);
         showToast('تم حذف التقييم بنجاح', 'success');
         await loadAssessments();
         return true;
@@ -813,7 +670,6 @@ async function deleteAssessment(id) {
     }
 }
 
-// دالة تأكيد الحذف من المودال
 async function confirmDelete() {
     if (!state.deletingId) return;
     
@@ -824,55 +680,8 @@ async function confirmDelete() {
     }
 }
 
-// ========== View Grades ==========
-function viewGrades(assessmentId) {
-    // يمكن توجيه المستخدم إلى صفحة إدخال الدرجات
-    // أو فتح مودال لعرض الدرجات
-    window.location.href = `/grades/${assessmentId}/entry`;
-}
-
 // ============================================
-# 📝 Form Submission - تقديم النموذج
-// ============================================
-
-document.getElementById('assessment-form').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const form = e.target;
-    const formData = new FormData(form);
-    const data = Object.fromEntries(formData.entries());
-    
-    // تنظيف البيانات
-    Object.keys(data).forEach(key => {
-        if (data[key] === '') data[key] = null;
-    });
-    
-    // تحويل الأرقام
-    ['max_score', 'passing_score', 'weight'].forEach(key => {
-        if (data[key]) data[key] = parseFloat(data[key]);
-    });
-    
-    try {
-        let result;
-        if (state.editingId) {
-            // تحديث
-            result = await api.updateAssessment(state.editingId, data);
-            showToast('تم تحديث التقييم بنجاح', 'success');
-        } else {
-            // إنشاء
-            result = await api.createAssessment(data);
-            showToast('تم إنشاء التقييم بنجاح', 'success');
-        }
-        
-        closeModal('assessment-modal');
-        await loadAssessments();
-    } catch (error) {
-        console.error('Error saving assessment:', error);
-        showToast(error.message || 'حدث خطأ في حفظ التقييم', 'error');
-    }
-});
-
-// ============================================
-# 🔍 Filters - الفلاتر
+// 🔍 Filters
 // ============================================
 
 function applyFilters() {
@@ -888,14 +697,12 @@ document.getElementById('filter-section').addEventListener('change', applyFilter
 document.getElementById('filter-subject').addEventListener('change', applyFilters);
 document.getElementById('filter-type').addEventListener('change', applyFilters);
 
-// بحث مع تأخير (debounce)
 let searchTimeout;
 document.getElementById('filter-search').addEventListener('input', function() {
     clearTimeout(searchTimeout);
     searchTimeout = setTimeout(applyFilters, 500);
 });
 
-// مسح الفلاتر
 document.getElementById('clear-filters').addEventListener('click', function() {
     document.getElementById('filter-section').value = '';
     document.getElementById('filter-subject').value = '';
@@ -905,15 +712,11 @@ document.getElementById('clear-filters').addEventListener('click', function() {
 });
 
 // ============================================
-# 🎬 Event Listeners - مستمعات الأحداث
+// 🎬 Event Listeners
 // ============================================
 
-document.getElementById('create-assessment-btn').addEventListener('click', openCreateAssessment);
-
-// تأكيد الحذف
 document.getElementById('confirm-delete-btn').addEventListener('click', confirmDelete);
 
-// إغلاق المودالات عند الضغط على الخلفية
 document.querySelectorAll('.modal-backdrop').forEach(backdrop => {
     backdrop.addEventListener('click', function(e) {
         if (e.target === this) {
@@ -923,7 +726,6 @@ document.querySelectorAll('.modal-backdrop').forEach(backdrop => {
     });
 });
 
-// إغلاق المودال بالضغط على ESC
 document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') {
         document.querySelectorAll('.modal-backdrop.active').forEach(modal => {
@@ -934,37 +736,32 @@ document.addEventListener('keydown', function(e) {
 });
 
 // ============================================
-# 🚀 Initialize - تهيئة الصفحة
+// 🚀 Initialize
 // ============================================
 
-async function init() {
-    // تحميل البيانات الأساسية
-    await Promise.all([
-        loadSections(),
-        loadSubjects()
-    ]);
-    // تحميل التقييمات
-    await loadAssessments();
-}
-
-document.addEventListener('DOMContentLoaded', init);
+document.addEventListener('DOMContentLoaded', function() {
+    // إعادة تعيين النموذج عند فتح المودال للإضافة
+    document.querySelector('[onclick="closeModal(\'assessment-modal\')"]')?.addEventListener('click', function() {
+        // لا نفعل شيئاً خاصاً
+    });
+    
+    loadAssessments();
+});
 
 // ============================================
-# 📤 Export - تصدير الدوال للاستخدام الخارجي
+// 📤 Export
 // ============================================
 
-// جعل الدوال متاحة في النطاق العام للاستخدام من خارج الملف
 window.api = api;
 window.loadAssessments = loadAssessments;
-window.openCreateAssessment = openCreateAssessment;
 window.openEditAssessment = openEditAssessment;
 window.deleteAssessment = deleteAssessment;
 window.openDeleteModal = openDeleteModal;
-window.viewGrades = viewGrades;
 window.changePage = changePage;
 window.showToast = showToast;
 window.openModal = openModal;
 window.closeModal = closeModal;
+window.confirmDelete = confirmDelete;
 </script>
 
 <style>
@@ -1035,35 +832,13 @@ window.closeModal = closeModal;
     background: #64748b;
 }
 
-/* RTL Support */
-[dir="rtl"] .modal-box {
-    text-align: right;
-}
-
-/* Loading spinner */
-@keyframes spin {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
-}
-
 .animate-spin {
     animation: spin 1s linear infinite;
 }
 
-/* Toast animation */
-@keyframes slideInRight {
-    from {
-        transform: translateX(100%);
-        opacity: 0;
-    }
-    to {
-        transform: translateX(0);
-        opacity: 1;
-    }
-}
-
-.toast {
-    animation: slideInRight 0.3s ease-out;
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
 }
 </style>
 {% endblock %}
