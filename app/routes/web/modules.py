@@ -4,7 +4,7 @@ from typing import Optional
 import json
 import logging
 
-from fastapi import APIRouter, Depends, Request, Form, Query, HTTPException, status
+from fastapi import APIRouter, Depends, Request, Form, Query, HTTPException, status as http_status
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -175,7 +175,7 @@ async def student_attendance_create(
         
         return RedirectResponse(
             f"/attendance/students?date={date}&section_id={section_id}&success=true",
-            status_code=status.HTTP_303_SEE_OTHER,
+            status_code=http_status.HTTP_303_SEE_OTHER,
         )
         
     except Exception as e:
@@ -266,7 +266,7 @@ async def teacher_attendance_create(
     request: Request,
     teacher_id: str = Form(...),
     date: str = Form(...),
-    status: str = Form(...),
+    attendance_status: str = Form(...),  # ✅ تغيير الاسم لتجنب التعارض
     note: Optional[str] = Form(None),
     user: CurrentUser = Depends(require_any_permission("attendance.create")),
     db: AsyncSession = Depends(get_db),
@@ -280,13 +280,13 @@ async def teacher_attendance_create(
         if not date:
             raise ValueError("يجب تحديد التاريخ")
         
-        if status not in ["present", "absent", "late", "leave"]:
-            raise ValueError(f"الحالة غير صالحة: {status}")
+        if attendance_status not in ["present", "absent", "late", "leave"]:
+            raise ValueError(f"الحالة غير صالحة: {attendance_status}")
         
         attendance_data = TeacherAttendanceCreate(
             teacher_id=teacher_id,
             date=date,
-            status=status,
+            status=attendance_status,
             note=note,
         )
         
@@ -297,9 +297,10 @@ async def teacher_attendance_create(
             req=attendance_data,
         )
         
+        # ✅ استخدام http_status بدلاً من status
         return RedirectResponse(
             f"/attendance/teachers?date={date}&success=true",
-            status_code=status.HTTP_303_SEE_OTHER,
+            status_code=http_status.HTTP_303_SEE_OTHER,
         )
         
     except Exception as e:
@@ -320,7 +321,7 @@ async def teacher_attendance_create(
                 "teachers": teachers,
                 "teacher_id": teacher_id,
                 "selected_date": date,
-                "status": status,
+                "status": attendance_status,
                 "note": note,
                 "statuses": ["present", "absent", "late", "leave"],
                 "today": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
@@ -328,61 +329,6 @@ async def teacher_attendance_create(
             },
             status_code=400,
         )
-
-
-@attendance_router.get("/reports/daily")
-async def attendance_daily_report(
-    request: Request,
-    date: Optional[str] = Query(None),
-    user: CurrentUser = Depends(require_any_permission("attendance.view_reports")),
-    db: AsyncSession = Depends(get_db),
-    ctx: dict = Depends(template_context),
-):
-    """تقرير الحضور اليومي."""
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    selected_date = date or today
-    
-    service = AttendanceService(db)
-    student_summary = await service.student_summary(user.school_id, selected_date)
-    teacher_summary = await service.absent_teachers(user.school_id, selected_date)
-    
-    return templates.TemplateResponse(
-        "attendance/reports/daily.html",
-        {
-            **ctx,
-            "title": "تقرير الحضور اليومي",
-            "date": selected_date,
-            "student_summary": student_summary or {"total": 0, "present": 0, "absent": 0},
-            "teacher_summary": teacher_summary,
-            "today": today,
-        },
-    )
-
-
-@attendance_router.get("/section/{section_id}")
-async def section_attendance_page(
-    request: Request,
-    section_id: str,
-    user: CurrentUser = Depends(require_any_permission("attendance.create")),
-    db: AsyncSession = Depends(get_db),
-    ctx: dict = Depends(template_context),
-):
-    """صفحة تسجيل حضور لمجموعة محددة."""
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    service = AttendanceService(db)
-    records = await service.section_attendance(section_id, today)
-    
-    return templates.TemplateResponse(
-        "attendance/section.html",
-        {
-            **ctx,
-            "title": "تسجيل الحضور",
-            "section_id": section_id,
-            "records": records,
-            "date": today,
-            "can": user.has_permission,
-        },
-    )
 
 
 # ------------------------------------------------------------------
