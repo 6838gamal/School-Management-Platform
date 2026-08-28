@@ -37,20 +37,9 @@ async def deputy_list(
         )
         deputy_role = deputy_role_result.scalars().first()
         
-        deputies = []
-        if deputy_role:
-            # جلب المستخدمين الذين لديهم دور deputy فقط
-            result = await db.execute(
-                select(User)
-                .join(UserRole, UserRole.user_id == User.id)
-                .where(UserRole.role_id == deputy_role.id)
-                .order_by(User.created_at.desc())
-            )
-            deputies = result.scalars().all()
-            logger.info(f"📊 Found {len(deputies)} deputies")
-        else:
-            logger.warning("⚠️ Deputy role not found in database!")
-            # إنشاء دور deputy إذا لم يكن موجوداً
+        # إذا لم يكن دور deputy موجوداً، قم بإنشائه
+        if not deputy_role:
+            logger.warning("⚠️ Deputy role not found, creating it...")
             deputy_role = Role(
                 id=str(uuid.uuid4()),
                 key="deputy",
@@ -61,6 +50,17 @@ async def deputy_list(
             await db.commit()
             await db.refresh(deputy_role)
             logger.info("✅ Deputy role created successfully")
+        
+        # جلب المستخدمين الذين لديهم دور deputy
+        result = await db.execute(
+            select(User)
+            .join(UserRole, UserRole.user_id == User.id)
+            .where(UserRole.role_id == deputy_role.id)
+            .order_by(User.created_at.desc())
+        )
+        deputies = result.scalars().all()
+        
+        logger.info(f"📊 Found {len(deputies)} deputies")
         
         # طباعة تفاصيل الوكلاء للتصحيح
         for deputy in deputies:
@@ -145,7 +145,7 @@ async def deputy_create(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """إنشاء وكيل جديد"""
+    """إنشاء وكيل جديد مع ربطه بدور deputy"""
     try:
         # التحقق من وجود المستخدم والصلاحية
         if not current_user:
@@ -162,6 +162,26 @@ async def deputy_create(
         logger.info(f"   - Email: {form_data.get('email')}")
         logger.info(f"   - Phone: {form_data.get('phone')}")
         
+        # التأكد من وجود دور deputy
+        deputy_role_result = await db.execute(
+            select(Role).where(Role.key == 'deputy')
+        )
+        deputy_role = deputy_role_result.scalars().first()
+        
+        if not deputy_role:
+            logger.warning("⚠️ Deputy role not found, creating it...")
+            deputy_role = Role(
+                id=str(uuid.uuid4()),
+                key="deputy",
+                name="وكيل",
+                name_en="Deputy Director"
+            )
+            db.add(deputy_role)
+            await db.commit()
+            await db.refresh(deputy_role)
+            logger.info("✅ Deputy role created successfully")
+        
+        # إنشاء المستخدم
         service = AuthService(db)
         
         user_data = RegisterUserRequest(
@@ -177,24 +197,37 @@ async def deputy_create(
         
         # التحقق من نجاح التسجيل
         if result and result.get("user"):
-            logger.info(f"✅ Deputy created successfully: {result['user'].email}")
+            new_user = result['user']
+            logger.info(f"✅ Deputy created successfully: {new_user.email}")
             
-            # التحقق من أن المستخدم لديه دور deputy
-            user_id = result['user'].id
-            role_check = await db.execute(
+            # التأكد من ربط المستخدم بدور deputy
+            user_role_result = await db.execute(
                 select(UserRole)
-                .join(Role, Role.id == UserRole.role_id)
-                .where(UserRole.user_id == user_id)
-                .where(Role.key == 'deputy')
+                .where(
+                    UserRole.user_id == new_user.id,
+                    UserRole.role_id == deputy_role.id
+                )
             )
-            user_role = role_check.scalars().first()
+            existing_role = user_role_result.scalars().first()
             
-            if user_role:
-                logger.info(f"✅ User {user_id} has deputy role")
+            if not existing_role:
+                # ربط المستخدم بدور deputy
+                user_role = UserRole(
+                    id=str(uuid.uuid4()),
+                    user_id=new_user.id,
+                    role_id=deputy_role.id
+                )
+                db.add(user_role)
+                await db.commit()
+                logger.info(f"✅ User {new_user.email} linked to deputy role")
             else:
-                logger.warning(f"⚠️ User {user_id} does NOT have deputy role!")
+                logger.info(f"✅ User {new_user.email} already has deputy role")
         else:
             logger.error(f"❌ Failed to create deputy: {result}")
+            return RedirectResponse(
+                url="/deputy/create?error=فشل إنشاء الوكيل",
+                status_code=303
+            )
         
         return RedirectResponse(
             url="/deputy/?success=true",
