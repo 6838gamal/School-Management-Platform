@@ -1,7 +1,13 @@
 """Attendance, grades, schedules, homework, activities, behavior, notifications, reports web routes."""
-from fastapi import APIRouter, Depends, Request
+from datetime import datetime, timezone
+from typing import Optional
+import json
+
+from fastapi import APIRouter, Depends, Request, Form, Query, HTTPException
+from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
+from starlette import status
 
 from app.core.database import get_db
 from app.core.dependencies import CurrentUser, require_any_permission, template_context
@@ -13,6 +19,13 @@ from app.services.homework_service import HomeworkService
 from app.services.notification_service import NotificationService
 from app.services.report_service import ReportService
 from app.services.schedule_service import ScheduleService
+from app.services.section_service import SectionService
+from app.services.student_service import StudentService
+from app.schemas.attendance import (
+    StudentAttendanceBatch,
+    StudentAttendanceCreate,
+    TeacherAttendanceCreate,
+)
 
 templates = Jinja2Templates(directory="app/templates")
 
@@ -30,13 +43,288 @@ async def attendance_page(
     db: AsyncSession = Depends(get_db),
     ctx: dict = Depends(template_context),
 ):
-    from datetime import datetime, timezone
+    """الصفحة الرئيسية للحضور."""
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     service = AttendanceService(db)
-    summary = await service.student_summary(user.school_id, datetime.now(timezone.utc).strftime("%Y-%m-%d"))
-    absent = await service.absent_teachers(user.school_id, datetime.now(timezone.utc).strftime("%Y-%m-%d"))
+    summary = await service.student_summary(user.school_id, today)
+    absent = await service.absent_teachers(user.school_id, today)
+    
+    # Get sections for filter
+    section_service = SectionService(db)
+    sections = await section_service.get_all(user.school_id)
+    
     return templates.TemplateResponse(
         "attendance/index.html",
-        {**ctx, "title": "الحضور", "summary": summary, "absent_teachers": absent},
+        {
+            **ctx,
+            "title": "الحضور",
+            "summary": summary or {"total": 0, "present": 0, "absent": 0},
+            "absent_teachers": absent,
+            "sections": sections,
+            "selected_date": today,
+            "today": today,
+        },
+    )
+
+
+@attendance_router.get("/students")
+async def student_attendance_list(
+    request: Request,
+    date: Optional[str] = Query(None, description="التاريخ (YYYY-MM-DD)"),
+    section_id: Optional[str] = Query(None, description="معرف المجموعة"),
+    user: CurrentUser = Depends(require_any_permission("attendance.view")),
+    db: AsyncSession = Depends(get_db),
+    ctx: dict = Depends(template_context),
+):
+    """عرض قائمة حضور الطلاب."""
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    selected_date = date or today
+    
+    service = AttendanceService(db)
+    summary = await service.student_summary(user.school_id, selected_date)
+    
+    records = []
+    if section_id:
+        records = await service.section_attendance(section_id, selected_date)
+    
+    section_service = SectionService(db)
+    sections = await section_service.get_all(user.school_id)
+    
+    return templates.TemplateResponse(
+        "attendance/students/list.html",
+        {
+            **ctx,
+            "title": "حضور الطلاب",
+            "records": records,
+            "summary": summary or {"total": 0, "present": 0, "absent": 0},
+            "total": summary.get("total", 0) if summary else 0,
+            "sections": sections,
+            "selected_date": selected_date,
+            "selected_section": section_id,
+            "today": today,
+        },
+    )
+
+
+@attendance_router.get("/students/new")
+async def student_attendance_create_form(
+    request: Request,
+    section_id: Optional[str] = Query(None),
+    date: Optional[str] = Query(None),
+    user: CurrentUser = Depends(require_any_permission("attendance.create")),
+    db: AsyncSession = Depends(get_db),
+    ctx: dict = Depends(template_context),
+):
+    """عرض نموذج إضافة حضور طلاب."""
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    selected_date = date or today
+    
+    section_service = SectionService(db)
+    sections = await section_service.get_all(user.school_id)
+    
+    students = []
+    if section_id:
+        student_service = StudentService(db)
+        students = await student_service.get_by_section(user.school_id, section_id, is_active=True)
+    
+    return templates.TemplateResponse(
+        "attendance/students/form.html",
+        {
+            **ctx,
+            "title": "تسجيل حضور",
+            "sections": sections,
+            "students": students,
+            "selected_section": section_id,
+            "selected_date": selected_date,
+            "today": today,
+        },
+    )
+
+
+@attendance_router.post("/students")
+async def student_attendance_create(
+    request: Request,
+    date: str = Form(...),
+    section_id: str = Form(...),
+    records: str = Form(...),  # JSON string
+    user: CurrentUser = Depends(require_any_permission("attendance.create")),
+    db: AsyncSession = Depends(get_db),
+):
+    """إنشاء حضور طلاب (دفعة واحدة)."""
+    try:
+        records_data = json.loads(records)
+        
+        batch_data = StudentAttendanceBatch(
+            date=date,
+            section_id=section_id,
+            records=records_data,
+        )
+        
+        service = AttendanceService(db)
+        result = await service.batch_record(
+            school_id=user.school_id,
+            user_id=user.id,
+            req=batch_data,
+        )
+        
+        return RedirectResponse(
+            f"/attendance/students?date={date}&section_id={section_id}",
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
+        
+    except Exception as e:
+        section_service = SectionService(db)
+        sections = await section_service.get_all(user.school_id)
+        
+        return templates.TemplateResponse(
+            "attendance/students/form.html",
+            {
+                "request": request,
+                "title": "تسجيل حضور",
+                "error": str(e),
+                "sections": sections,
+                "selected_date": date,
+                "selected_section": section_id,
+                "today": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+            },
+            status_code=400,
+        )
+
+
+@attendance_router.get("/teachers")
+async def teacher_attendance_list(
+    request: Request,
+    date: Optional[str] = Query(None),
+    user: CurrentUser = Depends(require_any_permission("attendance.view")),
+    db: AsyncSession = Depends(get_db),
+    ctx: dict = Depends(template_context),
+):
+    """عرض قائمة حضور المعلمين."""
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    selected_date = date or today
+    
+    service = AttendanceService(db)
+    absent_teachers = await service.absent_teachers(user.school_id, selected_date)
+    
+    return templates.TemplateResponse(
+        "attendance/teachers/list.html",
+        {
+            **ctx,
+            "title": "حضور المعلمين",
+            "absent_teachers": absent_teachers,
+            "selected_date": selected_date,
+            "today": today,
+        },
+    )
+
+
+@attendance_router.get("/teachers/new")
+async def teacher_attendance_create_form(
+    request: Request,
+    date: Optional[str] = Query(None),
+    user: CurrentUser = Depends(require_any_permission("attendance.create")),
+    db: AsyncSession = Depends(get_db),
+    ctx: dict = Depends(template_context),
+):
+    """عرض نموذج إضافة حضور معلمين."""
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    selected_date = date or today
+    
+    teacher_service = TeacherService(db)
+    teachers = await teacher_service.get_all(user.school_id, is_active=True)
+    
+    return templates.TemplateResponse(
+        "attendance/teachers/form.html",
+        {
+            **ctx,
+            "title": "تسجيل حضور معلم",
+            "teachers": teachers,
+            "selected_date": selected_date,
+            "statuses": ["present", "absent", "late", "leave"],
+            "today": today,
+        },
+    )
+
+
+@attendance_router.post("/teachers")
+async def teacher_attendance_create(
+    request: Request,
+    teacher_id: str = Form(...),
+    date: str = Form(...),
+    status: str = Form(...),
+    note: Optional[str] = Form(None),
+    user: CurrentUser = Depends(require_any_permission("attendance.create")),
+    db: AsyncSession = Depends(get_db),
+):
+    """إنشاء حضور معلم."""
+    try:
+        attendance_data = TeacherAttendanceCreate(
+            teacher_id=teacher_id,
+            date=date,
+            status=status,
+            note=note,
+        )
+        
+        service = AttendanceService(db)
+        result = await service.record_teacher(
+            school_id=user.school_id,
+            user_id=user.id,
+            req=attendance_data,
+        )
+        
+        return RedirectResponse(
+            f"/attendance/teachers?date={date}",
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
+        
+    except Exception as e:
+        teacher_service = TeacherService(db)
+        teachers = await teacher_service.get_all(user.school_id, is_active=True)
+        
+        return templates.TemplateResponse(
+            "attendance/teachers/form.html",
+            {
+                "request": request,
+                "title": "تسجيل حضور معلم",
+                "error": str(e),
+                "teachers": teachers,
+                "teacher_id": teacher_id,
+                "selected_date": date,
+                "status": status,
+                "note": note,
+                "statuses": ["present", "absent", "late", "leave"],
+                "today": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+            },
+            status_code=400,
+        )
+
+
+@attendance_router.get("/reports/daily")
+async def attendance_daily_report(
+    request: Request,
+    date: Optional[str] = Query(None),
+    user: CurrentUser = Depends(require_any_permission("attendance.view_reports")),
+    db: AsyncSession = Depends(get_db),
+    ctx: dict = Depends(template_context),
+):
+    """تقرير الحضور اليومي."""
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    selected_date = date or today
+    
+    service = AttendanceService(db)
+    student_summary = await service.student_summary(user.school_id, selected_date)
+    teacher_summary = await service.absent_teachers(user.school_id, selected_date)
+    
+    return templates.TemplateResponse(
+        "attendance/reports/daily.html",
+        {
+            **ctx,
+            "title": "تقرير الحضور اليومي",
+            "date": selected_date,
+            "student_summary": student_summary or {"total": 0, "present": 0, "absent": 0},
+            "teacher_summary": teacher_summary,
+            "today": today,
+        },
     )
 
 
@@ -48,13 +336,20 @@ async def section_attendance_page(
     db: AsyncSession = Depends(get_db),
     ctx: dict = Depends(template_context),
 ):
-    from datetime import datetime, timezone
-    service = AttendanceService(db)
+    """صفحة تسجيل حضور لمجموعة محددة."""
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    service = AttendanceService(db)
     records = await service.section_attendance(section_id, today)
+    
     return templates.TemplateResponse(
         "attendance/section.html",
-        {**ctx, "title": "تسجيل الحضور", "section_id": section_id, "records": records, "date": today},
+        {
+            **ctx,
+            "title": "تسجيل الحضور",
+            "section_id": section_id,
+            "records": records,
+            "date": today,
+        },
     )
 
 
