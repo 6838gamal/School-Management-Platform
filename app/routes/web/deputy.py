@@ -16,45 +16,32 @@ router = APIRouter(prefix="/deputy", tags=["Deputy"])
 logger = logging.getLogger(__name__)
 
 
-def check_permission(user, permission: str) -> bool:
-    """التحقق من صلاحية المستخدم"""
+def is_director(user) -> bool:
+    """التحقق من أن المستخدم مدير"""
     if not user:
         return False
     
-    # محاولة 1: استخدام دالة can إذا كانت موجودة
-    if hasattr(user, 'can') and callable(user.can):
-        try:
-            return user.can(permission)
-        except:
-            pass
-    
-    # محاولة 2: التحقق من قائمة الصلاحيات مباشرة
-    if hasattr(user, 'permissions'):
-        if isinstance(user.permissions, list):
-            return permission in user.permissions
-        elif hasattr(user.permissions, '__contains__'):
-            return permission in user.permissions
-    
-    # محاولة 3: التحقق من صلاحيات المستخدم من خلال قاعدة البيانات
-    if hasattr(user, 'get_permissions') and callable(user.get_permissions):
-        try:
-            perms = user.get_permissions()
-            return permission in perms
-        except:
-            pass
-    
-    # محاولة 4: إذا كان المستخدم مديراً، أعطه كل الصلاحيات
-    if hasattr(user, 'role') and user.role == 'director':
-        return True
-    
-    # محاولة 5: إذا كان المستخدم لديه دور مدير
+    # التحقق من خاصية roles
     if hasattr(user, 'roles'):
         roles = user.roles if isinstance(user.roles, list) else [user.roles]
         if 'director' in roles:
             return True
     
-    logger.warning(f"⚠️ Permission check failed for {permission} on user {getattr(user, 'email', 'unknown')}")
+    # التحقق من خاصية role (إذا كانت موجودة)
+    if hasattr(user, 'role') and user.role == 'director':
+        return True
+    
     return False
+
+
+def check_director_access(user):
+    """التحقق من صلاحية المدير والوصول"""
+    if not user:
+        raise HTTPException(status_code=401, detail="يجب تسجيل الدخول")
+    
+    if not is_director(user):
+        logger.warning(f"⚠️ User {user.email} attempted to access admin page without director role")
+        raise HTTPException(status_code=403, detail="هذه الصفحة مخصصة للمدراء فقط")
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -63,12 +50,10 @@ async def deputy_list(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """صفحة قائمة وكلاء المدرسة"""
+    """صفحة قائمة وكلاء المدرسة - للمدراء فقط"""
     try:
-        # التحقق من وجود المستخدم
-        if not current_user:
-            logger.warning("⚠️ No authenticated user, redirecting to login")
-            return RedirectResponse(url="/login", status_code=302)
+        # التحقق من صلاحية المدير
+        check_director_access(current_user)
         
         logger.info(f"📄 Deputy list page requested by user: {current_user.email}")
         
@@ -114,11 +99,6 @@ async def deputy_list(
         
         logger.info(f"✅ Templates is set successfully")
         
-        # تعريف دالة can للقالب
-        def can(permission: str) -> bool:
-            """التحقق من صلاحية المستخدم"""
-            return check_permission(current_user, permission)
-        
         return templates.TemplateResponse(
             "deputy/list.html",
             {
@@ -126,10 +106,12 @@ async def deputy_list(
                 "user": current_user,
                 "deputies": deputies,
                 "page_title": "وكلاء المدرسة",
-                "can": can,
+                "is_director": True,  # ✅ تمرير للمدير
             }
         )
         
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"❌ Error in deputy_list: {str(e)}", exc_info=True)
         raise
@@ -141,18 +123,12 @@ async def deputy_create_form(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """صفحة إنشاء وكيل جديد"""
+    """صفحة إنشاء وكيل جديد - للمدراء فقط"""
     try:
-        # التحقق من وجود المستخدم
-        if not current_user:
-            return RedirectResponse(url="/login", status_code=302)
+        # التحقق من صلاحية المدير
+        check_director_access(current_user)
         
-        # ✅ التحقق المباشر - إذا كان المستخدم مديراً، أعطه صلاحية
-        if current_user.role == 'director' or check_permission(current_user, 'deputy.create'):
-            logger.info(f"✅ User {current_user.email} has permission to create deputy")
-        else:
-            logger.warning(f"⚠️ User {current_user.email} does NOT have permission to create deputy")
-            raise HTTPException(status_code=403, detail="ليس لديك صلاحية لإنشاء وكيل")
+        logger.info(f"📝 Deputy create form requested by user: {current_user.email}")
         
         from app.models.schools import School
         result = await db.execute(select(School))
@@ -162,9 +138,6 @@ async def deputy_create_form(
         if templates is None:
             raise HTTPException(status_code=500, detail="Templates not initialized")
         
-        def can(permission: str) -> bool:
-            return check_permission(current_user, permission)
-        
         return templates.TemplateResponse(
             "deputy/create.html",
             {
@@ -172,10 +145,11 @@ async def deputy_create_form(
                 "user": current_user,
                 "schools": schools,
                 "page_title": "إضافة وكيل جديد",
-                "can": can,
             }
         )
         
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"❌ Error in deputy_create_form: {str(e)}", exc_info=True)
         raise
@@ -187,14 +161,10 @@ async def deputy_create(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """إنشاء وكيل جديد مع ربطه بدور deputy"""
+    """إنشاء وكيل جديد - للمدراء فقط"""
     try:
-        # التحقق من وجود المستخدم والصلاحية
-        if not current_user:
-            return RedirectResponse(url="/login", status_code=302)
-        
-        if current_user.role != 'director' and not check_permission(current_user, 'deputy.create'):
-            raise HTTPException(status_code=403, detail="ليس لديك صلاحية لإنشاء وكيل")
+        # التحقق من صلاحية المدير
+        check_director_access(current_user)
         
         form_data = await request.form()
         
@@ -276,6 +246,8 @@ async def deputy_create(
             status_code=303
         )
         
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"❌ Error creating deputy: {str(e)}", exc_info=True)
         return RedirectResponse(
@@ -291,15 +263,10 @@ async def deputy_update_form(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """صفحة تعديل وكيل"""
+    """صفحة تعديل وكيل - للمدراء فقط"""
     try:
-        # التحقق من وجود المستخدم
-        if not current_user:
-            return RedirectResponse(url="/login", status_code=302)
-        
-        # التحقق من الصلاحية
-        if current_user.role != 'director' and not check_permission(current_user, 'deputy.update'):
-            raise HTTPException(status_code=403, detail="ليس لديك صلاحية لتعديل وكيل")
+        # التحقق من صلاحية المدير
+        check_director_access(current_user)
         
         result = await db.execute(
             select(User).where(User.id == deputy_id)
@@ -317,9 +284,6 @@ async def deputy_update_form(
         if templates is None:
             raise HTTPException(status_code=500, detail="Templates not initialized")
         
-        def can(permission: str) -> bool:
-            return check_permission(current_user, permission)
-        
         return templates.TemplateResponse(
             "deputy/update.html",
             {
@@ -328,10 +292,11 @@ async def deputy_update_form(
                 "deputy": deputy,
                 "schools": schools,
                 "page_title": "تعديل وكيل",
-                "can": can,
             }
         )
         
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"❌ Error in deputy_update_form: {str(e)}", exc_info=True)
         raise
@@ -344,14 +309,10 @@ async def deputy_update(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """تحديث بيانات وكيل"""
+    """تحديث بيانات وكيل - للمدراء فقط"""
     try:
-        # التحقق من وجود المستخدم والصلاحية
-        if not current_user:
-            return RedirectResponse(url="/login", status_code=302)
-        
-        if current_user.role != 'director' and not check_permission(current_user, 'deputy.update'):
-            raise HTTPException(status_code=403, detail="ليس لديك صلاحية لتعديل وكيل")
+        # التحقق من صلاحية المدير
+        check_director_access(current_user)
         
         form_data = await request.form()
         
@@ -381,6 +342,8 @@ async def deputy_update(
             status_code=303
         )
         
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"❌ Error updating deputy: {str(e)}", exc_info=True)
         return RedirectResponse(
@@ -396,14 +359,10 @@ async def deputy_delete(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """حذف وكيل"""
+    """حذف وكيل - للمدراء فقط"""
     try:
-        # التحقق من وجود المستخدم والصلاحية
-        if not current_user:
-            return RedirectResponse(url="/login", status_code=302)
-        
-        if current_user.role != 'director' and not check_permission(current_user, 'deputy.delete'):
-            raise HTTPException(status_code=403, detail="ليس لديك صلاحية لحذف وكيل")
+        # التحقق من صلاحية المدير
+        check_director_access(current_user)
         
         result = await db.execute(
             select(User).where(User.id == deputy_id)
@@ -430,6 +389,8 @@ async def deputy_delete(
             status_code=303
         )
         
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"❌ Error deleting deputy: {str(e)}", exc_info=True)
         return RedirectResponse(
