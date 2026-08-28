@@ -61,3 +61,21 @@ class EnrollmentRepository(BaseRepository[StudentEnrollment]):
             select(StudentEnrollment).where(StudentEnrollment.student_id == student_id).order_by(StudentEnrollment.enrolled_at.desc())
         )
         return list(result.scalars().all())
+
+    async def get_by_section(
+    self, 
+    school_id: str, 
+    section_id: str, 
+    is_active: bool = True
+) -> List[Student]:
+    """جلب الطلاب حسب الشعبة."""
+    result = await self.db.execute(
+        select(Student)
+        .where(
+            Student.school_id == school_id,
+            Student.section_id == section_id,
+            Student.is_active == is_active
+        )
+        .order_by(Student.first_name, Student.last_name)
+    )
+    return list(result.scalars().all())
