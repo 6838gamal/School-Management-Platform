@@ -16,6 +16,19 @@ router = APIRouter(prefix="/deputy", tags=["Deputy"])
 logger = logging.getLogger(__name__)
 
 
+def check_permission(user, permission: str) -> bool:
+    """التحقق من صلاحية المستخدم"""
+    if not user:
+        return False
+    # التحقق من وجود دالة can
+    if hasattr(user, 'can'):
+        return user.can(permission)
+    # التحقق من وجود قائمة صلاحيات
+    if hasattr(user, 'permissions') and isinstance(user.permissions, list):
+        return permission in user.permissions
+    return False
+
+
 @router.get("/", response_class=HTMLResponse)
 async def deputy_list(
     request: Request,
@@ -76,9 +89,7 @@ async def deputy_list(
         # تعريف دالة can للقالب
         def can(permission: str) -> bool:
             """التحقق من صلاحية المستخدم"""
-            if not current_user:
-                return False
-            return current_user.can(permission) if hasattr(current_user, 'can') else False
+            return check_permission(current_user, permission)
         
         return templates.TemplateResponse(
             "deputy/list.html",
@@ -108,8 +119,8 @@ async def deputy_create_form(
         if not current_user:
             return RedirectResponse(url="/login", status_code=302)
         
-        # التحقق من الصلاحية
-        if not current_user.can('deputy.create'):
+        # التحقق من الصلاحية باستخدام الدالة المساعدة
+        if not check_permission(current_user, 'deputy.create'):
             raise HTTPException(status_code=403, detail="ليس لديك صلاحية لإنشاء وكيل")
         
         from app.models.schools import School
@@ -121,7 +132,7 @@ async def deputy_create_form(
             raise HTTPException(status_code=500, detail="Templates not initialized")
         
         def can(permission: str) -> bool:
-            return current_user.can(permission) if hasattr(current_user, 'can') else False
+            return check_permission(current_user, permission)
         
         return templates.TemplateResponse(
             "deputy/create.html",
@@ -151,7 +162,7 @@ async def deputy_create(
         if not current_user:
             return RedirectResponse(url="/login", status_code=302)
         
-        if not current_user.can('deputy.create'):
+        if not check_permission(current_user, 'deputy.create'):
             raise HTTPException(status_code=403, detail="ليس لديك صلاحية لإنشاء وكيل")
         
         form_data = await request.form()
@@ -256,7 +267,7 @@ async def deputy_update_form(
             return RedirectResponse(url="/login", status_code=302)
         
         # التحقق من الصلاحية
-        if not current_user.can('deputy.update'):
+        if not check_permission(current_user, 'deputy.update'):
             raise HTTPException(status_code=403, detail="ليس لديك صلاحية لتعديل وكيل")
         
         result = await db.execute(
@@ -276,7 +287,7 @@ async def deputy_update_form(
             raise HTTPException(status_code=500, detail="Templates not initialized")
         
         def can(permission: str) -> bool:
-            return current_user.can(permission) if hasattr(current_user, 'can') else False
+            return check_permission(current_user, permission)
         
         return templates.TemplateResponse(
             "deputy/update.html",
@@ -308,7 +319,7 @@ async def deputy_update(
         if not current_user:
             return RedirectResponse(url="/login", status_code=302)
         
-        if not current_user.can('deputy.update'):
+        if not check_permission(current_user, 'deputy.update'):
             raise HTTPException(status_code=403, detail="ليس لديك صلاحية لتعديل وكيل")
         
         form_data = await request.form()
@@ -360,7 +371,7 @@ async def deputy_delete(
         if not current_user:
             return RedirectResponse(url="/login", status_code=302)
         
-        if not current_user.can('deputy.delete'):
+        if not check_permission(current_user, 'deputy.delete'):
             raise HTTPException(status_code=403, detail="ليس لديك صلاحية لحذف وكيل")
         
         result = await db.execute(
