@@ -1,0 +1,194 @@
+{% extends "layouts/director.html" %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-bold text-slate-800 dark:text-white">حضور الطلاب</h1>
+            <p class="text-slate-400 text-sm mt-1">
+                {% if summary %}
+                    {{ summary.total|default(0) }} طالب في تاريخ {{ selected_date }}
+                {% else %}
+                    لا توجد بيانات في تاريخ {{ selected_date }}
+                {% endif %}
+            </p>
+        </div>
+        <div class="flex gap-2">
+            <a href="/attendance/students/new?date={{ selected_date }}" 
+               class="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg text-sm font-semibold">
+                + تسجيل حضور
+            </a>
+            <a href="/attendance" 
+               class="bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+                ← العودة
+            </a>
+        </div>
+    </div>
+
+    <!-- بطاقات الإحصائيات -->
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-4">
+            <p class="text-sm text-slate-500 dark:text-slate-400">إجمالي الطلاب</p>
+            <p class="text-2xl font-bold text-slate-800 dark:text-white">{{ summary.total|default(0) }}</p>
+        </div>
+        <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-4">
+            <p class="text-sm text-slate-500 dark:text-slate-400">✅ حاضر</p>
+            <p class="text-2xl font-bold text-green-600">{{ summary.present|default(0) }}</p>
+        </div>
+        <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-4">
+            <p class="text-sm text-slate-500 dark:text-slate-400">❌ غائب</p>
+            <p class="text-2xl font-bold text-red-600">{{ summary.absent|default(0) }}</p>
+        </div>
+        <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-4">
+            <p class="text-sm text-slate-500 dark:text-slate-400">نسبة الحضور</p>
+            <p class="text-2xl font-bold text-primary-600">
+                {% if summary.total and summary.total > 0 %}
+                    {{ ((summary.present|default(0) / summary.total) * 100)|round(1) }}%
+                {% else %}
+                    0%
+                {% endif %}
+            </p>
+        </div>
+    </div>
+
+    <!-- نموذج الفلتر -->
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 overflow-hidden">
+        <div class="p-4">
+            <form method="GET" class="flex flex-col sm:flex-row gap-3">
+                <input type="date" 
+                       name="date" 
+                       value="{{ selected_date or today }}" 
+                       class="flex-1 px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
+                
+                <select name="section_id" 
+                        class="px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
+                    <option value="">جميع المجموعات</option>
+                    {% for section in sections %}
+                    <option value="{{ section.id }}" {% if section.id == selected_section %}selected{% endif %}>
+                        {{ section.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+                
+                <button type="submit" 
+                        class="bg-primary-600 hover:bg-primary-700 text-white px-6 py-2 rounded-lg text-sm font-medium transition-colors">
+                    عرض
+                </button>
+                
+                {% if selected_date or selected_section %}
+                <a href="/attendance/students" 
+                   class="bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+                    مسح
+                </a>
+                {% endif %}
+            </form>
+        </div>
+    </div>
+
+    <!-- قائمة الحضور -->
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 overflow-hidden">
+        <div class="p-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center">
+            <h3 class="font-semibold text-slate-800 dark:text-white">سجلات الحضور</h3>
+            <span class="text-sm text-slate-500 dark:text-slate-400">{{ records|length if records else 0 }} سجل</span>
+        </div>
+        
+        {% if records %}
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead class="bg-slate-50 dark:bg-slate-700/50 text-slate-500 dark:text-slate-300">
+                    <tr>
+                        <th class="text-right p-3 font-medium">#</th>
+                        <th class="text-right p-3 font-medium">اسم الطالب</th>
+                        <th class="text-right p-3 font-medium">الحالة</th>
+                        <th class="text-right p-3 font-medium">الملاحظات</th>
+                        <th class="text-right p-3 font-medium">الإجراءات</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
+                    {% for record in records %}
+                    <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">
+                        <td class="p-3 text-slate-400 text-xs">{{ loop.index }}</td>
+                        <td class="p-3 font-medium text-slate-800 dark:text-white">
+                            {{ record.student_name or record.student_id or 'غير معروف' }}
+                        </td>
+                        <td class="p-3">
+                            {% if record.status == 'present' %}
+                            <span class="px-2 py-1 text-xs rounded-full bg-green-100 text-green-700">✅ حاضر</span>
+                            {% elif record.status == 'absent' %}
+                            <span class="px-2 py-1 text-xs rounded-full bg-red-100 text-red-700">❌ غائب</span>
+                            {% elif record.status == 'late' %}
+                            <span class="px-2 py-1 text-xs rounded-full bg-yellow-100 text-yellow-700">⏰ متأخر</span>
+                            {% elif record.status == 'excused' %}
+                            <span class="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-700">📝 معذور</span>
+                            {% else %}
+                            <span class="px-2 py-1 text-xs rounded-full bg-slate-100 text-slate-700">{{ record.status or '—' }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="p-3 text-slate-600 dark:text-slate-300">{{ record.note or '—' }}</td>
+                        <td class="p-3">
+                            <div class="flex items-center gap-2">
+                                <a href="/attendance/students/{{ record.id }}" 
+                                   class="text-primary-600 hover:text-primary-700 text-sm hover:underline">
+                                    عرض
+                                </a>
+                                {% if can('attendance.update') %}
+                                <a href="/attendance/students/{{ record.id }}/edit" 
+                                   class="text-amber-600 hover:text-amber-700 text-sm hover:underline">
+                                    تعديل
+                                </a>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="p-12 text-center">
+            <div class="flex flex-col items-center gap-3">
+                <svg class="w-12 h-12 text-slate-300 dark:text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                </svg>
+                <p class="text-slate-600 dark:text-slate-300 font-medium">لا توجد سجلات حضور</p>
+                <p class="text-slate-400 text-sm">
+                    {% if selected_section %}
+                    لا توجد سجلات للمجموعة المحددة في تاريخ {{ selected_date }}
+                    {% else %}
+                    قم بتسجيل حضور الطلاب
+                    {% endif %}
+                </p>
+                <a href="/attendance/students/new?date={{ selected_date }}" 
+                   class="text-primary-600 hover:text-primary-700 text-sm font-medium">
+                    تسجيل حضور جديد →
+                </a>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- روابط سريعة -->
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <a href="/attendance/students/new?date={{ selected_date }}" 
+           class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-4 hover:shadow-md transition-shadow text-center">
+            <div class="text-2xl mb-1">📝</div>
+            <p class="font-medium text-slate-800 dark:text-white">تسجيل حضور</p>
+            <p class="text-sm text-slate-400">إضافة سجل حضور جديد</p>
+        </a>
+        
+        <a href="/attendance/reports/daily?date={{ selected_date }}" 
+           class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-4 hover:shadow-md transition-shadow text-center">
+            <div class="text-2xl mb-1">📊</div>
+            <p class="font-medium text-slate-800 dark:text-white">تقرير يومي</p>
+            <p class="text-sm text-slate-400">عرض تقرير الحضور</p>
+        </a>
+        
+        <a href="/attendance/teachers" 
+           class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-4 hover:shadow-md transition-shadow text-center">
+            <div class="text-2xl mb-1">👨‍🏫</div>
+            <p class="font-medium text-slate-800 dark:text-white">حضور المعلمين</p>
+            <p class="text-sm text-slate-400">إدارة حضور المعلمين</p>
+        </a>
+    </div>
+</div>
+{% endblock %}
