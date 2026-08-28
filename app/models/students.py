@@ -5,13 +5,9 @@ Student is the person record. StudentEnrollment tracks the history of
 which section/grade a student belongs to over time, enabling transfers
 without losing history.
 """
-
-from sqlalchemy import func
-from sqlalchemy.orm import hybrid_property
-
-
 from sqlalchemy import Boolean, Date, ForeignKey, Integer, String, UniqueConstraint, func
-from sqlalchemy.orm import Mapped, mapped_column, relationship, hybrid_property
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.ext.hybrid import hybrid_property  # ✅ استيراد من هنا
 
 from app.core.database import Base
 from app.models._mixins import TimestampMixin, UUIDPkMixin
