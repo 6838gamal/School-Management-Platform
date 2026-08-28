@@ -1,0 +1,105 @@
+{% extends "layouts/director.html" %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-bold text-slate-800 dark:text-white">تسجيل حضور معلم</h1>
+            <p class="text-slate-400 text-sm mt-1">تسجيل حضور معلم ليوم {{ selected_date }}</p>
+        </div>
+        <a href="/attendance/teachers?date={{ selected_date }}" 
+           class="bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+            ← العودة
+        </a>
+    </div>
+
+    {% if error %}
+    <div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 px-4 py-3 rounded-lg">
+        {{ error }}
+    </div>
+    {% endif %}
+
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-6">
+        <form method="POST" action="/attendance/teachers">
+            <div class="space-y-4">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                            التاريخ <span class="text-red-500">*</span>
+                        </label>
+                        <input type="date" 
+                               name="date" 
+                               value="{{ selected_date }}" 
+                               required
+                               class="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                            المعلم <span class="text-red-500">*</span>
+                        </label>
+                        <select name="teacher_id" 
+                                required
+                                class="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
+                            <option value="">اختر المعلم</option>
+                            {% for teacher in teachers %}
+                            <option value="{{ teacher.id }}" {% if teacher.id == teacher_id %}selected{% endif %}>
+                                {{ teacher.full_name or teacher.name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                            الحالة <span class="text-red-500">*</span>
+                        </label>
+                        <select name="status" 
+                                required
+                                class="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
+                            <option value="">اختر الحالة</option>
+                            <option value="present" {% if status == 'present' %}selected{% endif %}>✅ حاضر</option>
+                            <option value="absent" {% if status == 'absent' %}selected{% endif %}>❌ غائب</option>
+                            <option value="late" {% if status == 'late' %}selected{% endif %}>⏰ متأخر</option>
+                            <option value="leave" {% if status == 'leave' %}selected{% endif %}>📋 إجازة</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                            ملاحظات
+                        </label>
+                        <input type="text" 
+                               name="note" 
+                               value="{{ note or '' }}" 
+                               placeholder="أضف ملاحظة (اختياري)"
+                               class="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
+                    </div>
+                </div>
+
+                <div class="flex gap-3 pt-4">
+                    <button type="submit" 
+                            class="bg-primary-600 hover:bg-primary-700 text-white px-6 py-2.5 rounded-lg text-sm font-semibold transition-colors">
+                        حفظ
+                    </button>
+                    <a href="/attendance/teachers?date={{ selected_date }}" 
+                       class="bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 px-6 py-2.5 rounded-lg text-sm font-medium transition-colors">
+                        إلغاء
+                    </a>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- تعليمات سريعة -->
+    <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
+        <h4 class="font-semibold text-blue-800 dark:text-blue-300 mb-2">💡 تعليمات</h4>
+        <ul class="text-sm text-blue-700 dark:text-blue-400 space-y-1">
+            <li>• اختر المعلم من القائمة المنسدلة</li>
+            <li>• حدد حالة الحضور المناسبة</li>
+            <li>• يمكنك إضافة ملاحظة توضيحية (اختياري)</li>
+            <li>• بعد الحفظ، سيتم توجيهك إلى قائمة الحضور</li>
+        </ul>
+    </div>
+</div>
+{% endblock %}
