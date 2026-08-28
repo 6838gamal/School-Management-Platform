@@ -1,129 +1,103 @@
 {% extends "layouts/director.html" %}
 
-
 {% block content %}
 <div class="space-y-6">
     <!-- Header -->
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-            <h1 class="text-2xl font-bold text-slate-800 dark:text-white">الطلاب</h1>
+            <h1 class="text-2xl font-bold text-slate-800 dark:text-white">حضور الطلاب</h1>
             <p class="text-slate-400 text-sm mt-1">
-                {{ total|default:0 }} طالب 
-                {% if search %} - نتائج البحث عن "{{ search }}"{% endif %}
+                {{ total|default(0)|number_format }} سجل حضور
+                {% if selected_date %} - {{ selected_date }}{% endif %}
             </p>
         </div>
-        {% if can('students.create') %}
-        <a href="/students/new" 
+        {% if can('attendance.create') %}
+        <a href="/attendance/students/new?date={{ selected_date|default(now().strftime('%Y-%m-%d')) }}" 
            class="bg-primary-600 hover:bg-primary-700 text-white px-6 py-2.5 rounded-lg text-sm font-semibold inline-flex items-center gap-2 transition-colors">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
             </svg>
-            إضافة طالب
+            تسجيل حضور
         </a>
         {% endif %}
     </div>
 
-    <!-- Filters & Search -->
+    <!-- Filters -->
     <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 overflow-hidden">
         <div class="p-4">
             <form method="GET" class="flex flex-col sm:flex-row gap-3">
-                <div class="flex-1 relative">
-                    <input type="text" 
-                           name="search" 
-                           value="{{ search }}" 
-                           placeholder="ابحث بالاسم أو الرقم الدراسي..." 
-                           class="w-full px-4 py-2.5 pr-10 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500 transition-shadow">
-                    <svg class="absolute left-3 top-3 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-                    </svg>
-                </div>
+                <input type="date" 
+                       name="date" 
+                       value="{{ selected_date|default(now().strftime('%Y-%m-%d')) }}" 
+                       class="px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
                 
-                <div class="flex gap-2">
-                    <select name="status" class="px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
-                        <option value="">جميع الحالات</option>
-                        <option value="active" {% if status == 'active' %}selected{% endif %}>نشط</option>
-                        <option value="inactive" {% if status == 'inactive' %}selected{% endif %}>معطل</option>
-                    </select>
-                    
-                    <button type="submit" 
-                            class="bg-primary-600 hover:bg-primary-700 text-white px-6 py-2.5 rounded-lg text-sm font-medium transition-colors">
-                        بحث
-                    </button>
-                    
-                    {% if search or status %}
-                    <a href="?" 
-                       class="bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors">
-                        مسح
-                    </a>
-                    {% endif %}
-                </div>
+                <select name="section_id" class="px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
+                    <option value="">جميع المجموعات</option>
+                    {% for section in sections %}
+                    <option value="{{ section.id }}" {% if section.id == selected_section %}selected{% endif %}>
+                        {{ section.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+                
+                <select name="status" class="px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
+                    <option value="">جميع الحالات</option>
+                    <option value="present" {% if selected_status == 'present' %}selected{% endif %}>حاضر</option>
+                    <option value="absent" {% if selected_status == 'absent' %}selected{% endif %}>غائب</option>
+                    <option value="late" {% if selected_status == 'late' %}selected{% endif %}>متأخر</option>
+                    <option value="excused" {% if selected_status == 'excused' %}selected{% endif %}>معذور</option>
+                </select>
+                
+                <button type="submit" 
+                        class="bg-primary-600 hover:bg-primary-700 text-white px-6 py-2.5 rounded-lg text-sm font-medium transition-colors">
+                    بحث
+                </button>
+                
+                {% if selected_date or selected_section or selected_status %}
+                <a href="/attendance/students" 
+                   class="bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors">
+                    مسح
+                </a>
+                {% endif %}
             </form>
         </div>
     </div>
 
-    <!-- Students Table -->
+    <!-- Table -->
     <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 overflow-hidden">
         <div class="overflow-x-auto">
             <table class="w-full text-sm">
                 <thead class="bg-slate-50 dark:bg-slate-700/50 text-slate-500 dark:text-slate-300">
                     <tr>
-                        <th class="text-right p-3 font-medium whitespace-nowrap">#</th>
-                        <th class="text-right p-3 font-medium whitespace-nowrap">الرقم الدراسي</th>
-                        <th class="text-right p-3 font-medium whitespace-nowrap">الاسم</th>
-                        <th class="text-right p-3 font-medium whitespace-nowrap">الجنس</th>
-                        <th class="text-right p-3 font-medium whitespace-nowrap">الحالة</th>
-                        <th class="text-right p-3 font-medium whitespace-nowrap">المجموعة</th>
-                        <th class="text-right p-3 font-medium whitespace-nowrap">المستوى</th>
-                        <th class="text-right p-3 font-medium whitespace-nowrap">العمليات</th>
+                        <th class="text-right p-3 font-medium">#</th>
+                        <th class="text-right p-3 font-medium">الطالب</th>
+                        <th class="text-right p-3 font-medium">المجموعة</th>
+                        <th class="text-right p-3 font-medium">الحالة</th>
+                        <th class="text-right p-3 font-medium">ملاحظات</th>
+                        <th class="text-right p-3 font-medium">العمليات</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
-                    {% for student in students %}
+                    {% for record in records %}
                     <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">
                         <td class="p-3 text-slate-400 text-xs">
-                            {{ forloop.counter|add:start_index }}
-                        </td>
-                        <td class="p-3 font-mono text-xs font-semibold text-slate-600 dark:text-slate-300">
-                            {{ student.student_number }}
+                            {{ loop.index + start_index }}
                         </td>
                         <td class="p-3">
-                            <a href="/students/{{ student.id }}" 
-                               class="text-primary-600 hover:text-primary-700 hover:underline font-medium transition-colors">
-                                {{ student.full_name }}
+                            <a href="/students/{{ record.student_id }}" 
+                               class="text-primary-600 hover:text-primary-700 hover:underline font-medium">
+                                {{ record.student_name|default('—') }}
                             </a>
                         </td>
+                        <td class="p-3">{{ record.section_name|default('—') }}</td>
+                        <td class="p-3">{{ record.status|status_badge|safe }}</td>
                         <td class="p-3 text-slate-600 dark:text-slate-300">
-                            {% if student.gender == 'male' %}
-                                ذكر
-                            {% elif student.gender == 'female' %}
-                                أنثى
-                            {% else %}
-                                <span class="text-slate-400">—</span>
-                            {% endif %}
-                        </td>
-                        <td class="p-3">
-                            {% if student.is_active %}
-                            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-full bg-success-50 text-success-700 dark:bg-success-900/20 dark:text-success-400 border border-success-200 dark:border-success-800">
-                                <span class="w-1.5 h-1.5 rounded-full bg-success-500"></span>
-                                نشط
-                            </span>
-                            {% else %}
-                            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-full bg-danger-50 text-danger-700 dark:bg-danger-900/20 dark:text-danger-400 border border-danger-200 dark:border-danger-800">
-                                <span class="w-1.5 h-1.5 rounded-full bg-danger-500"></span>
-                                معطل
-                            </span>
-                            {% endif %}
-                        </td>
-                        <td class="p-3 text-slate-600 dark:text-slate-300">
-                            {{ student.section_name|default:'—' }}
-                        </td>
-                        <td class="p-3 text-slate-600 dark:text-slate-300">
-                            {{ student.level|default:'—' }}
+                            {{ record.note|default('—')|truncate(30) }}
                         </td>
                         <td class="p-3">
                             <div class="flex items-center gap-1.5">
-                                <a href="/students/{{ student.id }}" 
-                                   class="p-1.5 text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded-lg transition-colors" 
+                                <a href="/attendance/students/{{ record.id }}" 
+                                   class="p-1.5 text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded-lg transition-colors"
                                    title="عرض">
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
@@ -131,8 +105,8 @@
                                     </svg>
                                 </a>
                                 
-                                {% if can('students.update') %}
-                                <a href="/students/{{ student.id }}/edit" 
+                                {% if can('attendance.update') %}
+                                <a href="/attendance/students/{{ record.id }}/edit" 
                                    class="p-1.5 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg transition-colors"
                                    title="تعديل">
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -141,8 +115,8 @@
                                 </a>
                                 {% endif %}
                                 
-                                {% if can('students.delete') %}
-                                <button onclick="confirmDelete('{{ student.id }}', '{{ student.full_name }}')" 
+                                {% if can('attendance.delete') %}
+                                <button onclick="confirmDelete('{{ record.id }}')" 
                                         class="p-1.5 text-danger-600 hover:bg-danger-50 dark:hover:bg-danger-900/20 rounded-lg transition-colors"
                                         title="حذف">
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -153,34 +127,21 @@
                             </div>
                         </td>
                     </tr>
-                    {% empty %}
+                    {% else %}
                     <tr>
-                        <td colspan="8" class="p-12 text-center">
+                        <td colspan="6" class="p-12 text-center">
                             <div class="flex flex-col items-center gap-3">
-                                <div class="w-16 h-16 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center">
-                                    <svg class="w-8 h-8 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
-                                    </svg>
-                                </div>
-                                <div>
-                                    <p class="text-slate-600 dark:text-slate-300 font-medium">لا يوجد طلاب</p>
-                                    <p class="text-slate-400 text-sm mt-1">
-                                        {% if search %}
-                                        لم يتم العثور على نتائج مطابقة لـ "{{ search }}"
-                                        {% else %}
-                                        ابدأ بإضافة طالب جديد
-                                        {% endif %}
-                                    </p>
-                                </div>
-                                {% if can('students.create') and not search %}
-                                <a href="/students/new" 
-                                   class="mt-2 text-primary-600 hover:text-primary-700 text-sm font-medium inline-flex items-center gap-1">
-                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
-                                    </svg>
-                                    إضافة طالب
-                                </a>
-                                {% endif %}
+                                <svg class="w-12 h-12 text-slate-300 dark:text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                                </svg>
+                                <p class="text-slate-600 dark:text-slate-300 font-medium">لا توجد سجلات حضور</p>
+                                <p class="text-slate-400 text-sm">
+                                    {% if selected_date %}
+                                    لا توجد سجلات حضور في تاريخ {{ selected_date }}
+                                    {% else %}
+                                    قم بتسجيل حضور الطلاب
+                                    {% endif %}
+                                </p>
                             </div>
                         </td>
                     </tr>
@@ -193,11 +154,11 @@
         {% if total > page_size %}
         <div class="p-4 border-t border-slate-100 dark:border-slate-700 flex flex-col sm:flex-row justify-between items-center gap-3">
             <div class="text-sm text-slate-400">
-                عرض {{ start_index|add:1 }} - {{ end_index|default:total }} من {{ total|intcomma }}
+                عرض {{ (start_index + 1)|number_format }} - {{ end_index|default(total)|number_format }} من {{ total|number_format }}
             </div>
             <div class="flex gap-2">
                 {% if page > 1 %}
-                <a href="?page={{ page|add:-1 }}{% if search %}&search={{ search }}{% endif %}{% if status %}&status={{ status }}{% endif %}" 
+                <a href="?page={{ page - 1 }}&date={{ selected_date|default(now().strftime('%Y-%m-%d')) }}{% if selected_section %}&section_id={{ selected_section }}{% endif %}{% if selected_status %}&status={{ selected_status }}{% endif %}" 
                    class="bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
                     السابق
                 </a>
@@ -207,8 +168,8 @@
                     {{ page }}
                 </span>
                 
-                {% if page * page_size < total %}
-                <a href="?page={{ page|add:1 }}{% if search %}&search={{ search }}{% endif %}{% if status %}&status={{ status }}{% endif %}" 
+                {% if (page * page_size) < total %}
+                <a href="?page={{ page + 1 }}&date={{ selected_date|default(now().strftime('%Y-%m-%d')) }}{% if selected_section %}&section_id={{ selected_section }}{% endif %}{% if selected_status %}&status={{ selected_status }}{% endif %}" 
                    class="bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
                     التالي
                 </a>
@@ -219,58 +180,31 @@
     </div>
 </div>
 
-<!-- Delete Confirmation Modal -->
-<div id="deleteModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm hidden items-center justify-center z-50" role="dialog" aria-modal="true">
-    <div class="bg-white dark:bg-slate-800 rounded-2xl max-w-md w-full mx-4 p-6 shadow-2xl transform transition-all">
-        <div class="flex items-center gap-3 mb-4">
-            <div class="w-10 h-10 rounded-full bg-danger-50 dark:bg-danger-900/20 flex items-center justify-center flex-shrink-0">
-                <svg class="w-5 h-5 text-danger-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
-                </svg>
-            </div>
-            <div>
-                <h3 class="text-lg font-bold text-slate-800 dark:text-white">تأكيد الحذف</h3>
-                <p class="text-sm text-slate-500 dark:text-slate-400">لا يمكن التراجع عن هذا الإجراء</p>
-            </div>
-        </div>
-        
-        <p class="text-slate-600 dark:text-slate-300 mb-6">
-            هل أنت متأكد من حذف الطالب 
-            <span id="deleteStudentName" class="font-semibold text-slate-800 dark:text-white"></span>؟
-        </p>
-        
-        <div class="flex flex-col-reverse sm:flex-row gap-3 justify-end">
-            <button onclick="closeDeleteModal()" 
-                    class="bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 px-6 py-2.5 rounded-lg text-sm font-medium transition-colors">
-                إلغاء
-            </button>
+<!-- Delete Modal -->
+<div id="deleteModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm hidden items-center justify-center z-50">
+    <div class="bg-white dark:bg-slate-800 rounded-2xl max-w-md w-full mx-4 p-6">
+        <h3 class="text-lg font-bold mb-2">تأكيد الحذف</h3>
+        <p class="text-slate-600 dark:text-slate-300 mb-6">هل أنت متأكد من حذف هذا السجل؟ لا يمكن التراجع عن هذا الإجراء.</p>
+        <div class="flex gap-3 justify-end">
+            <button onclick="closeDeleteModal()" class="bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 px-4 py-2 rounded-lg text-sm font-medium transition-colors">إلغاء</button>
             <form id="deleteForm" method="POST" action="">
-                {% csrf_token %}
                 <input type="hidden" name="_method" value="DELETE">
-                <button type="submit" 
-                        class="bg-danger-600 hover:bg-danger-700 text-white px-6 py-2.5 rounded-lg text-sm font-semibold transition-colors w-full sm:w-auto">
-                    تأكيد الحذف
-                </button>
+                <button type="submit" class="bg-danger-600 hover:bg-danger-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors">تأكيد الحذف</button>
             </form>
         </div>
     </div>
 </div>
 
 <script>
-function confirmDelete(id, name) {
-    document.getElementById('deleteStudentName').textContent = name;
-    document.getElementById('deleteForm').action = '/students/' + id;
-    const modal = document.getElementById('deleteModal');
-    modal.classList.remove('hidden');
-    modal.classList.add('flex');
-    // Focus trap
-    setTimeout(() => modal.querySelector('button').focus(), 100);
+function confirmDelete(id) {
+    document.getElementById('deleteForm').action = '/attendance/students/' + id + '/delete';
+    document.getElementById('deleteModal').classList.remove('hidden');
+    document.getElementById('deleteModal').classList.add('flex');
 }
 
 function closeDeleteModal() {
-    const modal = document.getElementById('deleteModal');
-    modal.classList.add('hidden');
-    modal.classList.remove('flex');
+    document.getElementById('deleteModal').classList.add('hidden');
+    document.getElementById('deleteModal').classList.remove('flex');
 }
 
 // Close modal on backdrop click
