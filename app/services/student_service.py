@@ -6,7 +6,7 @@ from datetime import datetime
 
 from app.models.students import Student, StudentEnrollment
 from app.models.academics import AcademicYear
-from app.models.sections import Section
+from app.models.academics import Section
 from app.schemas.students import StudentCreate, StudentUpdate
 
 # استيراد الاستثناءات
