@@ -3,6 +3,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 import logging
+import uuid
 
 from app.core.database import get_db
 from app.core.templating import get_templates
@@ -23,24 +24,25 @@ async def deputy_list(
 ):
     """صفحة قائمة وكلاء المدرسة"""
     try:
+        # التحقق من وجود المستخدم
+        if not current_user:
+            logger.warning("⚠️ No authenticated user, redirecting to login")
+            return RedirectResponse(url="/login", status_code=302)
+        
         logger.info(f"📄 Deputy list page requested by user: {current_user.email}")
         
-        # جلب دور deputy
+        # جلب جميع المستخدمين المسجلين
         result = await db.execute(
-            select(Role).where(Role.key == 'deputy')
+            select(User)
+            .order_by(User.created_at.desc())
         )
-        deputy_role = result.scalars().first()
-        
-        deputies = []
-        if deputy_role:
-            result = await db.execute(
-                select(User)
-                .join(UserRole, UserRole.user_id == User.id)
-                .where(UserRole.role_id == deputy_role.id)
-            )
-            deputies = result.scalars().all()
+        deputies = result.scalars().all()
         
         logger.info(f"📊 Found {len(deputies)} deputies")
+        
+        # طباعة تفاصيل الوكلاء للتصحيح
+        for deputy in deputies:
+            logger.info(f"   👤 {deputy.full_name} ({deputy.email}) - Active: {deputy.is_active}")
         
         templates = get_templates()
         if templates is None:
@@ -49,9 +51,11 @@ async def deputy_list(
         
         logger.info(f"✅ Templates is set successfully")
         
-        # ✅ إضافة دالة can() إلى سياق القالب
+        # تعريف دالة can للقالب
         def can(permission: str) -> bool:
             """التحقق من صلاحية المستخدم"""
+            if not current_user:
+                return False
             return current_user.can(permission) if hasattr(current_user, 'can') else False
         
         return templates.TemplateResponse(
@@ -61,12 +65,12 @@ async def deputy_list(
                 "user": current_user,
                 "deputies": deputies,
                 "page_title": "وكلاء المدرسة",
-                "can": can,  # ✅ تمرير دالة can إلى القالب
+                "can": can,
             }
         )
         
     except Exception as e:
-        logger.error(f"❌ Error in deputy_list: {str(e)}")
+        logger.error(f"❌ Error in deputy_list: {str(e)}", exc_info=True)
         raise
 
 
@@ -78,6 +82,14 @@ async def deputy_create_form(
 ):
     """صفحة إنشاء وكيل جديد"""
     try:
+        # التحقق من وجود المستخدم
+        if not current_user:
+            return RedirectResponse(url="/login", status_code=302)
+        
+        # التحقق من الصلاحية
+        if not current_user.can('deputy.create'):
+            raise HTTPException(status_code=403, detail="ليس لديك صلاحية لإنشاء وكيل")
+        
         from app.models.schools import School
         result = await db.execute(select(School))
         schools = result.scalars().all()
@@ -96,12 +108,12 @@ async def deputy_create_form(
                 "user": current_user,
                 "schools": schools,
                 "page_title": "إضافة وكيل جديد",
-                "can": can,  # ✅ تمرير دالة can إلى القالب
+                "can": can,
             }
         )
         
     except Exception as e:
-        logger.error(f"❌ Error in deputy_create_form: {str(e)}")
+        logger.error(f"❌ Error in deputy_create_form: {str(e)}", exc_info=True)
         raise
 
 
@@ -112,9 +124,22 @@ async def deputy_create(
     db: AsyncSession = Depends(get_db)
 ):
     """إنشاء وكيل جديد"""
-    form_data = await request.form()
-    
     try:
+        # التحقق من وجود المستخدم والصلاحية
+        if not current_user:
+            return RedirectResponse(url="/login", status_code=302)
+        
+        if not current_user.can('deputy.create'):
+            raise HTTPException(status_code=403, detail="ليس لديك صلاحية لإنشاء وكيل")
+        
+        form_data = await request.form()
+        
+        # طباعة البيانات المستلمة للتصحيح
+        logger.info(f"📝 Creating deputy with data:")
+        logger.info(f"   - Full Name: {form_data.get('full_name')}")
+        logger.info(f"   - Email: {form_data.get('email')}")
+        logger.info(f"   - Phone: {form_data.get('phone')}")
+        
         service = AuthService(db)
         
         user_data = RegisterUserRequest(
@@ -122,11 +147,17 @@ async def deputy_create(
             password=form_data.get("password"),
             full_name=form_data.get("full_name"),
             phone=form_data.get("phone"),
-            school_code=form_data.get("school_code"),
+            school_code=form_data.get("school_code") or "SCH001",
             role_name="deputy"
         )
         
         result = await service.register_user(user_data)
+        
+        # التحقق من نجاح التسجيل
+        if result and result.get("user"):
+            logger.info(f"✅ Deputy created successfully: {result['user'].email}")
+        else:
+            logger.error(f"❌ Failed to create deputy: {result}")
         
         return RedirectResponse(
             url="/deputy/?success=true",
@@ -134,7 +165,7 @@ async def deputy_create(
         )
         
     except Exception as e:
-        logger.error(f"❌ Error creating deputy: {str(e)}")
+        logger.error(f"❌ Error creating deputy: {str(e)}", exc_info=True)
         return RedirectResponse(
             url="/deputy/create?error=" + str(e),
             status_code=303
@@ -150,6 +181,14 @@ async def deputy_update_form(
 ):
     """صفحة تعديل وكيل"""
     try:
+        # التحقق من وجود المستخدم
+        if not current_user:
+            return RedirectResponse(url="/login", status_code=302)
+        
+        # التحقق من الصلاحية
+        if not current_user.can('deputy.update'):
+            raise HTTPException(status_code=403, detail="ليس لديك صلاحية لتعديل وكيل")
+        
         result = await db.execute(
             select(User).where(User.id == deputy_id)
         )
@@ -177,12 +216,12 @@ async def deputy_update_form(
                 "deputy": deputy,
                 "schools": schools,
                 "page_title": "تعديل وكيل",
-                "can": can,  # ✅ تمرير دالة can إلى القالب
+                "can": can,
             }
         )
         
     except Exception as e:
-        logger.error(f"❌ Error in deputy_update_form: {str(e)}")
+        logger.error(f"❌ Error in deputy_update_form: {str(e)}", exc_info=True)
         raise
 
 
@@ -194,9 +233,16 @@ async def deputy_update(
     db: AsyncSession = Depends(get_db)
 ):
     """تحديث بيانات وكيل"""
-    form_data = await request.form()
-    
     try:
+        # التحقق من وجود المستخدم والصلاحية
+        if not current_user:
+            return RedirectResponse(url="/login", status_code=302)
+        
+        if not current_user.can('deputy.update'):
+            raise HTTPException(status_code=403, detail="ليس لديك صلاحية لتعديل وكيل")
+        
+        form_data = await request.form()
+        
         result = await db.execute(
             select(User).where(User.id == deputy_id)
         )
@@ -216,13 +262,15 @@ async def deputy_update(
         
         await db.commit()
         
+        logger.info(f"✅ Deputy updated successfully: {deputy.email}")
+        
         return RedirectResponse(
             url="/deputy/?success=true",
             status_code=303
         )
         
     except Exception as e:
-        logger.error(f"❌ Error updating deputy: {str(e)}")
+        logger.error(f"❌ Error updating deputy: {str(e)}", exc_info=True)
         return RedirectResponse(
             url=f"/deputy/{deputy_id}/update?error=" + str(e),
             status_code=303
@@ -238,6 +286,13 @@ async def deputy_delete(
 ):
     """حذف وكيل"""
     try:
+        # التحقق من وجود المستخدم والصلاحية
+        if not current_user:
+            return RedirectResponse(url="/login", status_code=302)
+        
+        if not current_user.can('deputy.delete'):
+            raise HTTPException(status_code=403, detail="ليس لديك صلاحية لحذف وكيل")
+        
         result = await db.execute(
             select(User).where(User.id == deputy_id)
         )
@@ -246,13 +301,17 @@ async def deputy_delete(
         if not deputy:
             raise HTTPException(status_code=404, detail="الوكيل غير موجود")
         
+        # حذف علاقات المستخدم بالأدوار أولاً
         from sqlalchemy import delete
         await db.execute(
             delete(UserRole).where(UserRole.user_id == deputy_id)
         )
         
+        # حذف المستخدم
         await db.delete(deputy)
         await db.commit()
+        
+        logger.info(f"✅ Deputy deleted successfully: {deputy.email}")
         
         return RedirectResponse(
             url="/deputy/?deleted=true",
@@ -260,7 +319,7 @@ async def deputy_delete(
         )
         
     except Exception as e:
-        logger.error(f"❌ Error deleting deputy: {str(e)}")
+        logger.error(f"❌ Error deleting deputy: {str(e)}", exc_info=True)
         return RedirectResponse(
             url="/deputy/?error=" + str(e),
             status_code=303
