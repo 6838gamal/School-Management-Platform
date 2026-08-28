@@ -1,45 +1,1069 @@
 {% extends "layouts/director.html" %}
 {% block content %}
 <div class="space-y-6">
+    <!-- Header -->
     <div class="flex items-center justify-between">
-        <div><h1 class="text-2xl font-bold text-slate-800 dark:text-white">الدرجات</h1><p class="text-slate-400 text-sm mt-1">إدارة التقييمات والدرجات</p></div>
+        <div>
+            <h1 class="text-2xl font-bold text-slate-800 dark:text-white">الدرجات</h1>
+            <p class="text-slate-400 text-sm mt-1">إدارة التقييمات والدرجات</p>
+        </div>
         {% if can('grades.create') %}
-        <button id="create-assessment-btn" class="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg text-sm font-semibold">+ تقييم جديد</button>
+        <button id="create-assessment-btn" class="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center gap-2">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+            </svg>
+            تقييم جديد
+        </button>
         {% endif %}
     </div>
 
-    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-6">
-        <div id="grades-table">
-            <div class="empty-state">
-                <p>اختر شعبة وتقييم لعرض أو إدخال الدرجات.</p>
+    <!-- Filters -->
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-4">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <select id="filter-section" class="px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
+                <option value="">جميع الشعب</option>
+            </select>
+            <select id="filter-subject" class="px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
+                <option value="">جميع المواد</option>
+            </select>
+            <select id="filter-type" class="px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
+                <option value="">جميع الأنواع</option>
+                <option value="exam">اختبار</option>
+                <option value="quiz">قصير</option>
+                <option value="assignment">واجب</option>
+                <option value="homework">تكليف</option>
+                <option value="activity">نشاط</option>
+                <option value="participation">مشاركة</option>
+            </select>
+            <div class="flex gap-2">
+                <input type="text" id="filter-search" placeholder="بحث..." class="flex-1 px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
+                <button id="clear-filters" class="px-3 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors" title="مسح الفلترة">
+                    <svg class="w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Table -->
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 overflow-hidden">
+        <div id="loading-spinner" class="flex justify-center items-center p-8">
+            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+        </div>
+        
+        <div id="grades-table-container" class="hidden">
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="bg-slate-50 dark:bg-slate-700/50 border-b border-slate-200 dark:border-slate-700">
+                            <th class="text-right py-3 px-4 font-semibold text-slate-600 dark:text-slate-300">#</th>
+                            <th class="text-right py-3 px-4 font-semibold text-slate-600 dark:text-slate-300">العنوان</th>
+                            <th class="text-right py-3 px-4 font-semibold text-slate-600 dark:text-slate-300">الشعبة</th>
+                            <th class="text-right py-3 px-4 font-semibold text-slate-600 dark:text-slate-300">المادة</th>
+                            <th class="text-right py-3 px-4 font-semibold text-slate-600 dark:text-slate-300">النوع</th>
+                            <th class="text-right py-3 px-4 font-semibold text-slate-600 dark:text-slate-300">الدرجة العظمى</th>
+                            <th class="text-right py-3 px-4 font-semibold text-slate-600 dark:text-slate-300">التاريخ</th>
+                            <th class="text-center py-3 px-4 font-semibold text-slate-600 dark:text-slate-300">الإجراءات</th>
+                        </tr>
+                    </thead>
+                    <tbody id="assessments-tbody">
+                        <!-- سيتم تعبئتها ديناميكياً -->
+                    </tbody>
+                </table>
+            </div>
+            <div id="empty-state" class="hidden text-center py-12">
+                <svg class="w-16 h-16 mx-auto text-slate-300 dark:text-slate-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                </svg>
+                <p class="text-slate-500 dark:text-slate-400">لا توجد تقييمات متاحة</p>
+                <p class="text-slate-400 dark:text-slate-500 text-sm mt-1">قم بإنشاء تقييم جديد للبدء</p>
+            </div>
+            <!-- Pagination -->
+            <div class="flex flex-col sm:flex-row items-center justify-between px-4 py-3 border-t border-slate-200 dark:border-slate-700 gap-3">
+                <div id="pagination-info" class="text-sm text-slate-600 dark:text-slate-400"></div>
+                <div id="pagination-controls" class="flex gap-2"></div>
             </div>
         </div>
     </div>
 </div>
 
+<!-- Modal: إنشاء/تعديل تقييم -->
 <div class="modal-backdrop" id="assessment-modal">
-    <div class="modal-box p-6">
-        <h3 class="font-semibold text-lg mb-4">إنشاء تقييم جديد</h3>
-        <form class="space-y-3">
-            <input name="section_id" placeholder="Section ID" required class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
-            <input name="subject_id" placeholder="Subject ID" required class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
-            <input name="title" placeholder="عنوان التقييم" required class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
-            <select name="assessment_type" class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none">
-                <option value="exam">اختبار</option><option value="quiz">قصير</option><option value="assignment">واجب</option><option value="homework">تكليف</option><option value="activity">نشاط</option><option value="participation">مشاركة</option>
-            </select>
-            <div class="grid grid-cols-3 gap-3">
-                <input name="max_score" type="number" placeholder="الدرجة العظمى" value="100" class="px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
-                <input name="passing_score" type="number" placeholder="الدرجة الناجحة" value="50" class="px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
-                <input name="weight" type="number" step="0.1" placeholder="الوزن" value="1.0" class="px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
+    <div class="modal-box p-6 max-w-2xl">
+        <div class="flex items-center justify-between mb-4">
+            <h3 id="modal-title" class="font-semibold text-lg">إنشاء تقييم جديد</h3>
+            <button onclick="closeModal('assessment-modal')" class="p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+        
+        <form id="assessment-form" class="space-y-4">
+            <input type="hidden" id="assessment-id" name="assessment_id">
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">الشعبة *</label>
+                    <select name="section_id" id="modal-section" required class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
+                        <option value="">اختر الشعبة</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">المادة *</label>
+                    <select name="subject_id" id="modal-subject" required class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
+                        <option value="">اختر المادة</option>
+                    </select>
+                </div>
             </div>
-            <input type="date" name="date" class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
+
+            <div>
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">عنوان التقييم *</label>
+                <input name="title" id="modal-title-input" placeholder="أدخل عنوان التقييم" required class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">نوع التقييم *</label>
+                    <select name="assessment_type" id="modal-type" required class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
+                        <option value="exam">اختبار</option>
+                        <option value="quiz">قصير</option>
+                        <option value="assignment">واجب</option>
+                        <option value="homework">تكليف</option>
+                        <option value="activity">نشاط</option>
+                        <option value="participation">مشاركة</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">التاريخ</label>
+                    <input type="date" name="date" id="modal-date" class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">الدرجة العظمى</label>
+                    <input name="max_score" id="modal-max-score" type="number" step="0.5" placeholder="100" value="100" class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">درجة النجاح</label>
+                    <input name="passing_score" id="modal-passing-score" type="number" step="0.5" placeholder="50" value="50" class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">الوزن</label>
+                    <input name="weight" id="modal-weight" type="number" step="0.1" placeholder="1.0" value="1.0" class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">الوصف</label>
+                <textarea name="description" id="modal-description" placeholder="وصف التقييم (اختياري)" rows="3" class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500 resize-none"></textarea>
+            </div>
+
+            <input type="hidden" name="teacher_id" value="{{ user.id }}">
+
             <div class="flex gap-2 pt-2">
-                <button type="button" onclick="closeModal('assessment-modal')" class="flex-1 bg-slate-100 dark:bg-slate-700 px-4 py-2 rounded-lg text-sm font-medium">إلغاء</button>
-                <button type="submit" class="flex-1 bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg text-sm font-semibold">إنشاء</button>
+                <button type="button" onclick="closeModal('assessment-modal')" class="flex-1 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+                    إلغاء
+                </button>
+                <button type="submit" id="modal-submit-btn" class="flex-1 bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors">
+                    إنشاء
+                </button>
             </div>
         </form>
     </div>
 </div>
 
-<script src="/static/js/grades.js"></script>
+<!-- Modal: تأكيد الحذف -->
+<div class="modal-backdrop" id="delete-modal">
+    <div class="modal-box p-6 max-w-md">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="font-semibold text-lg text-red-600">تأكيد الحذف</h3>
+            <button onclick="closeModal('delete-modal')" class="p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+        <div class="text-center py-4">
+            <svg class="w-16 h-16 mx-auto text-red-500 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+            </svg>
+            <p class="text-slate-600 dark:text-slate-300 mb-2 font-medium">هل أنت متأكد من حذف هذا التقييم؟</p>
+            <p class="text-slate-400 dark:text-slate-500 text-sm">هذا الإجراء لا يمكن التراجع عنه وسيتم حذف جميع الدرجات المرتبطة.</p>
+        </div>
+        <div class="flex gap-2">
+            <button type="button" onclick="closeModal('delete-modal')" class="flex-1 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+                إلغاء
+            </button>
+            <button id="confirm-delete-btn" class="flex-1 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors">
+                نعم، احذف
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+// ============================================
+// 📡 API Configuration - جاهز للربط مع نقاط النهاية الخارجية
+// ============================================
+
+/**
+ * 🔧 قم بتعديل هذه المتغيرات لتتناسب مع نقاط النهاية الخاصة بك
+ */
+const API_CONFIG = {
+    // النقطة الأساسية لـ API
+    baseURL: '/api',
+    
+    // نقاط النهاية
+    endpoints: {
+        assessments: '/assessments',
+        sections: '/sections',
+        subjects: '/subjects',
+    },
+    
+    // رؤوس الطلبات (يمكن إضافة Token هنا)
+    headers: {
+        'Content-Type': 'application/json',
+        // 'Authorization': 'Bearer YOUR_TOKEN',
+        // 'X-CSRFToken': getCsrfToken(),
+    }
+};
+
+// ============================================
+// 🌐 API Service - خدمة الاتصال بالخادم
+// ============================================
+
+class ApiService {
+    constructor(config) {
+        this.baseURL = config.baseURL;
+        this.endpoints = config.endpoints;
+        this.headers = config.headers;
+    }
+
+    /**
+     * دالة أساسية للطلبات
+     */
+    async request(endpoint, options = {}) {
+        const url = `${this.baseURL}${endpoint}`;
+        const config = {
+            headers: { ...this.headers, ...options.headers },
+            ...options,
+        };
+
+        if (options.body && typeof options.body !== 'string' && !(options.body instanceof FormData)) {
+            config.body = JSON.stringify(options.body);
+        }
+
+        try {
+            const response = await fetch(url, config);
+            
+            // محاولة قراءة الرد كـ JSON
+            let data = null;
+            const contentType = response.headers.get('content-type');
+            if (contentType && contentType.includes('application/json')) {
+                data = await response.json();
+            }
+
+            if (!response.ok) {
+                throw {
+                    status: response.status,
+                    statusText: response.statusText,
+                    data: data,
+                    message: data?.detail || data?.message || `HTTP ${response.status}`
+                };
+            }
+
+            return data;
+        } catch (error) {
+            if (error.status) {
+                // خطأ من الخادم
+                throw error;
+            }
+            // خطأ في الشبكة
+            throw {
+                status: 0,
+                message: 'فشل الاتصال بالخادم. تأكد من اتصال الإنترنت.',
+                original: error
+            };
+        }
+    }
+
+    // ========== نقاط النهاية ==========
+
+    /**
+     * جلب قائمة التقييمات مع إمكانية التصفية
+     */
+    async getAssessments(params = {}) {
+        const query = new URLSearchParams();
+        Object.keys(params).forEach(key => {
+            if (params[key] !== null && params[key] !== undefined && params[key] !== '') {
+                query.append(key, params[key]);
+            }
+        });
+        const endpoint = query.toString() ? `${this.endpoints.assessments}?${query}` : this.endpoints.assessments;
+        return this.request(endpoint);
+    }
+
+    /**
+     * جلب تقييم معين بواسطة ID
+     */
+    async getAssessment(id) {
+        return this.request(`${this.endpoints.assessments}/${id}`);
+    }
+
+    /**
+     * إنشاء تقييم جديد
+     */
+    async createAssessment(data) {
+        return this.request(this.endpoints.assessments, {
+            method: 'POST',
+            body: data
+        });
+    }
+
+    /**
+     * تحديث تقييم موجود
+     */
+    async updateAssessment(id, data) {
+        return this.request(`${this.endpoints.assessments}/${id}`, {
+            method: 'PUT',
+            body: data
+        });
+    }
+
+    /**
+     * حذف تقييم
+     */
+    async deleteAssessment(id) {
+        return this.request(`${this.endpoints.assessments}/${id}`, {
+            method: 'DELETE'
+        });
+    }
+
+    /**
+     * جلب قائمة الشعب
+     */
+    async getSections(params = {}) {
+        const query = new URLSearchParams(params).toString();
+        const endpoint = query ? `${this.endpoints.sections}?${query}` : this.endpoints.sections;
+        return this.request(endpoint);
+    }
+
+    /**
+     * جلب قائمة المواد
+     */
+    async getSubjects(params = {}) {
+        const query = new URLSearchParams(params).toString();
+        const endpoint = query ? `${this.endpoints.subjects}?${query}` : this.endpoints.subjects;
+        return this.request(endpoint);
+    }
+}
+
+// ============================================
+// 🎯 State Management - إدارة الحالة
+// ============================================
+
+const state = {
+    assessments: [],
+    sections: [],
+    subjects: [],
+    currentPage: 1,
+    pageSize: 10,
+    totalItems: 0,
+    totalPages: 1,
+    editingId: null,
+    deletingId: null,
+    filters: {
+        section_id: '',
+        subject_id: '',
+        assessment_type: '',
+        search: ''
+    },
+    isLoading: false
+};
+
+// ============================================
+// 🛠️ Utilities - دوال مساعدة
+// ============================================
+
+function getAssessmentTypeLabel(type) {
+    const labels = {
+        'exam': 'اختبار',
+        'quiz': 'قصير',
+        'assignment': 'واجب',
+        'homework': 'تكليف',
+        'activity': 'نشاط',
+        'participation': 'مشاركة'
+    };
+    return labels[type] || type;
+}
+
+function getStatusBadge(assessment) {
+    const now = new Date();
+    const date = assessment.date ? new Date(assessment.date) : null;
+    const hasGrades = assessment.has_grades || false;
+    
+    if (hasGrades) {
+        return '<span class="text-xs px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-full">مكتمل</span>';
+    }
+    if (date && date < now) {
+        return '<span class="text-xs px-2 py-1 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded-full">منتهي</span>';
+    }
+    return '<span class="text-xs px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded-full">قادم</span>';
+}
+
+function formatDate(dateString) {
+    if (!dateString) return '-';
+    try {
+        return new Date(dateString).toLocaleDateString('ar-EG', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric'
+        });
+    } catch {
+        return dateString;
+    }
+}
+
+// ============================================
+# 🖥️ UI Functions - دوال الواجهة
+// ============================================
+
+function showLoading() {
+    document.getElementById('loading-spinner').classList.remove('hidden');
+    document.getElementById('grades-table-container').classList.add('hidden');
+}
+
+function hideLoading() {
+    document.getElementById('loading-spinner').classList.add('hidden');
+    document.getElementById('grades-table-container').classList.remove('hidden');
+}
+
+function openModal(id) {
+    const modal = document.getElementById(id);
+    if (modal) {
+        modal.classList.add('active');
+        document.body.style.overflow = 'hidden';
+    }
+}
+
+function closeModal(id) {
+    const modal = document.getElementById(id);
+    if (modal) {
+        modal.classList.remove('active');
+        document.body.style.overflow = '';
+    }
+}
+
+function showToast(message, type = 'success') {
+    const colors = {
+        success: 'bg-green-600',
+        error: 'bg-red-600',
+        warning: 'bg-yellow-600',
+        info: 'bg-blue-600'
+    };
+    
+    const icons = {
+        success: '✓',
+        error: '✕',
+        warning: '⚠',
+        info: 'ℹ'
+    };
+    
+    const toast = document.createElement('div');
+    toast.className = `fixed bottom-4 right-4 ${colors[type] || colors.info} text-white px-6 py-3 rounded-lg shadow-lg z-50 transition-all duration-300 transform translate-y-0 opacity-100 flex items-center gap-3 max-w-md`;
+    toast.innerHTML = `
+        <span class="font-bold text-lg">${icons[type] || ''}</span>
+        <span>${message}</span>
+    `;
+    document.body.appendChild(toast);
+    
+    setTimeout(() => {
+        toast.style.transform = 'translateY(100px)';
+        toast.style.opacity = '0';
+        setTimeout(() => toast.remove(), 300);
+    }, 3500);
+}
+
+// ============================================
+# 📊 Render Functions - دوال العرض
+// ============================================
+
+function renderAssessments(assessments, page = 1, total = 0) {
+    const tbody = document.getElementById('assessments-tbody');
+    const emptyState = document.getElementById('empty-state');
+    
+    if (!assessments || assessments.length === 0) {
+        tbody.innerHTML = '';
+        emptyState.classList.remove('hidden');
+        document.getElementById('pagination-info').textContent = '';
+        document.getElementById('pagination-controls').innerHTML = '';
+        return;
+    }
+    
+    emptyState.classList.add('hidden');
+    
+    const startIndex = (page - 1) * state.pageSize;
+    
+    tbody.innerHTML = assessments.map((assessment, index) => `
+        <tr class="border-b border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
+            <td class="py-3 px-4 text-center text-slate-500 dark:text-slate-400">${startIndex + index + 1}</td>
+            <td class="py-3 px-4">
+                <div class="font-medium text-slate-800 dark:text-slate-200">${assessment.title || 'بدون عنوان'}</div>
+                ${assessment.description ? `<div class="text-xs text-slate-400 dark:text-slate-500 truncate max-w-xs">${assessment.description}</div>` : ''}
+            </td>
+            <td class="py-3 px-4 text-slate-600 dark:text-slate-300">${assessment.section_name || assessment.section_id || '-'}</td>
+            <td class="py-3 px-4 text-slate-600 dark:text-slate-300">${assessment.subject_name || assessment.subject_id || '-'}</td>
+            <td class="py-3 px-4">
+                <span class="text-xs px-2.5 py-1 bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-400 rounded-full font-medium">
+                    ${getAssessmentTypeLabel(assessment.assessment_type)}
+                </span>
+            </td>
+            <td class="py-3 px-4 text-center font-medium">${assessment.max_score || 0}</td>
+            <td class="py-3 px-4">
+                <div class="text-center text-sm">${formatDate(assessment.date)}</div>
+                <div class="text-center mt-1">${getStatusBadge(assessment)}</div>
+            </td>
+            <td class="py-3 px-4">
+                <div class="flex items-center justify-center gap-1.5">
+                    {% if can('grades.update') %}
+                    <button onclick="openEditAssessment('${assessment.id}')" 
+                            class="p-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors group" 
+                            title="تعديل التقييم">
+                        <svg class="w-5 h-5 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                        </svg>
+                    </button>
+                    {% endif %}
+                    {% if can('grades.delete') %}
+                    <button onclick="openDeleteModal('${assessment.id}')" 
+                            class="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors group" 
+                            title="حذف التقييم">
+                        <svg class="w-5 h-5 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                        </svg>
+                    </button>
+                    {% endif %}
+                    <button onclick="viewGrades('${assessment.id}')" 
+                            class="p-2 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/30 rounded-lg transition-colors group" 
+                            title="عرض/إدخال الدرجات">
+                        <svg class="w-5 h-5 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                        </svg>
+                    </button>
+                </div>
+            </td>
+        </tr>
+    `).join('');
+    
+    updatePagination(page, total);
+}
+
+function updatePagination(currentPage, total) {
+    const info = document.getElementById('pagination-info');
+    const controls = document.getElementById('pagination-controls');
+    
+    state.totalItems = total;
+    state.totalPages = Math.ceil(total / state.pageSize) || 1;
+    state.currentPage = currentPage;
+    
+    const start = (currentPage - 1) * state.pageSize + 1;
+    const end = Math.min(currentPage * state.pageSize, total);
+    info.textContent = total > 0 ? `عرض ${start} - ${end} من ${total}` : 'لا توجد بيانات';
+    
+    if (state.totalPages <= 1) {
+        controls.innerHTML = '';
+        return;
+    }
+    
+    let html = '';
+    
+    // Previous
+    html += `<button onclick="changePage(${currentPage - 1})" 
+                    class="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors text-sm ${currentPage <= 1 ? 'opacity-40 cursor-not-allowed' : ''}"
+                    ${currentPage <= 1 ? 'disabled' : ''}>
+                السابق
+            </button>`;
+    
+    // Page numbers
+    const pages = [];
+    if (state.totalPages <= 7) {
+        for (let i = 1; i <= state.totalPages; i++) pages.push(i);
+    } else {
+        pages.push(1);
+        if (currentPage > 3) pages.push('...');
+        for (let i = Math.max(2, currentPage - 1); i <= Math.min(state.totalPages - 1, currentPage + 1); i++) {
+            pages.push(i);
+        }
+        if (currentPage < state.totalPages - 2) pages.push('...');
+        pages.push(state.totalPages);
+    }
+    
+    pages.forEach(page => {
+        if (page === '...') {
+            html += `<span class="px-2 text-slate-400">...</span>`;
+        } else {
+            html += `<button onclick="changePage(${page})" 
+                            class="px-3 py-1.5 rounded-lg border transition-colors text-sm ${page === currentPage ? 'bg-primary-600 text-white border-primary-600' : 'border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700'}">
+                        ${page}
+                    </button>`;
+        }
+    });
+    
+    // Next
+    html += `<button onclick="changePage(${currentPage + 1})" 
+                    class="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors text-sm ${currentPage >= state.totalPages ? 'opacity-40 cursor-not-allowed' : ''}"
+                    ${currentPage >= state.totalPages ? 'disabled' : ''}>
+                التالي
+            </button>`;
+    
+    controls.innerHTML = html;
+}
+
+// ============================================
+# 📡 Data Loading - تحميل البيانات
+// ============================================
+
+// إنشاء نسخة من خدمة API
+const api = new ApiService(API_CONFIG);
+
+async function loadAssessments() {
+    if (state.isLoading) return;
+    state.isLoading = true;
+    showLoading();
+    
+    try {
+        const params = {
+            page: state.currentPage,
+            size: state.pageSize,
+            ...state.filters
+        };
+        
+        // إزالة الفلاتر الفارغة
+        Object.keys(params).forEach(key => {
+            if (!params[key] || params[key] === '') delete params[key];
+        });
+        
+        const response = await api.getAssessments(params);
+        
+        // التعامل مع صيغ مختلفة للرد
+        state.assessments = response.items || response.results || response.data || [];
+        const total = response.total || response.count || state.assessments.length;
+        
+        renderAssessments(state.assessments, state.currentPage, total);
+    } catch (error) {
+        console.error('Error loading assessments:', error);
+        document.getElementById('assessments-tbody').innerHTML = `
+            <tr>
+                <td colspan="8" class="text-center py-8">
+                    <div class="text-red-600 dark:text-red-400">
+                        <svg class="w-12 h-12 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                        <p class="font-medium">حدث خطأ في تحميل البيانات</p>
+                        <p class="text-sm mt-1">${error.message || 'يرجى المحاولة مرة أخرى'}</p>
+                        <button onclick="loadAssessments()" class="mt-3 px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg text-sm transition-colors">
+                            إعادة المحاولة
+                        </button>
+                    </div>
+                </td>
+            </tr>
+        `;
+    } finally {
+        state.isLoading = false;
+        hideLoading();
+    }
+}
+
+async function loadSections() {
+    try {
+        const sections = await api.getSections({ active: true });
+        state.sections = sections.items || sections.results || sections || [];
+        populateSelect('filter-section', state.sections, 'id', 'name', 'جميع الشعب');
+        populateSelect('modal-section', state.sections, 'id', 'name', 'اختر الشعبة');
+    } catch (error) {
+        console.error('Error loading sections:', error);
+    }
+}
+
+async function loadSubjects() {
+    try {
+        const subjects = await api.getSubjects({ active: true });
+        state.subjects = subjects.items || subjects.results || subjects || [];
+        populateSelect('filter-subject', state.subjects, 'id', 'name', 'جميع المواد');
+        populateSelect('modal-subject', state.subjects, 'id', 'name', 'اختر المادة');
+    } catch (error) {
+        console.error('Error loading subjects:', error);
+    }
+}
+
+function populateSelect(elementId, items, valueKey, labelKey, defaultLabel = 'اختر') {
+    const select = document.getElementById(elementId);
+    if (!select) return;
+    
+    const currentValue = select.value;
+    select.innerHTML = `<option value="">${defaultLabel}</option>`;
+    
+    if (items && items.length > 0) {
+        items.forEach(item => {
+            const option = document.createElement('option');
+            option.value = item[valueKey];
+            option.textContent = item[labelKey] || item.name || 'بدون اسم';
+            select.appendChild(option);
+        });
+    }
+    
+    if (currentValue) {
+        select.value = currentValue;
+    }
+}
+
+// ============================================
+# 🎮 CRUD Operations - عمليات الإدارة
+// ============================================
+
+function changePage(page) {
+    if (page < 1 || page > state.totalPages || page === state.currentPage) return;
+    state.currentPage = page;
+    loadAssessments();
+}
+
+// ========== Create ==========
+function openCreateAssessment() {
+    const form = document.getElementById('assessment-form');
+    form.reset();
+    document.getElementById('modal-title').textContent = 'إنشاء تقييم جديد';
+    document.getElementById('modal-submit-btn').textContent = 'إنشاء';
+    document.getElementById('assessment-id').value = '';
+    state.editingId = null;
+    
+    // تعيين القيم الافتراضية
+    document.getElementById('modal-max-score').value = 100;
+    document.getElementById('modal-passing-score').value = 50;
+    document.getElementById('modal-weight').value = 1.0;
+    
+    openModal('assessment-modal');
+}
+
+// ========== Edit ==========
+async function openEditAssessment(id) {
+    try {
+        // محاولة جلب البيانات من الحالة أولاً
+        let assessment = state.assessments.find(a => a.id === id);
+        
+        if (!assessment) {
+            // إذا لم تكن موجودة، نجلبها من الخادم
+            assessment = await api.getAssessment(id);
+        }
+        
+        if (!assessment) {
+            showToast('لم يتم العثور على التقييم', 'error');
+            return;
+        }
+        
+        // تعبئة النموذج
+        document.getElementById('modal-title').textContent = 'تعديل التقييم';
+        document.getElementById('modal-submit-btn').textContent = 'تحديث';
+        document.getElementById('assessment-id').value = assessment.id;
+        document.getElementById('modal-title-input').value = assessment.title || '';
+        document.getElementById('modal-section').value = assessment.section_id || '';
+        document.getElementById('modal-subject').value = assessment.subject_id || '';
+        document.getElementById('modal-type').value = assessment.assessment_type || 'exam';
+        document.getElementById('modal-date').value = assessment.date || '';
+        document.getElementById('modal-max-score').value = assessment.max_score || 100;
+        document.getElementById('modal-passing-score').value = assessment.passing_score || 50;
+        document.getElementById('modal-weight').value = assessment.weight || 1.0;
+        document.getElementById('modal-description').value = assessment.description || '';
+        
+        state.editingId = assessment.id;
+        openModal('assessment-modal');
+    } catch (error) {
+        console.error('Error loading assessment:', error);
+        showToast('حدث خطأ في تحميل بيانات التقييم', 'error');
+    }
+}
+
+// ========== Delete ==========
+function openDeleteModal(id) {
+    state.deletingId = id;
+    openModal('delete-modal');
+}
+
+/**
+ * 🗑️ دالة الحذف - جاهزة للربط مع نقاط النهاية الخارجية
+ * يمكن استدعاؤها مباشرة من أي مكان
+ */
+async function deleteAssessment(id) {
+    if (!id) {
+        showToast('معرف التقييم مطلوب', 'error');
+        return false;
+    }
+    
+    try {
+        const result = await api.deleteAssessment(id);
+        showToast('تم حذف التقييم بنجاح', 'success');
+        await loadAssessments();
+        return true;
+    } catch (error) {
+        console.error('Error deleting assessment:', error);
+        showToast(error.message || 'حدث خطأ في حذف التقييم', 'error');
+        return false;
+    }
+}
+
+// دالة تأكيد الحذف من المودال
+async function confirmDelete() {
+    if (!state.deletingId) return;
+    
+    const success = await deleteAssessment(state.deletingId);
+    if (success) {
+        closeModal('delete-modal');
+        state.deletingId = null;
+    }
+}
+
+// ========== View Grades ==========
+function viewGrades(assessmentId) {
+    // يمكن توجيه المستخدم إلى صفحة إدخال الدرجات
+    // أو فتح مودال لعرض الدرجات
+    window.location.href = `/grades/${assessmentId}/entry`;
+}
+
+// ============================================
+# 📝 Form Submission - تقديم النموذج
+// ============================================
+
+document.getElementById('assessment-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const form = e.target;
+    const formData = new FormData(form);
+    const data = Object.fromEntries(formData.entries());
+    
+    // تنظيف البيانات
+    Object.keys(data).forEach(key => {
+        if (data[key] === '') data[key] = null;
+    });
+    
+    // تحويل الأرقام
+    ['max_score', 'passing_score', 'weight'].forEach(key => {
+        if (data[key]) data[key] = parseFloat(data[key]);
+    });
+    
+    try {
+        let result;
+        if (state.editingId) {
+            // تحديث
+            result = await api.updateAssessment(state.editingId, data);
+            showToast('تم تحديث التقييم بنجاح', 'success');
+        } else {
+            // إنشاء
+            result = await api.createAssessment(data);
+            showToast('تم إنشاء التقييم بنجاح', 'success');
+        }
+        
+        closeModal('assessment-modal');
+        await loadAssessments();
+    } catch (error) {
+        console.error('Error saving assessment:', error);
+        showToast(error.message || 'حدث خطأ في حفظ التقييم', 'error');
+    }
+});
+
+// ============================================
+# 🔍 Filters - الفلاتر
+// ============================================
+
+function applyFilters() {
+    state.filters.section_id = document.getElementById('filter-section').value;
+    state.filters.subject_id = document.getElementById('filter-subject').value;
+    state.filters.assessment_type = document.getElementById('filter-type').value;
+    state.filters.search = document.getElementById('filter-search').value;
+    state.currentPage = 1;
+    loadAssessments();
+}
+
+document.getElementById('filter-section').addEventListener('change', applyFilters);
+document.getElementById('filter-subject').addEventListener('change', applyFilters);
+document.getElementById('filter-type').addEventListener('change', applyFilters);
+
+// بحث مع تأخير (debounce)
+let searchTimeout;
+document.getElementById('filter-search').addEventListener('input', function() {
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(applyFilters, 500);
+});
+
+// مسح الفلاتر
+document.getElementById('clear-filters').addEventListener('click', function() {
+    document.getElementById('filter-section').value = '';
+    document.getElementById('filter-subject').value = '';
+    document.getElementById('filter-type').value = '';
+    document.getElementById('filter-search').value = '';
+    applyFilters();
+});
+
+// ============================================
+# 🎬 Event Listeners - مستمعات الأحداث
+// ============================================
+
+document.getElementById('create-assessment-btn').addEventListener('click', openCreateAssessment);
+
+// تأكيد الحذف
+document.getElementById('confirm-delete-btn').addEventListener('click', confirmDelete);
+
+// إغلاق المودالات عند الضغط على الخلفية
+document.querySelectorAll('.modal-backdrop').forEach(backdrop => {
+    backdrop.addEventListener('click', function(e) {
+        if (e.target === this) {
+            this.classList.remove('active');
+            document.body.style.overflow = '';
+        }
+    });
+});
+
+// إغلاق المودال بالضغط على ESC
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        document.querySelectorAll('.modal-backdrop.active').forEach(modal => {
+            modal.classList.remove('active');
+            document.body.style.overflow = '';
+        });
+    }
+});
+
+// ============================================
+# 🚀 Initialize - تهيئة الصفحة
+// ============================================
+
+async function init() {
+    // تحميل البيانات الأساسية
+    await Promise.all([
+        loadSections(),
+        loadSubjects()
+    ]);
+    // تحميل التقييمات
+    await loadAssessments();
+}
+
+document.addEventListener('DOMContentLoaded', init);
+
+// ============================================
+# 📤 Export - تصدير الدوال للاستخدام الخارجي
+// ============================================
+
+// جعل الدوال متاحة في النطاق العام للاستخدام من خارج الملف
+window.api = api;
+window.loadAssessments = loadAssessments;
+window.openCreateAssessment = openCreateAssessment;
+window.openEditAssessment = openEditAssessment;
+window.deleteAssessment = deleteAssessment;
+window.openDeleteModal = openDeleteModal;
+window.viewGrades = viewGrades;
+window.changePage = changePage;
+window.showToast = showToast;
+window.openModal = openModal;
+window.closeModal = closeModal;
+</script>
+
+<style>
+.modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+    z-index: 1000;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+}
+
+.modal-backdrop.active {
+    display: flex;
+    animation: fadeIn 0.2s ease-out;
+}
+
+.modal-box {
+    background: white;
+    border-radius: 1rem;
+    max-height: 90vh;
+    overflow-y: auto;
+    width: 100%;
+    max-width: 700px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    animation: slideUp 0.3s ease-out;
+}
+
+@media (prefers-color-scheme: dark) {
+    .modal-box {
+        background: #1e293b;
+    }
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes slideUp {
+    from { 
+        opacity: 0;
+        transform: translateY(20px) scale(0.95);
+    }
+    to { 
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.modal-box::-webkit-scrollbar {
+    width: 6px;
+}
+
+.modal-box::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.modal-box::-webkit-scrollbar-thumb {
+    background: #94a3b8;
+    border-radius: 3px;
+}
+
+.modal-box::-webkit-scrollbar-thumb:hover {
+    background: #64748b;
+}
+
+/* RTL Support */
+[dir="rtl"] .modal-box {
+    text-align: right;
+}
+
+/* Loading spinner */
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+.animate-spin {
+    animation: spin 1s linear infinite;
+}
+
+/* Toast animation */
+@keyframes slideInRight {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+.toast {
+    animation: slideInRight 0.3s ease-out;
+}
+</style>
 {% endblock %}
