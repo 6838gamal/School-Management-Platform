@@ -235,8 +235,11 @@ async def teacher_attendance_create_form(
     selected_date = date or today
     
     teacher_service = TeacherService(db)
-    # ✅ إصلاح: استخدام list_teachers بدلاً من get_teachers
-    teachers = await teacher_service.list_teachers(user.school_id, is_active=True)
+    # ✅ استخدام الدالة الجديدة get_teachers_list
+    teachers = await teacher_service.get_teachers_list(
+        user.school_id, 
+        is_active=True
+    )
     
     return templates.TemplateResponse(
         "attendance/teachers/form.html",
@@ -284,8 +287,11 @@ async def teacher_attendance_create(
         
     except Exception as e:
         teacher_service = TeacherService(db)
-        # ✅ إصلاح: استخدام list_teachers بدلاً من get_teachers
-        teachers = await teacher_service.list_teachers(user.school_id, is_active=True)
+        # ✅ استخدام الدالة الجديدة get_teachers_list
+        teachers = await teacher_service.get_teachers_list(
+            user.school_id, 
+            is_active=True
+        )
         
         return templates.TemplateResponse(
             "attendance/teachers/form.html",
