@@ -56,12 +56,7 @@ class EnrollmentRepository(BaseRepository[StudentEnrollment]):
         )
         return list(result.scalars().all())
 
-    async def list_by_student(self, student_id: str) -> list[StudentEnrollment]:
-        result = await self.db.execute(
-            select(StudentEnrollment).where(StudentEnrollment.student_id == student_id).order_by(StudentEnrollment.enrolled_at.desc())
-        )
-        return list(result.scalars().all())
-
+    
     async def get_by_section(
     self, 
     school_id: str, 
@@ -79,3 +74,10 @@ class EnrollmentRepository(BaseRepository[StudentEnrollment]):
         .order_by(Student.first_name, Student.last_name)
     )
     return list(result.scalars().all())
+    
+    async def list_by_student(self, student_id: str) -> list[StudentEnrollment]:
+        result = await self.db.execute(
+            select(StudentEnrollment).where(StudentEnrollment.student_id == student_id).order_by(StudentEnrollment.enrolled_at.desc())
+        )
+        return list(result.scalars().all())
+
