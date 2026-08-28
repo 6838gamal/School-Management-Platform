@@ -1,7 +1,7 @@
 """Student service for managing student data."""
 from typing import Optional, List, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_, or_, func, text
+from sqlalchemy import select, and_, or_, func
 
 from app.core.exceptions import NotFoundException, ConflictException, ValidationException
 from app.models.students import Student, StudentEnrollment
@@ -52,20 +52,21 @@ class StudentService:
             guardian_phone=data.guardian_phone,
             guardian_email=data.guardian_email,
             address=data.address,
-          #  created_by=user_id,
+         #   created_by=user_id,
         )
         
         # إنشاء تسجيل الطالب (StudentEnrollment) إذا تم توفير section_id و year_id
         if data.section_id and data.year_id:
             from datetime import datetime
+            now = datetime.now().isoformat(timespec='seconds')
+            
             enrollment = StudentEnrollment(
                 student_id=student.id,
                 school_id=school_id,
                 year_id=data.year_id,
                 section_id=data.section_id,
                 status="active",
-                enrolled_at=datetime.now().isoformat(),
-              #  created_by=user_id,
+                enrolled_at=now,
             )
             self.db.add(enrollment)
             await self.db.flush()
@@ -81,7 +82,7 @@ class StudentService:
         return await self.repo.get_by_id(student_id)
 
     # ============================================================
-    # 3️⃣ جلب تفاصيل الطالب (مدمج مع Academics) - ✅ بدون علاقات
+    # 3️⃣ جلب تفاصيل الطالب (مدمج مع Academics)
     # ============================================================
 
     async def get_student_detail(self, student_id: str) -> Dict[str, Any]:
@@ -168,8 +169,8 @@ class StudentService:
             "stage_name": stage_name,
             "year_id": year_id,
             "academic_year": academic_year_name,
-          #  "created_at": student.created_at,
-          #  "updated_at": student.updated_at,
+         #   "created_at": student.created_at,
+         #   "updated_at": student.updated_at,
         }
 
     # ============================================================
@@ -206,7 +207,7 @@ class StudentService:
         await self.repo.update(student_id, {"is_active": False})
 
     # ============================================================
-    # 6️⃣ قائمة الطلاب مع البحث والترقيم - ✅ بدون علاقات
+    # 6️⃣ قائمة الطلاب مع البحث والترقيم
     # ============================================================
 
     async def list_students(
@@ -299,7 +300,7 @@ class StudentService:
                 "section_id": student_section_id,
                 "section_name": section_name,
                 "is_active": student.is_active,
-                "created_at": student.created_at,
+               # "created_at": student.created_at,
             })
         
         return {
@@ -311,7 +312,7 @@ class StudentService:
         }
 
     # ============================================================
-    # 7️⃣ جلب الطلاب حسب الشعبة - ✅ بدون علاقات
+    # 7️⃣ جلب الطلاب حسب الشعبة
     # ============================================================
 
     async def get_by_section(
@@ -338,7 +339,7 @@ class StudentService:
         return result.scalars().all()
 
     # ============================================================
-    # 8️⃣ جلب الطلاب مع التفاصيل (للتكامل مع Attendance) - ✅ بدون علاقات
+    # 8️⃣ جلب الطلاب مع التفاصيل (للتكامل مع Attendance)
     # ============================================================
 
     async def get_students_with_details(
@@ -477,7 +478,7 @@ class StudentService:
         return result_data
 
     # ============================================================
-    # 9️⃣ حساب عدد الطلاب - ✅ بدون علاقات
+    # 9️⃣ حساب عدد الطلاب
     # ============================================================
 
     async def count_students(
@@ -504,7 +505,7 @@ class StudentService:
         return await self.db.scalar(stmt) or 0
 
     # ============================================================
-    # 🔟 نقل طالب بين الشعب (Transfer) - ✅ بدون علاقات
+    # 🔟 نقل طالب بين الشعب (Transfer)
     # ============================================================
 
     async def transfer_student(
@@ -565,18 +566,19 @@ class StudentService:
             # تحديث التسجيل الحالي إلى "transferred"
             current_enrollment.status = "transferred"
             from datetime import datetime
-            current_enrollment.ended_at = datetime.now().isoformat()
+            current_enrollment.ended_at = datetime.now().isoformat(timespec='seconds')
         
         # إنشاء تسجيل جديد
         from datetime import datetime
+        now = datetime.now().isoformat(timespec='seconds')
+        
         new_enrollment = StudentEnrollment(
             student_id=req.student_id,
             school_id=school_id,
             year_id=req.year_id,
             section_id=req.to_section_id,
             status="active",
-            enrolled_at=datetime.now().isoformat(),
-          #  created_by=req.created_by if hasattr(req, 'created_by') else None,
+            enrolled_at=now,
         )
         self.db.add(new_enrollment)
         await self.db.flush()
@@ -609,7 +611,7 @@ class StudentService:
         }
 
     # ============================================================
-    # 1️⃣1️⃣ البحث عن طالب - ✅ بدون علاقات
+    # 1️⃣1️⃣ البحث عن طالب
     # ============================================================
 
     async def search_students(
@@ -642,14 +644,14 @@ class StudentService:
                 "full_name": s.full_name,
                 "first_name": s.first_name,
                 "last_name": s.last_name,
-                "section_id": None,  # يمكن جلبها إذا أردت
+                "section_id": None,
                 "is_active": s.is_active,
             }
             for s in students
         ]
 
     # ============================================================
-    # 1️⃣2️⃣ إحصائيات الطلاب - ✅ بدون علاقات
+    # 1️⃣2️⃣ إحصائيات الطلاب
     # ============================================================
 
     async def get_stats(
