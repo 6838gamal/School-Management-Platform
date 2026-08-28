@@ -1,13 +1,13 @@
 """Student service for managing student data."""
 from typing import Optional, List, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import and_, or_, func
+from sqlalchemy import select, and_, or_, func, delete, update
 
 from app.core.exceptions import NotFoundException, ConflictException, ValidationException
 from app.models.students import Student
 from app.models.academics import Section, Grade, Stage, AcademicYear
 from app.repositories.students import StudentRepository
-from app.schemas.students import StudentCreate, StudentUpdate, TransferRequest  # ✅ تم الإضافة
+from app.schemas.students import StudentCreate, StudentUpdate, TransferRequest
 
 
 class StudentService:
@@ -159,7 +159,7 @@ class StudentService:
         await self.repo.update(student_id, {"is_active": False})
 
     # ============================================================
-    # 6️⃣ قائمة الطلاب مع البحث والترقيم
+    # 6️⃣ قائمة الطلاب مع البحث والترقيم - ✅ FIXED
     # ============================================================
 
     async def list_students(
@@ -174,18 +174,18 @@ class StudentService:
         """جلب قائمة الطلاب مع البحث والترقيم."""
         skip = (page - 1) * page_size
         
-        # بناء الاستعلام
-        query = self.db.query(Student).filter(Student.school_id == school_id)
+        # بناء الاستعلام باستخدام select()
+        stmt = select(Student).where(Student.school_id == school_id)
         
         if is_active is not None:
-            query = query.filter(Student.is_active == is_active)
+            stmt = stmt.where(Student.is_active == is_active)
         
         if section_id:
-            query = query.filter(Student.section_id == section_id)
+            stmt = stmt.where(Student.section_id == section_id)
         
         if search:
             search_term = f"%{search}%"
-            query = query.filter(
+            stmt = stmt.where(
                 or_(
                     Student.student_number.ilike(search_term),
                     Student.first_name.ilike(search_term),
@@ -195,11 +195,14 @@ class StudentService:
                 )
             )
         
-        # حساب العدد الإجمالي
-        total = await query.count()
+        # حساب العدد الإجمالي - ✅ FIXED
+        count_stmt = select(func.count()).select_from(stmt.subquery())
+        total = await self.db.scalar(count_stmt)
         
-        # جلب النتائج مع الترقيم
-        students = await query.offset(skip).limit(page_size).all()
+        # جلب النتائج مع الترقيم - ✅ FIXED
+        stmt = stmt.offset(skip).limit(page_size)
+        result = await self.db.execute(stmt)
+        students = result.scalars().all()
         
         # تحويل النتائج إلى قائمة مع التفاصيل
         items = []
@@ -237,7 +240,7 @@ class StudentService:
         }
 
     # ============================================================
-    # 7️⃣ جلب الطلاب حسب الشعبة
+    # 7️⃣ جلب الطلاب حسب الشعبة - ✅ FIXED
     # ============================================================
 
     async def get_by_section(
@@ -247,10 +250,16 @@ class StudentService:
         is_active: bool = True,
     ) -> List[Student]:
         """جلب الطلاب حسب الشعبة."""
-        return await self.repo.get_by_section(school_id, section_id, is_active)
+        stmt = select(Student).where(
+            Student.school_id == school_id,
+            Student.section_id == section_id,
+            Student.is_active == is_active
+        )
+        result = await self.db.execute(stmt)
+        return result.scalars().all()
 
     # ============================================================
-    # 8️⃣ جلب الطلاب مع التفاصيل (للتكامل مع Attendance)
+    # 8️⃣ جلب الطلاب مع التفاصيل (للتكامل مع Attendance) - ✅ FIXED
     # ============================================================
 
     async def get_students_with_details(
@@ -267,17 +276,18 @@ class StudentService:
         هذه الدالة تستخدم لتكامل Attendance مع Students و Academics.
         """
         # بناء الاستعلام
-        query = self.db.query(Student).filter(Student.school_id == school_id)
+        stmt = select(Student).where(Student.school_id == school_id)
         
         if is_active is not None:
-            query = query.filter(Student.is_active == is_active)
+            stmt = stmt.where(Student.is_active == is_active)
         
         if section_id:
-            query = query.filter(Student.section_id == section_id)
+            stmt = stmt.where(Student.section_id == section_id)
         
-        students = await query.all()
+        result = await self.db.execute(stmt)
+        students = result.scalars().all()
         
-        result = []
+        result_data = []
         for student in students:
             # جلب التفاصيل من Academics
             section_name = None
@@ -333,14 +343,15 @@ class StudentService:
             # جلب حالة الحضور إذا طلب
             if include_attendance and date:
                 from app.models.attendance import StudentAttendance
-                query_att = self.db.query(StudentAttendance).filter(
+                att_stmt = select(StudentAttendance).where(
                     StudentAttendance.student_id == student.id,
                     StudentAttendance.date == date
                 )
                 if period_id:
-                    query_att = query_att.filter(StudentAttendance.period_id == period_id)
+                    att_stmt = att_stmt.where(StudentAttendance.period_id == period_id)
                 
-                attendance = await query_att.first()
+                att_result = await self.db.execute(att_stmt)
+                attendance = att_result.scalar_one_or_none()
                 
                 if attendance:
                     student_data["attendance_status"] = attendance.status
@@ -348,12 +359,12 @@ class StudentService:
                     student_data["has_attendance"] = True
                     student_data["attendance_note"] = attendance.note
             
-            result.append(student_data)
+            result_data.append(student_data)
         
-        return result
+        return result_data
 
     # ============================================================
-    # 9️⃣ حساب عدد الطلاب
+    # 9️⃣ حساب عدد الطلاب - ✅ FIXED
     # ============================================================
 
     async def count_students(
@@ -363,13 +374,15 @@ class StudentService:
         is_active: Optional[bool] = True,
     ) -> int:
         """حساب عدد الطلاب."""
-        query = self.db.query(Student).filter(
+        stmt = select(func.count()).select_from(Student).where(
             Student.school_id == school_id,
-            Student.is_active == is_active if is_active is not None else True
         )
+        if is_active is not None:
+            stmt = stmt.where(Student.is_active == is_active)
         if section_id:
-            query = query.filter(Student.section_id == section_id)
-        return await query.count()
+            stmt = stmt.where(Student.section_id == section_id)
+        
+        return await self.db.scalar(stmt) or 0
 
     # ============================================================
     # 🔟 نقل طالب بين الشعب (Transfer)
@@ -451,7 +464,7 @@ class StudentService:
         }
 
     # ============================================================
-    # 1️⃣1️⃣ البحث عن طالب
+    # 1️⃣1️⃣ البحث عن طالب - ✅ FIXED
     # ============================================================
 
     async def search_students(
@@ -463,7 +476,7 @@ class StudentService:
         """البحث عن طالب بالاسم أو رقم الطالب."""
         search_term = f"%{query}%"
         
-        students = await self.db.query(Student).filter(
+        stmt = select(Student).where(
             Student.school_id == school_id,
             Student.is_active == True,
             or_(
@@ -472,7 +485,10 @@ class StudentService:
                 Student.last_name.ilike(search_term),
                 Student.full_name.ilike(search_term),
             )
-        ).limit(limit).all()
+        ).limit(limit)
+        
+        result = await self.db.execute(stmt)
+        students = result.scalars().all()
         
         return [
             {
@@ -488,7 +504,7 @@ class StudentService:
         ]
 
     # ============================================================
-    # 1️⃣2️⃣ إحصائيات الطلاب
+    # 1️⃣2️⃣ إحصائيات الطلاب - ✅ FIXED
     # ============================================================
 
     async def get_stats(
@@ -498,40 +514,50 @@ class StudentService:
     ) -> Dict[str, Any]:
         """جلب إحصائيات الطلاب."""
         # العدد الإجمالي
-        total_query = self.db.query(Student).filter(
+        total_stmt = select(func.count()).select_from(Student).where(
             Student.school_id == school_id,
             Student.is_active == True
         )
         if section_id:
-            total_query = total_query.filter(Student.section_id == section_id)
-        total = await total_query.count()
+            total_stmt = total_stmt.where(Student.section_id == section_id)
+        total = await self.db.scalar(total_stmt) or 0
         
-        # عدد الذكور والإناث
-        males = await self.db.query(Student).filter(
+        # عدد الذكور
+        males_stmt = select(func.count()).select_from(Student).where(
             Student.school_id == school_id,
             Student.is_active == True,
             Student.gender == "male"
-        ).count()
+        )
+        if section_id:
+            males_stmt = males_stmt.where(Student.section_id == section_id)
+        males = await self.db.scalar(males_stmt) or 0
         
-        females = await self.db.query(Student).filter(
+        # عدد الإناث
+        females_stmt = select(func.count()).select_from(Student).where(
             Student.school_id == school_id,
             Student.is_active == True,
             Student.gender == "female"
-        ).count()
+        )
+        if section_id:
+            females_stmt = females_stmt.where(Student.section_id == section_id)
+        females = await self.db.scalar(females_stmt) or 0
         
         # عدد الطلاب حسب الشعبة
         sections_stats = []
         if not section_id:
-            sections = await self.db.query(Section).filter(
+            sections_stmt = select(Section).where(
                 Section.school_id == school_id,
                 Section.is_active == True
-            ).all()
+            )
+            sections_result = await self.db.execute(sections_stmt)
+            sections = sections_result.scalars().all()
             
             for section in sections:
-                count = await self.db.query(Student).filter(
+                count_stmt = select(func.count()).select_from(Student).where(
                     Student.section_id == section.id,
                     Student.is_active == True
-                ).count()
+                )
+                count = await self.db.scalar(count_stmt) or 0
                 
                 if count > 0:
                     sections_stats.append({
