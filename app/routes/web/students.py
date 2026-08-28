@@ -70,44 +70,50 @@ async def student_create(
     year_id: Optional[str] = Form(None),
 ):
     service = StudentService(db)
-    ctx = await template_context(request)  # ✅ تم التعديل
+    ctx = await template_context(request)
+    
+    # ✅ جمع الأخطاء لعرضها للمستخدم
+    errors = {}
     
     # التحقق من صحة البيانات الأساسية
-    if not student_number or len(student_number) < 3:
-        from app.services.academic_service import AcademicService
-        academic = AcademicService(db)
-        data = await academic.get_onboarding_data(user.school_id)
-        return templates.TemplateResponse(
-            "students/form.html",
-            {**ctx, "title": "إضافة طالب", "mode": "create", 
-             "sections": data.get("sections", []), "years": data.get("years", []),
-             "error": "رقم الطالب يجب أن يكون 3 أحرف على الأقل"},
-            status_code=400
-        )
+    if not student_number or len(student_number.strip()) < 3:
+        errors["student_number"] = "رقم الطالب يجب أن يكون 3 أحرف على الأقل"
     
-    if not first_name or len(first_name) < 2:
+    if not first_name or len(first_name.strip()) < 2:
+        errors["first_name"] = "الاسم الأول يجب أن يكون حرفين على الأقل"
+    
+    if not last_name or len(last_name.strip()) < 2:
+        errors["last_name"] = "اسم العائلة يجب أن يكون حرفين على الأقل"
+    
+    # إذا كان هناك أخطاء، ارجع الصفحة مع رسائل الخطأ
+    if errors:
         from app.services.academic_service import AcademicService
         academic = AcademicService(db)
         data = await academic.get_onboarding_data(user.school_id)
         return templates.TemplateResponse(
             "students/form.html",
-            {**ctx, "title": "إضافة طالب", "mode": "create", 
-             "sections": data.get("sections", []), "years": data.get("years", []),
-             "error": "الاسم الأول يجب أن يكون حرفين على الأقل"},
-            status_code=400
+            {
+                **ctx, 
+                "title": "إضافة طالب", 
+                "mode": "create", 
+                "sections": data.get("sections", []), 
+                "years": data.get("years", []),
+                "error": "الرجاء تصحيح الأخطاء التالية:<br>• " + "<br>• ".join(errors.values())
+            },
+            status_code=422
         )
     
     student_data = StudentCreate(
-        student_number=student_number,
-        national_id=national_id,
-        first_name=first_name,
-        last_name=last_name,
+        student_number=student_number.strip(),
+        national_id=national_id.strip() if national_id else None,
+        first_name=first_name.strip(),
+        last_name=last_name.strip(),
         gender=gender,
         birth_date=birth_date,
-        guardian_name=guardian_name,
-        guardian_phone=guardian_phone,
-        guardian_email=guardian_email,
-        address=address,
+        guardian_name=guardian_name.strip() if guardian_name else None,
+        guardian_phone=guardian_phone.strip() if guardian_phone else None,
+        guardian_email=guardian_email.strip().lower() if guardian_email else None,
+        address=address.strip() if address else None,
         section_id=section_id,
         year_id=year_id,
     )
@@ -224,10 +230,18 @@ async def student_update(
     is_active: Optional[bool] = Form(None),
 ):
     service = StudentService(db)
-    ctx = await template_context(request)  # ✅ تم التعديل
+    ctx = await template_context(request)
     
-    # التحقق من صحة البيانات
-    if first_name is not None and len(first_name) < 2:
+    # ✅ جمع الأخطاء لعرضها للمستخدم
+    errors = {}
+    
+    if first_name is not None and first_name.strip() and len(first_name.strip()) < 2:
+        errors["first_name"] = "الاسم الأول يجب أن يكون حرفين على الأقل"
+    
+    if last_name is not None and last_name.strip() and len(last_name.strip()) < 2:
+        errors["last_name"] = "اسم العائلة يجب أن يكون حرفين على الأقل"
+    
+    if errors:
         try:
             detail = await service.get_student_detail(student_id)
             from app.services.academic_service import AcademicService
@@ -235,10 +249,16 @@ async def student_update(
             data = await academic.get_onboarding_data(user.school_id)
             return templates.TemplateResponse(
                 "students/form.html",
-                {**ctx, "title": "تعديل طالب", "mode": "edit", "student": detail,
-                 "sections": data.get("sections", []), "years": data.get("years", []), 
-                 "error": "الاسم الأول يجب أن يكون حرفين على الأقل"},
-                status_code=400
+                {
+                    **ctx, 
+                    "title": "تعديل طالب", 
+                    "mode": "edit", 
+                    "student": detail,
+                    "sections": data.get("sections", []), 
+                    "years": data.get("years", []), 
+                    "error": "الرجاء تصحيح الأخطاء التالية:<br>• " + "<br>• ".join(errors.values())
+                },
+                status_code=422
             )
         except NotFoundException:
             return templates.TemplateResponse(
@@ -248,15 +268,15 @@ async def student_update(
             )
     
     student_update = StudentUpdate(
-        first_name=first_name,
-        last_name=last_name,
-        national_id=national_id,
+        first_name=first_name.strip() if first_name else None,
+        last_name=last_name.strip() if last_name else None,
+        national_id=national_id.strip() if national_id else None,
         gender=gender,
         birth_date=birth_date,
-        guardian_name=guardian_name,
-        guardian_phone=guardian_phone,
-        guardian_email=guardian_email,
-        address=address,
+        guardian_name=guardian_name.strip() if guardian_name else None,
+        guardian_phone=guardian_phone.strip() if guardian_phone else None,
+        guardian_email=guardian_email.strip().lower() if guardian_email else None,
+        address=address.strip() if address else None,
         is_active=is_active,
     )
     
