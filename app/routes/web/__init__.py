@@ -1,17 +1,14 @@
 """Web routes package."""
-# Makes web a Python package
-from app.routes.web.teachers import router as teachers_router
-
-
-
 from fastapi import APIRouter
-from app.routes.web import modules, grades
+from app.routes.web import modules, grades, teachers
 
+# إنشاء الـ router الرئيسي
 router = APIRouter()
 
-# تسجيل الروات
+# تسجيل جميع الروات
 router.include_router(modules.router)
 router.include_router(grades.router)
+router.include_router(teachers.router)
 
-# يمكنك أيضاً تصدير router مباشرة
-__all__ = ["router","teachers_router"]
+# تصدير router و routers الأخرى للاستخدام الخارجي
+__all__ = ["router"]
