@@ -5,7 +5,7 @@ from sqlalchemy.orm import selectinload, joinedload
 from datetime import datetime
 
 from app.models.students import Student, StudentEnrollment
-from app.models.academic_years import AcademicYear
+from app.models.academics import AcademicYear
 from app.schemas.students import StudentCreate, StudentUpdate
 
 # استيراد الاستثناءات من ملفك الموجود
