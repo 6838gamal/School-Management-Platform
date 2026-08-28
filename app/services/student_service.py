@@ -1,11 +1,12 @@
 from typing import Optional, Dict, Any, List
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, or_, and_
-from sqlalchemy.orm import selectinload, joinedload
+from sqlalchemy.orm import selectinload
 from datetime import datetime
 
 from app.models.students import Student, StudentEnrollment
 from app.models.academics import AcademicYear
+from app.models.sections import Section
 from app.schemas.students import StudentCreate, StudentUpdate
 
 # استيراد الاستثناءات
@@ -31,20 +32,7 @@ class StudentService:
         search: Optional[str] = None,
         include_inactive: bool = False
     ) -> Dict[str, Any]:
-        """
-        قائمة الطلاب مع دعم البحث والترقيم
-        
-        Args:
-            school_id: معرف المدرسة
-            page: رقم الصفحة (يبدأ من 1)
-            page_size: عدد العناصر في الصفحة
-            search: نص البحث
-            include_inactive: تضمين الطلاب غير النشطين
-            
-        Returns:
-            قاموس يحتوي على العناصر والإجمالي
-        """
-        # بناء شرط البحث الأساسي
+        """قائمة الطلاب مع دعم البحث والترقيم"""
         conditions = [Student.school_id == school_id]
         
         if not include_inactive:
@@ -53,7 +41,6 @@ class StudentService:
         query = select(Student).where(and_(*conditions))
         count_query = select(func.count()).select_from(Student).where(and_(*conditions))
         
-        # إضافة شرط البحث
         if search and search.strip():
             search_term = f"%{search.strip()}%"
             search_filter = or_(
@@ -65,19 +52,9 @@ class StudentService:
             query = query.where(search_filter)
             count_query = count_query.where(search_filter)
         
-        # إضافة التحميل المسبق للعلاقات
-        query = query.options(
-            selectinload(Student.enrollments).selectinload(StudentEnrollment.year),
-            selectinload(Student.enrollments).selectinload(StudentEnrollment.section)
-        )
-        
-        # ترتيب النتائج
         query = query.order_by(Student.last_name, Student.first_name)
-        
-        # تطبيق الترقيم
         query = query.offset((page - 1) * page_size).limit(page_size)
         
-        # تنفيذ الاستعلامات
         result = await self.db.execute(query)
         students = result.scalars().all()
         
@@ -93,20 +70,9 @@ class StudentService:
         }
 
     async def get_student_detail(self, student_id: str) -> Dict[str, Any]:
-        """
-        الحصول على تفاصيل الطالب مع جميع المعلومات المرتبطة
-        
-        Args:
-            student_id: معرف الطالب
-            
-        Returns:
-            قاموس يحتوي على جميع تفاصيل الطالب
-        """
+        """الحصول على تفاصيل الطالب مع جميع المعلومات المرتبطة"""
         query = select(Student).where(Student.id == student_id).options(
-            selectinload(Student.enrollments).options(
-                joinedload(StudentEnrollment.year),
-                joinedload(StudentEnrollment.section)
-            )
+            selectinload(Student.enrollments)
         )
         result = await self.db.execute(query)
         student = result.scalar_one_or_none()
@@ -114,7 +80,26 @@ class StudentService:
         if not student:
             raise NotFoundException("الطالب غير موجود")
         
-        # تحويل إلى قاموس مع معلومات إضافية
+        # ✅ جلب جميع السنوات الدراسية دفعة واحدة
+        year_ids = [e.year_id for e in student.enrollments if e.year_id]
+        years_map = {}
+        if year_ids:
+            years_result = await self.db.execute(
+                select(AcademicYear).where(AcademicYear.id.in_(year_ids))
+            )
+            for year in years_result.scalars().all():
+                years_map[year.id] = year.name
+        
+        # ✅ جلب جميع الشعب دفعة واحدة
+        section_ids = [e.section_id for e in student.enrollments if e.section_id]
+        sections_map = {}
+        if section_ids:
+            sections_result = await self.db.execute(
+                select(Section).where(Section.id.in_(section_ids))
+            )
+            for section in sections_result.scalars().all():
+                sections_map[section.id] = section.name
+        
         detail = {
             "id": student.id,
             "school_id": student.school_id,
@@ -132,12 +117,12 @@ class StudentService:
             "address": student.address,
             "photo_url": student.photo_url,
             "is_active": student.is_active,
-         #   "created_at": student.created_at.isoformat() if hasattr(student, 'created_at') and student.created_at else None,
+        #    "created_at": student.created_at.isoformat() if hasattr(student, 'created_at') and student.created_at else None,
           #  "updated_at": student.updated_at.isoformat() if hasattr(student, 'updated_at') and student.updated_at else None,
             "enrollments": []
         }
         
-        # إضافة معلومات التسجيل
+        # ✅ إضافة معلومات التسجيل مع الأسماء
         for enrollment in student.enrollments:
             enrollment_data = {
                 "id": enrollment.id,
@@ -148,8 +133,8 @@ class StudentService:
                 "status": enrollment.status,
                 "enrolled_at": enrollment.enrolled_at,
                 "ended_at": enrollment.ended_at,
-                "year_name": enrollment.year.name if hasattr(enrollment, 'year') and enrollment.year else None,
-                "section_name": enrollment.section.name if hasattr(enrollment, 'section') and enrollment.section else None,
+                "year_name": years_map.get(enrollment.year_id) if enrollment.year_id else None,
+                "section_name": sections_map.get(enrollment.section_id) if enrollment.section_id else None,
             }
             detail["enrollments"].append(enrollment_data)
         
@@ -158,14 +143,13 @@ class StudentService:
         active_enrollment = active_enrollments[0] if active_enrollments else None
         
         if not active_enrollment and student.enrollments:
-            # إذا لم يكن هناك تسجيل نشط، نأخذ آخر تسجيل
             active_enrollment = student.enrollments[-1]
         
         if active_enrollment:
             detail["year_id"] = active_enrollment.year_id
             detail["section_id"] = active_enrollment.section_id
-            detail["year_name"] = active_enrollment.year.name if hasattr(active_enrollment, 'year') and active_enrollment.year else None
-            detail["section_name"] = active_enrollment.section.name if hasattr(active_enrollment, 'section') and active_enrollment.section else None
+            detail["year_name"] = years_map.get(active_enrollment.year_id) if active_enrollment.year_id else None
+            detail["section_name"] = sections_map.get(active_enrollment.section_id) if active_enrollment.section_id else None
         
         return detail
 
@@ -187,26 +171,13 @@ class StudentService:
         return result.scalar_one_or_none()
 
     async def create_student(self, data: StudentCreate, user_id: str, school_id: str) -> Student:
-        """
-        إنشاء طالب جديد
-        
-        Args:
-            data: بيانات الطالب
-            user_id: معرف المستخدم المنشئ
-            school_id: معرف المدرسة (يأتي من المستخدم الحالي)
-            
-        Returns:
-            كائن الطالب المنشأ
-        """
-        # التحقق من صحة البيانات
+        """إنشاء طالب جديد"""
         await self._validate_student_data(data, school_id)
         
-        # التحقق من عدم تكرار رقم الطالب
         existing = await self.get_student_by_number(data.student_number, school_id)
         if existing:
             raise ConflictException(f"رقم الطالب '{data.student_number}' موجود بالفعل")
         
-        # التحقق من عدم تكرار الرقم الوطني
         if data.national_id:
             existing = await self.db.execute(
                 select(Student).where(
@@ -217,7 +188,6 @@ class StudentService:
             if existing.scalar_one_or_none():
                 raise ConflictException(f"الرقم الوطني '{data.national_id}' موجود بالفعل")
         
-        # إنشاء كائن الطالب
         student = Student(
             school_id=school_id,
             student_number=data.student_number,
@@ -236,9 +206,7 @@ class StudentService:
         self.db.add(student)
         await self.db.flush()
         
-        # إنشاء تسجيل إذا تم تحديد year_id
         if data.year_id:
-            # استخدام تنسيق تاريخ قصير (YYYY-MM-DD HH:MM:SS) - 19 حرف
             now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             
             enrollment = StudentEnrollment(
@@ -257,23 +225,13 @@ class StudentService:
         return student
 
     async def update_student(self, student_id: str, data: StudentUpdate) -> Student:
-        """
-        تحديث بيانات الطالب
-        
-        Args:
-            student_id: معرف الطالب
-            data: بيانات التحديث
-            
-        Returns:
-            كائن الطالب المحدث
-        """
+        """تحديث بيانات الطالب"""
         student = await self.get_student(student_id)
         if not student:
             raise NotFoundException("الطالب غير موجود")
         
         update_data = data.model_dump(exclude_unset=True)
         
-        # التحقق من صحة البيانات المحدثة
         if "first_name" in update_data and update_data["first_name"]:
             update_data["first_name"] = update_data["first_name"].strip()
             if len(update_data["first_name"]) < 2:
@@ -284,7 +242,6 @@ class StudentService:
             if len(update_data["last_name"]) < 2:
                 raise ValidationException("اسم العائلة يجب أن يكون حرفين على الأقل")
         
-        # التحقق من عدم تكرار الرقم الوطني (إذا تم تغييره)
         if "national_id" in update_data and update_data["national_id"]:
             update_data["national_id"] = update_data["national_id"].strip()
             existing = await self.db.execute(
@@ -297,7 +254,6 @@ class StudentService:
             if existing.scalar_one_or_none():
                 raise ConflictException(f"الرقم الوطني '{update_data['national_id']}' موجود بالفعل")
         
-        # تحديث الحقول (تجاهل الحقول غير الموجودة)
         for key, value in update_data.items():
             if value is not None and key not in ["id", "school_id", "student_number", "created_at", "created_by", "updated_by"]:
                 if hasattr(student, key):
@@ -308,78 +264,50 @@ class StudentService:
         return student
 
     async def delete_student(self, student_id: str) -> None:
-        """
-        حذف الطالب وجميع سجلاته المرتبطة
-        
-        Args:
-            student_id: معرف الطالب
-        """
+        """حذف الطالب وجميع سجلاته المرتبطة"""
         student = await self.get_student(student_id)
         if not student:
             raise NotFoundException("الطالب غير موجود")
         
-        # حذف سجلات التسجيل المرتبطة
         enrollments = await self.db.execute(
             select(StudentEnrollment).where(StudentEnrollment.student_id == student_id)
         )
         for enrollment in enrollments.scalars().all():
             await self.db.delete(enrollment)
         
-        # حذف الطالب
         await self.db.delete(student)
         await self.db.commit()
 
     async def deactivate_student(self, student_id: str) -> Student:
-        """
-        إلغاء تنشيط الطالب (بدلاً من الحذف)
-        
-        Args:
-            student_id: معرف الطالب
-            
-        Returns:
-            كائن الطالب المحدث
-        """
+        """إلغاء تنشيط الطالب (بدلاً من الحذف)"""
         student = await self.get_student(student_id)
         if not student:
             raise NotFoundException("الطالب غير موجود")
         
         student.is_active = False
-        
         await self.db.commit()
         await self.db.refresh(student)
         return student
 
     async def _validate_student_data(self, data: StudentCreate, school_id: str) -> None:
-        """
-        التحقق من صحة بيانات الطالب
-        
-        Args:
-            data: بيانات الطالب
-            school_id: معرف المدرسة
-        """
-        # التحقق من رقم الطالب
+        """التحقق من صحة بيانات الطالب"""
         if not data.student_number or len(data.student_number.strip()) < 3:
             raise ValidationException("رقم الطالب يجب أن يكون 3 أحرف على الأقل")
         
-        # التحقق من الاسم الأول
         if not data.first_name or len(data.first_name.strip()) < 2:
             raise ValidationException("الاسم الأول يجب أن يكون حرفين على الأقل")
         
-        # التحقق من اسم العائلة
         if not data.last_name or len(data.last_name.strip()) < 2:
             raise ValidationException("اسم العائلة يجب أن يكون حرفين على الأقل")
         
-        # التحقق من البريد الإلكتروني لولي الأمر (إذا تم توفيره)
         if data.guardian_email and "@" not in data.guardian_email:
             raise ValidationException("البريد الإلكتروني لولي الأمر غير صحيح")
         
-        # التحقق من هاتف ولي الأمر (إذا تم توفيره)
         if data.guardian_phone:
             phone = data.guardian_phone.strip()
             if len(phone) < 8 or not phone.replace("+", "").replace("-", "").replace(" ", "").isdigit():
                 raise ValidationException("رقم هاتف ولي الأمر غير صحيح")
         
-        # التحقق من year_id إذا تم توفيره
         if data.year_id:
             year = await self.db.execute(
                 select(AcademicYear).where(
@@ -398,8 +326,6 @@ class StudentService:
         ).join(StudentEnrollment).where(
             StudentEnrollment.section_id == section_id,
             StudentEnrollment.status == "active"
-        ).options(
-            selectinload(Student.enrollments)
         ).order_by(Student.last_name, Student.first_name)
         
         result = await self.db.execute(query)
@@ -413,8 +339,6 @@ class StudentService:
         ).join(StudentEnrollment).where(
             StudentEnrollment.year_id == year_id,
             StudentEnrollment.status == "active"
-        ).options(
-            selectinload(Student.enrollments)
         ).order_by(Student.last_name, Student.first_name)
         
         result = await self.db.execute(query)
