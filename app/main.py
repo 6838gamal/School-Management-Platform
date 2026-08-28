@@ -69,6 +69,7 @@ from app.routes.web.modules import (
 )
 
 from app.routes.web.teachers import router as teachers_router
+from app.routes.web.grades import router as grades_router
 
 from app.routes.api import router as api_router
 
@@ -385,6 +386,7 @@ app.include_router(web_behavior)
 app.include_router(web_notifications)
 app.include_router(web_reports)
 app.include_router(teachers_router)
+app.include_router(grades_router)
 
 # ============= API v1 routes =============
 api_prefix = "/api/v1"
