@@ -5,6 +5,7 @@ from sqlalchemy.orm import selectinload, joinedload
 from datetime import datetime
 
 from app.models.students import Student, StudentEnrollment
+from app.models.academic_years import AcademicYear
 from app.schemas.students import StudentCreate, StudentUpdate
 
 # استيراد الاستثناءات من ملفك الموجود
@@ -241,7 +242,7 @@ class StudentService:
         if data.year_id:
             enrollment = StudentEnrollment(
                 student_id=student.id,
-                school_id=school_id,  # ✅ نفس school_id من المستخدم
+                school_id=school_id,
                 year_id=data.year_id,
                 section_id=data.section_id,
                 status="active",
@@ -386,7 +387,6 @@ class StudentService:
         
         # التحقق من year_id إذا تم توفيره
         if data.year_id:
-            from app.models.academic import AcademicYear
             year = await self.db.execute(
                 select(AcademicYear).where(
                     AcademicYear.id == data.year_id,
