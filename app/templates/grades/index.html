@@ -1,38 +1,40 @@
 {% extends "layouts/director.html" %}
+
 {% block content %}
 <div class="space-y-6">
     <!-- Header -->
-    <div class="flex items-center justify-between">
+    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
             <h1 class="text-2xl font-bold text-slate-800 dark:text-white">الدرجات</h1>
-            <p class="text-slate-400 text-sm mt-1">إدارة التقييمات والدرجات</p>
+            <p class="text-slate-400 text-sm mt-1">إجمالي {{ total }} تقييم</p>
         </div>
         {% if can('grades.create') %}
-        <a href="{{ url_for('grades.create') }}" class="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center gap-2">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
-            </svg>
-            تقييم جديد
+        <a href="/grades/create" class="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors shadow-sm hover:shadow-md">
+            <i class="fas fa-plus ml-2"></i> تقييم جديد
         </a>
         {% endif %}
     </div>
 
     <!-- Filters -->
-    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-4">
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <select id="filter-section" class="px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
+    <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-3">
+        <div>
+            <select id="filter-section" class="w-full px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent">
                 <option value="">جميع الشعب</option>
                 {% for section in sections %}
                 <option value="{{ section.id }}">{{ section.name }}</option>
                 {% endfor %}
             </select>
-            <select id="filter-subject" class="px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
+        </div>
+        <div>
+            <select id="filter-subject" class="w-full px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent">
                 <option value="">جميع المواد</option>
                 {% for subject in subjects %}
                 <option value="{{ subject.id }}">{{ subject.name }}</option>
                 {% endfor %}
             </select>
-            <select id="filter-type" class="px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
+        </div>
+        <div>
+            <select id="filter-type" class="w-full px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent">
                 <option value="">جميع الأنواع</option>
                 <option value="exam">اختبار</option>
                 <option value="quiz">قصير</option>
@@ -41,81 +43,124 @@
                 <option value="activity">نشاط</option>
                 <option value="participation">مشاركة</option>
             </select>
-            <div class="flex gap-2">
-                <input type="text" id="filter-search" placeholder="بحث..." class="flex-1 px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
-                <button id="clear-filters" class="px-3 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors" title="مسح الفلترة">
-                    <svg class="w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+        </div>
+        <div class="flex gap-2">
+            <div class="relative flex-1">
+                <input 
+                    type="text" 
+                    id="filter-search"
+                    placeholder="بحث..."
+                    class="w-full px-4 py-2 pr-10 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                >
+                <button id="search-btn" class="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
                     </svg>
                 </button>
             </div>
+            <button id="clear-filters" class="px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors" title="مسح الفلترة">
+                <svg class="w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>
         </div>
     </div>
 
+    <!-- Success/Error Messages -->
+    {% if request.query_params.get('success') %}
+    <div class="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-700 dark:text-green-400 px-4 py-3 rounded-lg flex items-center gap-2">
+        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+        </svg>
+        <span>
+            {% if request.query_params.get('success') == 'created' %}
+                تم إنشاء التقييم بنجاح
+            {% elif request.query_params.get('success') == 'updated' %}
+                تم تحديث التقييم بنجاح
+            {% elif request.query_params.get('success') == 'deleted' %}
+                تم حذف التقييم بنجاح
+            {% else %}
+                تمت العملية بنجاح
+            {% endif %}
+        </span>
+    </div>
+    {% endif %}
+
+    <!-- Loading Spinner -->
+    <div id="loading-spinner" class="flex justify-center items-center py-8 hidden">
+        <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+    </div>
+
     <!-- Table -->
-    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 overflow-hidden">
-        <div id="loading-spinner" class="flex justify-center items-center p-8">
-            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 overflow-hidden shadow-sm">
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead class="bg-slate-50 dark:bg-slate-700/50 text-slate-500 dark:text-slate-300">
+                    <tr>
+                        <th class="text-right p-3 font-medium">#</th>
+                        <th class="text-right p-3 font-medium">العنوان</th>
+                        <th class="text-right p-3 font-medium">الشعبة</th>
+                        <th class="text-right p-3 font-medium">المادة</th>
+                        <th class="text-right p-3 font-medium">النوع</th>
+                        <th class="text-right p-3 font-medium">الدرجة العظمى</th>
+                        <th class="text-right p-3 font-medium">التاريخ</th>
+                        <th class="text-right p-3 font-medium">الحالة</th>
+                        <th class="text-right p-3 font-medium">الإجراءات</th>
+                    </tr>
+                </thead>
+                <tbody id="assessments-tbody" class="divide-y divide-slate-100 dark:divide-slate-700">
+                    <!-- سيتم تعبئتها ديناميكياً -->
+                </tbody>
+            </table>
         </div>
         
-        <div id="grades-table-container" class="hidden">
-            <div class="overflow-x-auto">
-                <table class="w-full text-sm">
-                    <thead>
-                        <tr class="bg-slate-50 dark:bg-slate-700/50 border-b border-slate-200 dark:border-slate-700">
-                            <th class="text-right py-3 px-4 font-semibold text-slate-600 dark:text-slate-300">#</th>
-                            <th class="text-right py-3 px-4 font-semibold text-slate-600 dark:text-slate-300">العنوان</th>
-                            <th class="text-right py-3 px-4 font-semibold text-slate-600 dark:text-slate-300">الشعبة</th>
-                            <th class="text-right py-3 px-4 font-semibold text-slate-600 dark:text-slate-300">المادة</th>
-                            <th class="text-right py-3 px-4 font-semibold text-slate-600 dark:text-slate-300">النوع</th>
-                            <th class="text-right py-3 px-4 font-semibold text-slate-600 dark:text-slate-300">الدرجة العظمى</th>
-                            <th class="text-right py-3 px-4 font-semibold text-slate-600 dark:text-slate-300">التاريخ</th>
-                            <th class="text-center py-3 px-4 font-semibold text-slate-600 dark:text-slate-300">الإجراءات</th>
-                        </tr>
-                    </thead>
-                    <tbody id="assessments-tbody">
-                        <!-- سيتم تعبئتها ديناميكياً -->
-                    </tbody>
-                </table>
-            </div>
-            <div id="empty-state" class="hidden text-center py-12">
-                <svg class="w-16 h-16 mx-auto text-slate-300 dark:text-slate-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <!-- Empty State -->
+        <div id="empty-state" class="hidden p-8 text-center text-slate-400">
+            <div class="flex flex-col items-center gap-3">
+                <svg class="w-16 h-16 text-slate-300 dark:text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
                 </svg>
-                <p class="text-slate-500 dark:text-slate-400">لا توجد تقييمات متاحة</p>
-                <p class="text-slate-400 dark:text-slate-500 text-sm mt-1">قم بإنشاء تقييم جديد للبدء</p>
+                <span class="text-lg font-medium">لا توجد تقييمات</span>
+                <span class="text-sm">يمكنك إضافة تقييم جديد بالضغط على زر "تقييم جديد"</span>
             </div>
-            <!-- Pagination -->
-            <div class="flex flex-col sm:flex-row items-center justify-between px-4 py-3 border-t border-slate-200 dark:border-slate-700 gap-3">
-                <div id="pagination-info" class="text-sm text-slate-600 dark:text-slate-400"></div>
-                <div id="pagination-controls" class="flex gap-2"></div>
-            </div>
+        </div>
+
+        <!-- Pagination -->
+        <div id="pagination-container" class="flex flex-col sm:flex-row items-center justify-between gap-4 px-4 py-3 border-t border-slate-100 dark:border-slate-700">
+            <p id="pagination-info" class="text-sm text-slate-500 dark:text-slate-400"></p>
+            <div id="pagination-controls" class="flex items-center gap-2"></div>
         </div>
     </div>
 </div>
 
 <!-- Modal: إنشاء/تعديل تقييم -->
-<div class="modal-backdrop" id="assessment-modal">
-    <div class="modal-box p-6 max-w-2xl">
+<div id="assessmentModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 backdrop-blur-sm">
+    <div class="bg-white dark:bg-slate-800 rounded-xl p-6 max-w-2xl w-full mx-4 shadow-2xl max-h-[90vh] overflow-y-auto">
         <div class="flex items-center justify-between mb-4">
-            <h3 id="modal-title" class="font-semibold text-lg">إنشاء تقييم جديد</h3>
-            <button onclick="closeModal('assessment-modal')" class="p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors">
-                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-full bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center flex-shrink-0">
+                    <svg class="w-5 h-5 text-primary-600 dark:text-primary-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                    </svg>
+                </div>
+                <h3 id="modal-title" class="text-lg font-bold text-slate-800 dark:text-white">إنشاء تقييم جديد</h3>
+            </div>
+            <button onclick="closeAssessmentModal()" class="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
                 </svg>
             </button>
         </div>
-        
-        <form id="assessment-form" class="space-y-4" method="POST" action="{{ url_for('grades.store') }}">
-            <!-- CSRF Token -->
+
+        <form id="assessment-form" class="space-y-4" method="POST" action="/grades">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" id="assessment-id" name="assessment_id">
             <input type="hidden" name="_method" id="form-method" value="POST">
             
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">الشعبة *</label>
-                    <select name="section_id" id="modal-section" required class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">الشعبة <span class="text-red-500">*</span></label>
+                    <select name="section_id" id="modal-section" required class="w-full px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent">
                         <option value="">اختر الشعبة</option>
                         {% for section in sections %}
                         <option value="{{ section.id }}">{{ section.name }}</option>
@@ -123,8 +168,8 @@
                     </select>
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">المادة *</label>
-                    <select name="subject_id" id="modal-subject" required class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">المادة <span class="text-red-500">*</span></label>
+                    <select name="subject_id" id="modal-subject" required class="w-full px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent">
                         <option value="">اختر المادة</option>
                         {% for subject in subjects %}
                         <option value="{{ subject.id }}">{{ subject.name }}</option>
@@ -134,14 +179,14 @@
             </div>
 
             <div>
-                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">عنوان التقييم *</label>
-                <input name="title" id="modal-title-input" placeholder="أدخل عنوان التقييم" required class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">عنوان التقييم <span class="text-red-500">*</span></label>
+                <input name="title" id="modal-title-input" placeholder="أدخل عنوان التقييم" required class="w-full px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent">
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">نوع التقييم *</label>
-                    <select name="assessment_type" id="modal-type" required class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">نوع التقييم <span class="text-red-500">*</span></label>
+                    <select name="assessment_type" id="modal-type" required class="w-full px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent">
                         <option value="exam">اختبار</option>
                         <option value="quiz">قصير</option>
                         <option value="assignment">واجب</option>
@@ -152,69 +197,74 @@
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">التاريخ</label>
-                    <input type="date" name="date" id="modal-date" class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
+                    <input type="date" name="date" id="modal-date" class="w-full px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent">
                 </div>
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                     <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">الدرجة العظمى</label>
-                    <input name="max_score" id="modal-max-score" type="number" step="0.5" placeholder="100" value="100" class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
+                    <input name="max_score" id="modal-max-score" type="number" step="0.5" placeholder="100" value="100" class="w-full px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent">
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">درجة النجاح</label>
-                    <input name="passing_score" id="modal-passing-score" type="number" step="0.5" placeholder="50" value="50" class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
+                    <input name="passing_score" id="modal-passing-score" type="number" step="0.5" placeholder="50" value="50" class="w-full px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent">
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">الوزن</label>
-                    <input name="weight" id="modal-weight" type="number" step="0.1" placeholder="1.0" value="1.0" class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
+                    <input name="weight" id="modal-weight" type="number" step="0.1" placeholder="1.0" value="1.0" class="w-full px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent">
                 </div>
             </div>
 
             <div>
                 <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">الوصف</label>
-                <textarea name="description" id="modal-description" placeholder="وصف التقييم (اختياري)" rows="3" class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500 resize-none"></textarea>
+                <textarea name="description" id="modal-description" placeholder="وصف التقييم (اختياري)" rows="3" class="w-full px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none"></textarea>
             </div>
 
-            <!-- حقل المعلم - سيتم تعبئته من السياق -->
             <input type="hidden" name="teacher_id" value="{{ current_user.id if current_user else '' }}">
 
-            <div class="flex gap-2 pt-2">
-                <button type="button" onclick="closeModal('assessment-modal')" class="flex-1 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
-                    إلغاء
+            <div class="flex items-center gap-3 justify-end pt-4 border-t border-slate-200 dark:border-slate-700">
+                <button type="button" onclick="closeAssessmentModal()" class="px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors text-sm text-slate-600 dark:text-slate-400 font-medium">
+                    <i class="fas fa-times ml-1"></i> إلغاء
                 </button>
-                <button type="submit" id="modal-submit-btn" class="flex-1 bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors">
-                    إنشاء
+                <button type="submit" id="modal-submit-btn" class="px-4 py-2 bg-primary-600 hover:bg-primary-700 active:bg-primary-800 text-white rounded-lg text-sm font-semibold transition-colors shadow-sm hover:shadow-md flex items-center gap-1">
+                    <i class="fas fa-save ml-1"></i> إنشاء
                 </button>
             </div>
         </form>
     </div>
 </div>
 
-<!-- Modal: تأكيد الحذف -->
-<div class="modal-backdrop" id="delete-modal">
-    <div class="modal-box p-6 max-w-md">
-        <div class="flex items-center justify-between mb-4">
-            <h3 class="font-semibold text-lg text-red-600">تأكيد الحذف</h3>
-            <button onclick="closeModal('delete-modal')" class="p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors">
-                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+<!-- Delete Confirmation Modal -->
+<div id="deleteModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 backdrop-blur-sm">
+    <div class="bg-white dark:bg-slate-800 rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl">
+        <div class="flex items-center gap-3 mb-4">
+            <div class="w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center flex-shrink-0">
+                <svg class="w-5 h-5 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
                 </svg>
-            </button>
+            </div>
+            <h3 class="text-lg font-bold text-slate-800 dark:text-white">تأكيد الحذف</h3>
         </div>
-        <div class="text-center py-4">
-            <svg class="w-16 h-16 mx-auto text-red-500 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
-            </svg>
-            <p class="text-slate-600 dark:text-slate-300 mb-2 font-medium">هل أنت متأكد من حذف هذا التقييم؟</p>
-            <p class="text-slate-400 dark:text-slate-500 text-sm">هذا الإجراء لا يمكن التراجع عنه وسيتم حذف جميع الدرجات المرتبطة.</p>
+        
+        <p class="text-slate-600 dark:text-slate-300 mb-2">
+            هل أنت متأكد من حذف التقييم 
+            <span id="deleteAssessmentTitle" class="font-semibold text-slate-800 dark:text-white"></span>؟
+        </p>
+        
+        <div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3 mb-6">
+            <p class="text-sm text-red-600 dark:text-red-400 flex items-start gap-2">
+                <span class="text-lg">⚠️</span>
+                <span>هذا الإجراء لا يمكن التراجع عنه. سيتم حذف جميع الدرجات المرتبطة بهذا التقييم.</span>
+            </p>
         </div>
-        <div class="flex gap-2">
-            <button type="button" onclick="closeModal('delete-modal')" class="flex-1 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
-                إلغاء
+        
+        <div class="flex items-center gap-3 justify-end">
+            <button onclick="closeDeleteModal()" class="px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors text-sm text-slate-600 dark:text-slate-400 font-medium">
+                <i class="fas fa-times ml-1"></i> إلغاء
             </button>
-            <button id="confirm-delete-btn" class="flex-1 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors">
-                نعم، احذف
+            <button id="confirm-delete-btn" class="px-4 py-2 bg-red-600 hover:bg-red-700 active:bg-red-800 text-white rounded-lg text-sm font-semibold transition-colors shadow-sm hover:shadow-md flex items-center gap-1">
+                <i class="fas fa-trash ml-1"></i> حذف
             </button>
         </div>
     </div>
@@ -301,24 +351,6 @@ class ApiService {
         return this.request(endpoint);
     }
 
-    async getAssessment(id) {
-        return this.request(`${this.endpoints.assessments}/${id}`);
-    }
-
-    async createAssessment(data) {
-        return this.request(this.endpoints.assessments, {
-            method: 'POST',
-            body: data
-        });
-    }
-
-    async updateAssessment(id, data) {
-        return this.request(`${this.endpoints.assessments}/${id}`, {
-            method: 'PUT',
-            body: data
-        });
-    }
-
     async deleteAssessment(id) {
         return this.request(`${this.endpoints.assessments}/${id}`, {
             method: 'DELETE'
@@ -368,13 +400,13 @@ function getStatusBadge(assessment) {
     const date = assessment.date ? new Date(assessment.date) : null;
     
     if (date && date < now) {
-        return '<span class="text-xs px-2 py-1 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded-full">منتهي</span>';
+        return '<span class="px-2 py-0.5 text-xs rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"><i class="fas fa-circle text-[6px] ml-1"></i> منتهي</span>';
     }
-    return '<span class="text-xs px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-full">قادم</span>';
+    return '<span class="px-2 py-0.5 text-xs rounded-full bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"><i class="fas fa-circle text-[6px] ml-1"></i> قادم</span>';
 }
 
 function formatDate(dateString) {
-    if (!dateString) return '-';
+    if (!dateString) return '—';
     try {
         return new Date(dateString).toLocaleDateString('ar-EG', {
             year: 'numeric',
@@ -394,9 +426,19 @@ function showToast(message, type = 'success') {
         info: 'bg-blue-600'
     };
     
+    const icons = {
+        success: '✓',
+        error: '✕',
+        warning: '⚠',
+        info: 'ℹ'
+    };
+    
     const toast = document.createElement('div');
     toast.className = `fixed bottom-4 right-4 ${colors[type] || colors.info} text-white px-6 py-3 rounded-lg shadow-lg z-50 transition-all duration-300 transform translate-y-0 opacity-100 flex items-center gap-3 max-w-md`;
-    toast.innerHTML = `<span>${message}</span>`;
+    toast.innerHTML = `
+        <span class="font-bold text-lg">${icons[type] || ''}</span>
+        <span>${message}</span>
+    `;
     document.body.appendChild(toast);
     
     setTimeout(() => {
@@ -412,28 +454,70 @@ function showToast(message, type = 'success') {
 
 function showLoading() {
     document.getElementById('loading-spinner').classList.remove('hidden');
-    document.getElementById('grades-table-container').classList.add('hidden');
+    document.getElementById('assessments-tbody').innerHTML = '';
 }
 
 function hideLoading() {
     document.getElementById('loading-spinner').classList.add('hidden');
-    document.getElementById('grades-table-container').classList.remove('hidden');
 }
 
-function openModal(id) {
-    const modal = document.getElementById(id);
-    if (modal) {
-        modal.classList.add('active');
-        document.body.style.overflow = 'hidden';
+function openAssessmentModal(data = null) {
+    const modal = document.getElementById('assessmentModal');
+    const form = document.getElementById('assessment-form');
+    form.reset();
+    
+    if (data) {
+        document.getElementById('modal-title').textContent = 'تعديل التقييم';
+        document.getElementById('modal-submit-btn').innerHTML = '<i class="fas fa-save ml-1"></i> تحديث';
+        document.getElementById('assessment-id').value = data.id;
+        document.getElementById('form-method').value = 'PUT';
+        document.getElementById('modal-title-input').value = data.title || '';
+        document.getElementById('modal-section').value = data.section_id || '';
+        document.getElementById('modal-subject').value = data.subject_id || '';
+        document.getElementById('modal-type').value = data.assessment_type || 'exam';
+        document.getElementById('modal-date').value = data.date || '';
+        document.getElementById('modal-max-score').value = data.max_score || 100;
+        document.getElementById('modal-passing-score').value = data.passing_score || 50;
+        document.getElementById('modal-weight').value = data.weight || 1.0;
+        document.getElementById('modal-description').value = data.description || '';
+        document.getElementById('assessment-form').action = `/grades/${data.id}`;
+        state.editingId = data.id;
+    } else {
+        document.getElementById('modal-title').textContent = 'إنشاء تقييم جديد';
+        document.getElementById('modal-submit-btn').innerHTML = '<i class="fas fa-save ml-1"></i> إنشاء';
+        document.getElementById('assessment-id').value = '';
+        document.getElementById('form-method').value = 'POST';
+        document.getElementById('assessment-form').action = '/grades';
+        state.editingId = null;
     }
+    
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    document.body.style.overflow = 'hidden';
 }
 
-function closeModal(id) {
-    const modal = document.getElementById(id);
-    if (modal) {
-        modal.classList.remove('active');
-        document.body.style.overflow = '';
-    }
+function closeAssessmentModal() {
+    const modal = document.getElementById('assessmentModal');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+    document.body.style.overflow = '';
+}
+
+function openDeleteModal(id, title) {
+    state.deletingId = id;
+    document.getElementById('deleteAssessmentTitle').textContent = title;
+    const modal = document.getElementById('deleteModal');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    document.body.style.overflow = 'hidden';
+}
+
+function closeDeleteModal() {
+    const modal = document.getElementById('deleteModal');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+    document.body.style.overflow = '';
+    state.deletingId = null;
 }
 
 // ============================================
@@ -443,65 +527,67 @@ function closeModal(id) {
 function renderAssessments(assessments, page = 1, total = 0) {
     const tbody = document.getElementById('assessments-tbody');
     const emptyState = document.getElementById('empty-state');
+    const paginationContainer = document.getElementById('pagination-container');
     
     if (!assessments || assessments.length === 0) {
         tbody.innerHTML = '';
         emptyState.classList.remove('hidden');
-        document.getElementById('pagination-info').textContent = '';
-        document.getElementById('pagination-controls').innerHTML = '';
+        paginationContainer.classList.add('hidden');
         return;
     }
     
     emptyState.classList.add('hidden');
+    paginationContainer.classList.remove('hidden');
     
     const startIndex = (page - 1) * state.pageSize;
     
     tbody.innerHTML = assessments.map((assessment, index) => `
-        <tr class="border-b border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
-            <td class="py-3 px-4 text-center text-slate-500 dark:text-slate-400">${startIndex + index + 1}</td>
-            <td class="py-3 px-4">
+        <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">
+            <td class="p-3 text-slate-400 text-xs">${startIndex + index + 1}</td>
+            <td class="p-3">
                 <div class="font-medium text-slate-800 dark:text-slate-200">${assessment.title || 'بدون عنوان'}</div>
                 ${assessment.description ? `<div class="text-xs text-slate-400 dark:text-slate-500 truncate max-w-xs">${assessment.description}</div>` : ''}
             </td>
-            <td class="py-3 px-4 text-slate-600 dark:text-slate-300">${assessment.section_name || assessment.section_id || '-'}</td>
-            <td class="py-3 px-4 text-slate-600 dark:text-slate-300">${assessment.subject_name || assessment.subject_id || '-'}</td>
-            <td class="py-3 px-4">
-                <span class="text-xs px-2.5 py-1 bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-400 rounded-full font-medium">
+            <td class="p-3 text-slate-600 dark:text-slate-300">${assessment.section_name || assessment.section_id || '—'}</td>
+            <td class="p-3 text-slate-600 dark:text-slate-300">${assessment.subject_name || assessment.subject_id || '—'}</td>
+            <td class="p-3">
+                <span class="px-2 py-0.5 text-xs rounded-full bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-400">
                     ${getAssessmentTypeLabel(assessment.assessment_type)}
                 </span>
             </td>
-            <td class="py-3 px-4 text-center font-medium">${assessment.max_score || 0}</td>
-            <td class="py-3 px-4">
-                <div class="text-center text-sm">${formatDate(assessment.date)}</div>
-                <div class="text-center mt-1">${getStatusBadge(assessment)}</div>
-            </td>
-            <td class="py-3 px-4">
-                <div class="flex items-center justify-center gap-1.5">
+            <td class="p-3 text-center font-medium text-slate-700 dark:text-slate-300">${assessment.max_score || 0}</td>
+            <td class="p-3 text-slate-600 dark:text-slate-300">${formatDate(assessment.date)}</td>
+            <td class="p-3">${getStatusBadge(assessment)}</td>
+            <td class="p-3">
+                <div class="flex items-center gap-2">
+                    <a href="/grades/${assessment.id}" 
+                       class="p-1.5 rounded-lg text-primary-600 hover:text-primary-800 hover:bg-primary-50 dark:text-primary-400 dark:hover:text-primary-300 dark:hover:bg-primary-900/30 transition-colors" 
+                       title="عرض التفاصيل">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                        </svg>
+                    </a>
+                    
                     {% if can('grades.update') %}
-                    <button onclick="openEditAssessment('${assessment.id}')" 
-                            class="p-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors group" 
-                            title="تعديل التقييم">
-                        <svg class="w-5 h-5 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <button onclick="editAssessment('${assessment.id}')" 
+                            class="p-1.5 rounded-lg text-blue-600 hover:text-blue-800 hover:bg-blue-50 dark:text-blue-400 dark:hover:text-blue-300 dark:hover:bg-blue-900/30 transition-colors" 
+                            title="تعديل">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
                         </svg>
                     </button>
                     {% endif %}
+                    
                     {% if can('grades.delete') %}
-                    <button onclick="openDeleteModal('${assessment.id}')" 
-                            class="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors group" 
-                            title="حذف التقييم">
-                        <svg class="w-5 h-5 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <button onclick="openDeleteModal('${assessment.id}', '${assessment.title}')" 
+                            class="p-1.5 rounded-lg text-red-600 hover:text-red-800 hover:bg-red-50 dark:text-red-400 dark:hover:text-red-300 dark:hover:bg-red-900/30 transition-colors" 
+                            title="حذف">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
                         </svg>
                     </button>
                     {% endif %}
-                    <a href="{{ url_for('grades.show', id='') }}${assessment.id}" 
-                            class="p-2 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/30 rounded-lg transition-colors group" 
-                            title="عرض/إدخال الدرجات">
-                        <svg class="w-5 h-5 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
-                        </svg>
-                    </a>
                 </div>
             </td>
         </tr>
@@ -528,11 +614,13 @@ function updatePagination(currentPage, total) {
     }
     
     let html = '';
-    html += `<button onclick="changePage(${currentPage - 1})" 
-                    class="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors text-sm ${currentPage <= 1 ? 'opacity-40 cursor-not-allowed' : ''}"
-                    ${currentPage <= 1 ? 'disabled' : ''}>
-                السابق
-            </button>`;
+    
+    if (currentPage > 1) {
+        html += `<a href="#" onclick="changePage(${currentPage - 1}); return false;" 
+                   class="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors text-sm flex items-center gap-1">
+                    <i class="fas fa-chevron-right text-xs"></i> السابق
+                </a>`;
+    }
     
     const pages = [];
     if (state.totalPages <= 7) {
@@ -551,18 +639,19 @@ function updatePagination(currentPage, total) {
         if (page === '...') {
             html += `<span class="px-2 text-slate-400">...</span>`;
         } else {
-            html += `<button onclick="changePage(${page})" 
-                            class="px-3 py-1.5 rounded-lg border transition-colors text-sm ${page === currentPage ? 'bg-primary-600 text-white border-primary-600' : 'border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700'}">
+            html += `<a href="#" onclick="changePage(${page}); return false;" 
+                        class="px-3 py-1.5 rounded-lg text-sm transition-colors ${page === currentPage ? 'bg-primary-600 text-white' : 'hover:bg-slate-50 dark:hover:bg-slate-700'}">
                         ${page}
-                    </button>`;
+                    </a>`;
         }
     });
     
-    html += `<button onclick="changePage(${currentPage + 1})" 
-                    class="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors text-sm ${currentPage >= state.totalPages ? 'opacity-40 cursor-not-allowed' : ''}"
-                    ${currentPage >= state.totalPages ? 'disabled' : ''}>
-                التالي
-            </button>`;
+    if (currentPage < state.totalPages) {
+        html += `<a href="#" onclick="changePage(${currentPage + 1}); return false;" 
+                   class="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors text-sm flex items-center gap-1">
+                    التالي <i class="fas fa-chevron-left text-xs"></i>
+                </a>`;
+    }
     
     controls.innerHTML = html;
 }
@@ -598,8 +687,17 @@ async function loadAssessments() {
         console.error('Error loading assessments:', error);
         document.getElementById('assessments-tbody').innerHTML = `
             <tr>
-                <td colspan="8" class="text-center py-8 text-red-600">
-                    حدث خطأ في تحميل البيانات: ${error.message || 'يرجى المحاولة مرة أخرى'}
+                <td colspan="9" class="p-8 text-center text-red-600 dark:text-red-400">
+                    <div class="flex flex-col items-center gap-2">
+                        <svg class="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                        <span class="font-medium">حدث خطأ في تحميل البيانات</span>
+                        <span class="text-sm">${error.message || 'يرجى المحاولة مرة أخرى'}</span>
+                        <button onclick="loadAssessments()" class="mt-2 px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg text-sm transition-colors">
+                            إعادة المحاولة
+                        </button>
+                    </div>
                 </td>
             </tr>
         `;
@@ -619,37 +717,13 @@ function changePage(page) {
     loadAssessments();
 }
 
-function openEditAssessment(id) {
+function editAssessment(id) {
     const assessment = state.assessments.find(a => a.id === id);
     if (!assessment) {
         showToast('لم يتم العثور على التقييم', 'error');
         return;
     }
-    
-    document.getElementById('modal-title').textContent = 'تعديل التقييم';
-    document.getElementById('modal-submit-btn').textContent = 'تحديث';
-    document.getElementById('assessment-id').value = assessment.id;
-    document.getElementById('form-method').value = 'PUT';
-    document.getElementById('modal-title-input').value = assessment.title || '';
-    document.getElementById('modal-section').value = assessment.section_id || '';
-    document.getElementById('modal-subject').value = assessment.subject_id || '';
-    document.getElementById('modal-type').value = assessment.assessment_type || 'exam';
-    document.getElementById('modal-date').value = assessment.date || '';
-    document.getElementById('modal-max-score').value = assessment.max_score || 100;
-    document.getElementById('modal-passing-score').value = assessment.passing_score || 50;
-    document.getElementById('modal-weight').value = assessment.weight || 1.0;
-    document.getElementById('modal-description').value = assessment.description || '';
-    
-    // تحديث action للنموذج
-    document.getElementById('assessment-form').action = "{{ url_for('grades.update', id='') }}" + id;
-    
-    state.editingId = id;
-    openModal('assessment-modal');
-}
-
-function openDeleteModal(id) {
-    state.deletingId = id;
-    openModal('delete-modal');
+    openAssessmentModal(assessment);
 }
 
 async function deleteAssessment(id) {
@@ -667,16 +741,6 @@ async function deleteAssessment(id) {
         console.error('Error deleting assessment:', error);
         showToast(error.message || 'حدث خطأ في حذف التقييم', 'error');
         return false;
-    }
-}
-
-async function confirmDelete() {
-    if (!state.deletingId) return;
-    
-    const success = await deleteAssessment(state.deletingId);
-    if (success) {
-        closeModal('delete-modal');
-        state.deletingId = null;
     }
 }
 
@@ -703,6 +767,8 @@ document.getElementById('filter-search').addEventListener('input', function() {
     searchTimeout = setTimeout(applyFilters, 500);
 });
 
+document.getElementById('search-btn').addEventListener('click', applyFilters);
+
 document.getElementById('clear-filters').addEventListener('click', function() {
     document.getElementById('filter-section').value = '';
     document.getElementById('filter-subject').value = '';
@@ -715,23 +781,34 @@ document.getElementById('clear-filters').addEventListener('click', function() {
 // 🎬 Event Listeners
 // ============================================
 
-document.getElementById('confirm-delete-btn').addEventListener('click', confirmDelete);
-
-document.querySelectorAll('.modal-backdrop').forEach(backdrop => {
-    backdrop.addEventListener('click', function(e) {
-        if (e.target === this) {
-            this.classList.remove('active');
-            document.body.style.overflow = '';
-        }
-    });
+// تأكيد الحذف
+document.getElementById('confirm-delete-btn').addEventListener('click', async function() {
+    if (!state.deletingId) return;
+    
+    const success = await deleteAssessment(state.deletingId);
+    if (success) {
+        closeDeleteModal();
+    }
 });
 
+// إغلاق المودال عند الضغط على الخلفية
+document.getElementById('assessmentModal').addEventListener('click', function(e) {
+    if (e.target === this) {
+        closeAssessmentModal();
+    }
+});
+
+document.getElementById('deleteModal').addEventListener('click', function(e) {
+    if (e.target === this) {
+        closeDeleteModal();
+    }
+});
+
+// إغلاق المودال بالضغط على ESC
 document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') {
-        document.querySelectorAll('.modal-backdrop.active').forEach(modal => {
-            modal.classList.remove('active');
-            document.body.style.overflow = '';
-        });
+        closeAssessmentModal();
+        closeDeleteModal();
     }
 });
 
@@ -740,105 +817,82 @@ document.addEventListener('keydown', function(e) {
 // ============================================
 
 document.addEventListener('DOMContentLoaded', function() {
-    // إعادة تعيين النموذج عند فتح المودال للإضافة
-    document.querySelector('[onclick="closeModal(\'assessment-modal\')"]')?.addEventListener('click', function() {
-        // لا نفعل شيئاً خاصاً
-    });
-    
     loadAssessments();
+    
+    // Auto-close success message after 5 seconds
+    const successMsg = document.querySelector('.bg-green-50');
+    if (successMsg) {
+        setTimeout(function() {
+            successMsg.style.transition = 'opacity 0.5s ease';
+            successMsg.style.opacity = '0';
+            setTimeout(function() {
+                successMsg.remove();
+            }, 500);
+        }, 5000);
+    }
 });
 
 // ============================================
 // 📤 Export
 // ============================================
 
-window.api = api;
 window.loadAssessments = loadAssessments;
-window.openEditAssessment = openEditAssessment;
+window.editAssessment = editAssessment;
 window.deleteAssessment = deleteAssessment;
 window.openDeleteModal = openDeleteModal;
+window.closeDeleteModal = closeDeleteModal;
+window.openAssessmentModal = openAssessmentModal;
+window.closeAssessmentModal = closeAssessmentModal;
 window.changePage = changePage;
 window.showToast = showToast;
-window.openModal = openModal;
-window.closeModal = closeModal;
-window.confirmDelete = confirmDelete;
 </script>
 
 <style>
-.modal-backdrop {
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.5);
-    backdrop-filter: blur(4px);
-    z-index: 1000;
-    display: none;
-    align-items: center;
-    justify-content: center;
-    padding: 1rem;
-}
-
-.modal-backdrop.active {
-    display: flex;
-    animation: fadeIn 0.2s ease-out;
-}
-
-.modal-box {
-    background: white;
-    border-radius: 1rem;
-    max-height: 90vh;
-    overflow-y: auto;
-    width: 100%;
-    max-width: 700px;
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-    animation: slideUp 0.3s ease-out;
-}
-
-@media (prefers-color-scheme: dark) {
-    .modal-box {
-        background: #1e293b;
-    }
-}
-
-@keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
-}
-
-@keyframes slideUp {
-    from { 
-        opacity: 0;
-        transform: translateY(20px) scale(0.95);
-    }
-    to { 
-        opacity: 1;
-        transform: translateY(0) scale(1);
-    }
-}
-
-.modal-box::-webkit-scrollbar {
-    width: 6px;
-}
-
-.modal-box::-webkit-scrollbar-track {
-    background: transparent;
-}
-
-.modal-box::-webkit-scrollbar-thumb {
-    background: #94a3b8;
-    border-radius: 3px;
-}
-
-.modal-box::-webkit-scrollbar-thumb:hover {
-    background: #64748b;
-}
-
-.animate-spin {
+/* تحسينات إضافية */
+#loading-spinner .animate-spin {
     animation: spin 1s linear infinite;
 }
 
 @keyframes spin {
     from { transform: rotate(0deg); }
     to { transform: rotate(360deg); }
+}
+
+/* تحسينات للمودال على الشاشات الصغيرة */
+@media (max-width: 640px) {
+    #assessmentModal .bg-white {
+        max-height: 95vh;
+        padding: 1rem;
+    }
+}
+
+/* تحسينات للجدول على الشاشات الصغيرة */
+@media (max-width: 768px) {
+    .overflow-x-auto {
+        -webkit-overflow-scrolling: touch;
+    }
+}
+
+/* تنسيق زر الإضافة */
+.bg-primary-600:hover {
+    transform: translateY(-1px);
+}
+
+/* تنسيق صفوف الجدول */
+tbody tr:last-child {
+    border-bottom: none;
+}
+
+/* تنسيق الحقول في المودال */
+#assessment-form input:focus,
+#assessment-form select:focus,
+#assessment-form textarea:focus {
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+/* تنسيق الأيقونات في الأزرار */
+.fas {
+    font-size: 0.875rem;
 }
 </style>
 {% endblock %}
