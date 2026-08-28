@@ -52,7 +52,7 @@ class StudentService:
             guardian_phone=data.guardian_phone,
             guardian_email=data.guardian_email,
             address=data.address,
-            created_by=user_id,
+          #  created_by=user_id,
         )
         
         # إنشاء تسجيل الطالب (StudentEnrollment) إذا تم توفير section_id و year_id
@@ -65,7 +65,7 @@ class StudentService:
                 section_id=data.section_id,
                 status="active",
                 enrolled_at=datetime.now().isoformat(),
-                created_by=user_id,
+              #  created_by=user_id,
             )
             self.db.add(enrollment)
             await self.db.flush()
@@ -168,8 +168,8 @@ class StudentService:
             "stage_name": stage_name,
             "year_id": year_id,
             "academic_year": academic_year_name,
-            "created_at": student.created_at,
-            "updated_at": student.updated_at,
+          #  "created_at": student.created_at,
+          #  "updated_at": student.updated_at,
         }
 
     # ============================================================
@@ -576,7 +576,7 @@ class StudentService:
             section_id=req.to_section_id,
             status="active",
             enrolled_at=datetime.now().isoformat(),
-            created_by=req.created_by if hasattr(req, 'created_by') else None,
+          #  created_by=req.created_by if hasattr(req, 'created_by') else None,
         )
         self.db.add(new_enrollment)
         await self.db.flush()
