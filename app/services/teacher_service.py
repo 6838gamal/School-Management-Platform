@@ -1,6 +1,6 @@
 """Teacher service with assignment logic."""
 from datetime import datetime, timezone
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -79,7 +79,7 @@ class TeacherService:
         
         return {
             "id": teacher.id,
-            "full_name": f"{teacher.first_name} {teacher.last_name}",
+            "full_name": teacher.full_name,  # ✅ استخدام full_name من النموذج
             "user_id": user_id,
         }
 
@@ -112,16 +112,6 @@ class TeacherService:
     ) -> dict:
         """
         جلب قائمة المعلمين مع إمكانية التصفية والبحث والترقيم.
-        
-        Args:
-            school_id: معرف المدرسة
-            page: رقم الصفحة
-            page_size: عدد العناصر في الصفحة
-            search: كلمة البحث (اختياري)
-            is_active: حالة المعلم (True = نشط, False = غير نشط)
-        
-        Returns:
-            dict: قائمة المعلمين مع معلومات الترقيم
         """
         items, total = await self.teachers.list_by_school(
             school_id, 
@@ -136,7 +126,9 @@ class TeacherService:
                 {
                     "id": t.id,
                     "employee_number": t.employee_number,
-                    "full_name": f"{t.first_name} {t.last_name}",
+                    "full_name": t.full_name,  # ✅ استخدام full_name من النموذج
+                    "first_name": t.first_name,
+                    "last_name": t.last_name,
                     "specialization": t.specialization,
                     "phone": t.phone,
                     "email": t.email,
@@ -161,25 +153,15 @@ class TeacherService:
     ) -> List[Teacher]:
         """
         جلب قائمة المعلمين كـ List (للاستخدام في Attendance و Web Routes).
-        
-        Args:
-            school_id: معرف المدرسة
-            is_active: حالة المعلم (True = نشط, False = غير نشط)
-        
-        Returns:
-            List[Teacher]: قائمة المعلمين
+        الآن كل معلم في القائمة يحتوي على full_name تلقائياً.
         """
-        # استخدام الدالة المباشرة من المستودع
-        if is_active:
-            return await self.teachers.list_active_teachers(school_id)
-        else:
-            items, _ = await self.teachers.list_by_school(
-                school_id, 
-                page=1, 
-                page_size=1000, 
-                is_active=is_active
-            )
-            return items
+        items, _ = await self.teachers.list_by_school(
+            school_id, 
+            page=1, 
+            page_size=1000, 
+            is_active=is_active
+        )
+        return items  # ✅ كل معلم لديه full_name من النموذج
 
     # ============================================================
     # 5️⃣ جلب تفاصيل معلم (مع التكليفات)
@@ -200,7 +182,7 @@ class TeacherService:
             "employee_number": teacher.employee_number,
             "first_name": teacher.first_name,
             "last_name": teacher.last_name,
-            "full_name": f"{teacher.first_name} {teacher.last_name}",
+            "full_name": teacher.full_name,  # ✅ استخدام full_name من النموذج
             "national_id": teacher.national_id,
             "gender": teacher.gender,
             "phone": teacher.phone,
@@ -261,6 +243,7 @@ class TeacherService:
         return {
             "id": assignment.id,
             "teacher_id": req.teacher_id,
+            "teacher_name": teacher.full_name,  # ✅ استخدام full_name
             "subject_id": req.subject_id,
             "section_id": req.section_id,
             "year_id": req.year_id,
@@ -338,7 +321,7 @@ class TeacherService:
             if teacher:
                 result.append({
                     "id": teacher.id,
-                    "full_name": f"{teacher.first_name} {teacher.last_name}",
+                    "full_name": teacher.full_name,  # ✅ استخدام full_name
                     "employee_number": teacher.employee_number,
                     "specialization": teacher.specialization,
                     "phone": teacher.phone,
