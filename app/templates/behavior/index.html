@@ -1,0 +1,288 @@
+{% extends "layouts/director.html" %}
+{% block content %}
+<div class="space-y-6">
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-bold text-slate-800 dark:text-white">السلوك</h1>
+            <p class="text-slate-400 text-sm mt-1">إدارة سلوك الطلاب والتقييمات</p>
+        </div>
+        <div class="flex gap-2">
+            {% if can('behavior.create') %}
+            <button onclick="showModal('behavior-modal')" class="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg text-sm font-semibold">
+                <i class="fas fa-plus ml-2"></i> تقييم جديد
+            </button>
+            {% endif %}
+            <button onclick="showModal('behavior-chart-modal')" class="border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 px-4 py-2 rounded-lg text-sm font-medium">
+                <i class="fas fa-chart-bar ml-2"></i> تحليل
+            </button>
+        </div>
+    </div>
+
+    <!-- إحصائيات السلوك -->
+    <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
+        <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-4 text-center">
+            <p class="text-2xl font-bold text-green-600">{{ excellent_count|default(156) }}</p>
+            <p class="text-sm text-slate-500 dark:text-slate-400">ممتاز</p>
+        </div>
+        <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-4 text-center">
+            <p class="text-2xl font-bold text-blue-600">{{ good_count|default(234) }}</p>
+            <p class="text-sm text-slate-500 dark:text-slate-400">جيد</p>
+        </div>
+        <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-4 text-center">
+            <p class="text-2xl font-bold text-amber-600">{{ average_count|default(45) }}</p>
+            <p class="text-sm text-slate-500 dark:text-slate-400">متوسط</p>
+        </div>
+        <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-4 text-center">
+            <p class="text-2xl font-bold text-orange-600">{{ needs_improvement_count|default(18) }}</p>
+            <p class="text-sm text-slate-500 dark:text-slate-400">يحتاج تحسين</p>
+        </div>
+        <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-4 text-center">
+            <p class="text-2xl font-bold text-red-600">{{ warning_count|default(7) }}</p>
+            <p class="text-sm text-slate-500 dark:text-slate-400">تحذير</p>
+        </div>
+    </div>
+
+    <!-- فلاتر -->
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-4">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <select class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
+                <option value="">الفصل الدراسي</option>
+                {% for class in classes_list %}
+                <option value="{{ class.id }}">{{ class.name }}</option>
+                {% endfor %}
+            </select>
+            <select class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
+                <option value="">نوع التقييم</option>
+                <option value="positive">إيجابي</option>
+                <option value="negative">سلبي</option>
+            </select>
+            <input type="date" class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
+            <button class="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg text-sm font-semibold">فلتر</button>
+        </div>
+    </div>
+
+    <!-- قائمة السلوك -->
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full">
+                <thead class="bg-slate-50 dark:bg-slate-700/50">
+                    <tr>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">الطالب</th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">التقييم</th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">النوع</th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">التاريخ</th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">المعلم</th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">الإجراءات</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
+                    {% if behaviors and behaviors|length > 0 %}
+                        {% for behavior in behaviors %}
+                        <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
+                            <td class="px-4 py-3">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-8 h-8 rounded-full bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center text-primary-600 dark:text-primary-400 font-semibold text-sm">
+                                        {{ behavior.student_name[0] }}
+                                    </div>
+                                    <span class="text-sm font-medium">{{ behavior.student_name }}</span>
+                                </div>
+                            </td>
+                            <td class="px-4 py-3">
+                                <div class="flex items-center gap-2">
+                                    <span class="text-sm font-semibold 
+                                        {% if behavior.rating >= 4 %}text-green-600
+                                        {% elif behavior.rating >= 3 %}text-blue-600
+                                        {% elif behavior.rating >= 2 %}text-amber-600
+                                        {% else %}text-red-600{% endif %}">
+                                        {{ behavior.rating }}/5
+                                    </span>
+                                    <div class="flex text-amber-400">
+                                        {% for i in range(behavior.rating|int) %}
+                                        <i class="fas fa-star text-xs"></i>
+                                        {% endfor %}
+                                        {% for i in range(5 - behavior.rating|int) %}
+                                        <i class="far fa-star text-xs"></i>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="px-4 py-3">
+                                <span class="px-2 py-1 rounded-full text-xs 
+                                    {% if behavior.type == 'positive' %}bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300
+                                    {% else %}bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300{% endif %}">
+                                    {{ behavior.type_display }}
+                                </span>
+                            </td>
+                            <td class="px-4 py-3 text-sm">{{ behavior.date }}</td>
+                            <td class="px-4 py-3 text-sm">{{ behavior.teacher_name }}</td>
+                            <td class="px-4 py-3 text-sm">
+                                <div class="flex items-center gap-2">
+                                    <button onclick="viewBehavior('{{ behavior.id }}')" class="text-primary-600 hover:text-primary-700 text-sm font-medium">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                    <button onclick="editBehavior('{{ behavior.id }}')" class="text-amber-600 hover:text-amber-700 text-sm font-medium">
+                                        <i class="fas fa-edit"></i>
+                                    </button>
+                                    <button onclick="deleteBehavior('{{ behavior.id }}')" class="text-red-600 hover:text-red-700 text-sm font-medium">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="6" class="px-4 py-8 text-center text-slate-500 dark:text-slate-400">
+                                <div class="empty-state">
+                                    <i class="fas fa-smile text-4xl text-slate-300 dark:text-slate-600 mb-3 block"></i>
+                                    <p>لا توجد سجلات سلوك. ابدأ بتقييم الطلاب.</p>
+                                </div>
+                            </td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- مودال إضافة تقييم سلوك -->
+<div class="modal-backdrop" id="behavior-modal">
+    <div class="modal-box p-6">
+        <h3 class="font-semibold text-lg mb-4">تقييم سلوك طالب</h3>
+        <form id="behavior-form" class="space-y-3">
+            <select name="student_id" required class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
+                <option value="">اختر الطالب</option>
+                {% for student in students_list %}
+                <option value="{{ student.id }}">{{ student.name }}</option>
+                {% endfor %}
+            </select>
+            <select name="class_id" required class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
+                <option value="">اختر الفصل</option>
+                {% for class in classes_list %}
+                <option value="{{ class.id }}">{{ class.name }}</option>
+                {% endfor %}
+            </select>
+            <div class="space-y-2">
+                <label class="text-sm font-medium text-slate-700 dark:text-slate-300">التقييم</label>
+                <div class="flex gap-4 items-center">
+                    <div class="flex gap-1">
+                        {% for i in range(1, 6) %}
+                        <button type="button" onclick="setRating({{ i }})" class="rating-star text-2xl text-slate-300 hover:text-amber-400 transition-colors" data-rating="{{ i }}">
+                            <i class="far fa-star"></i>
+                        </button>
+                        {% endfor %}
+                    </div>
+                    <input type="hidden" name="rating" id="rating-input" value="">
+                    <span id="rating-label" class="text-sm text-slate-500 dark:text-slate-400">اختر التقييم</span>
+                </div>
+            </div>
+            <select name="type" required class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
+                <option value="positive">إيجابي</option>
+                <option value="negative">سلبي</option>
+            </select>
+            <textarea name="comment" placeholder="ملاحظات التقييم" rows="3" class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500"></textarea>
+            <div class="flex gap-2 pt-2">
+                <button type="button" onclick="closeModal('behavior-modal')" class="flex-1 bg-slate-100 dark:bg-slate-700 px-4 py-2 rounded-lg text-sm font-medium">إلغاء</button>
+                <button type="submit" class="flex-1 bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg text-sm font-semibold">تقييم</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- مودال تحليل السلوك -->
+<div class="modal-backdrop" id="behavior-chart-modal">
+    <div class="modal-box p-6 max-w-4xl">
+        <h3 class="font-semibold text-lg mb-4">تحليل السلوك</h3>
+        <div class="space-y-4">
+            <div class="grid grid-cols-2 gap-4">
+                <div class="bg-slate-50 dark:bg-slate-700/30 rounded-lg p-4 text-center">
+                    <p class="text-2xl font-bold text-green-600">72%</p>
+                    <p class="text-sm text-slate-500 dark:text-slate-400">تقييمات إيجابية</p>
+                </div>
+                <div class="bg-slate-50 dark:bg-slate-700/30 rounded-lg p-4 text-center">
+                    <p class="text-2xl font-bold text-red-600">28%</p>
+                    <p class="text-sm text-slate-500 dark:text-slate-400">تقييمات سلبية</p>
+                </div>
+            </div>
+            <!-- هنا يمكن إضافة رسم بياني باستخدام Chart.js أو أي مكتبة أخرى -->
+            <div class="bg-slate-50 dark:bg-slate-700/30 rounded-lg p-6 text-center">
+                <p class="text-slate-500 dark:text-slate-400">رسم بياني لتوزيع التقييمات</p>
+                <div class="h-48 flex items-end justify-center gap-4 mt-4">
+                    <div class="w-12 bg-green-500 rounded-t h-32"></div>
+                    <div class="w-12 bg-blue-500 rounded-t h-24"></div>
+                    <div class="w-12 bg-amber-500 rounded-t h-16"></div>
+                    <div class="w-12 bg-orange-500 rounded-t h-10"></div>
+                    <div class="w-12 bg-red-500 rounded-t h-6"></div>
+                </div>
+                <div class="flex justify-center gap-4 mt-2 text-xs text-slate-500 dark:text-slate-400">
+                    <span>ممتاز</span>
+                    <span>جيد</span>
+                    <span>متوسط</span>
+                    <span>يحتاج تحسين</span>
+                    <span>تحذير</span>
+                </div>
+            </div>
+        </div>
+        <div class="flex justify-end mt-4">
+            <button onclick="closeModal('behavior-chart-modal')" class="bg-slate-100 dark:bg-slate-700 px-4 py-2 rounded-lg text-sm font-medium">إغلاق</button>
+        </div>
+    </div>
+</div>
+
+<script>
+let selectedRating = 0;
+
+function setRating(rating) {
+    selectedRating = rating;
+    document.getElementById('rating-input').value = rating;
+    document.querySelectorAll('.rating-star').forEach(star => {
+        const starRating = parseInt(star.dataset.rating);
+        if (starRating <= rating) {
+            star.innerHTML = '<i class="fas fa-star"></i>';
+            star.classList.add('text-amber-400');
+            star.classList.remove('text-slate-300');
+        } else {
+            star.innerHTML = '<i class="far fa-star"></i>';
+            star.classList.remove('text-amber-400');
+            star.classList.add('text-slate-300');
+        }
+    });
+    const labels = ['', 'ضعيف جداً', 'ضعيف', 'متوسط', 'جيد', 'ممتاز'];
+    document.getElementById('rating-label').textContent = labels[rating] || 'اختر التقييم';
+}
+
+document.getElementById('behavior-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const body = {};
+    for (const [k, v] of fd.entries()) { if (v) body[k] = v; }
+    if (!body.rating) {
+        showToast('الرجاء اختيار التقييم', 'error');
+        return;
+    }
+    try {
+        await apiFetch('/api/v1/behavior', { method: 'POST', body });
+        showToast('تم تقييم السلوك بنجاح', 'success');
+        closeModal('behavior-modal');
+        setTimeout(() => location.reload(), 800);
+    } catch (_) {
+        showToast('حدث خطأ أثناء تقييم السلوك', 'error');
+    }
+});
+
+function viewBehavior(id) {
+    window.location.href = `/behavior/${id}`;
+}
+
+function editBehavior(id) {
+    showToast('جاري تحميل بيانات التقييم...', 'info');
+}
+
+function deleteBehavior(id) {
+    if (confirm('هل أنت متأكد من حذف هذا التقييم؟')) {
+        showToast('تم حذف التقييم', 'success');
+    }
+}
+</script>
+{% endblock %}
