@@ -1,0 +1,158 @@
+{% extends "layouts/director.html" %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-bold text-slate-800 dark:text-white">تقرير الحضور اليومي</h1>
+            <p class="text-slate-400 text-sm mt-1">تقرير حضور ليوم {{ date }}</p>
+        </div>
+        <div class="flex gap-2">
+            <a href="/attendance" 
+               class="bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+                ← العودة
+            </a>
+            <button onclick="window.print()" 
+                    class="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors">
+                🖨️ طباعة
+            </button>
+        </div>
+    </div>
+
+    <!-- نموذج الفلتر -->
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 overflow-hidden">
+        <div class="p-4">
+            <form method="GET" class="flex flex-col sm:flex-row gap-3">
+                <input type="date" 
+                       name="date" 
+                       value="{{ date or today }}" 
+                       class="flex-1 px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
+                <button type="submit" 
+                        class="bg-primary-600 hover:bg-primary-700 text-white px-6 py-2 rounded-lg text-sm font-medium transition-colors">
+                    عرض التقرير
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- تقرير الطلاب -->
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 overflow-hidden">
+        <div class="p-4 border-b border-slate-100 dark:border-slate-700">
+            <h3 class="font-semibold text-slate-800 dark:text-white">👨‍🎓 حضور الطلاب</h3>
+        </div>
+        <div class="p-4">
+            <div class="grid grid-cols-2 sm:grid-cols-5 gap-4">
+                <div class="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-3 text-center">
+                    <p class="text-sm text-slate-500 dark:text-slate-400">الإجمالي</p>
+                    <p class="text-xl font-bold text-slate-800 dark:text-white">{{ student_summary.total|default(0) }}</p>
+                </div>
+                <div class="bg-green-50 dark:bg-green-900/20 rounded-lg p-3 text-center">
+                    <p class="text-sm text-green-600 dark:text-green-400">✅ حاضر</p>
+                    <p class="text-xl font-bold text-green-700 dark:text-green-300">{{ student_summary.present|default(0) }}</p>
+                </div>
+                <div class="bg-red-50 dark:bg-red-900/20 rounded-lg p-3 text-center">
+                    <p class="text-sm text-red-600 dark:text-red-400">❌ غائب</p>
+                    <p class="text-xl font-bold text-red-700 dark:text-red-300">{{ student_summary.absent|default(0) }}</p>
+                </div>
+                <div class="bg-yellow-50 dark:bg-yellow-900/20 rounded-lg p-3 text-center">
+                    <p class="text-sm text-yellow-600 dark:text-yellow-400">⏰ متأخر</p>
+                    <p class="text-xl font-bold text-yellow-700 dark:text-yellow-300">{{ student_summary.late|default(0) }}</p>
+                </div>
+                <div class="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3 text-center">
+                    <p class="text-sm text-blue-600 dark:text-blue-400">📝 معذور</p>
+                    <p class="text-xl font-bold text-blue-700 dark:text-blue-300">{{ student_summary.excused|default(0) }}</p>
+                </div>
+            </div>
+            
+            <div class="mt-4 p-4 bg-primary-50 dark:bg-primary-900/20 rounded-lg">
+                <p class="text-center">
+                    <span class="font-semibold">نسبة الحضور: </span>
+                    <span class="text-2xl font-bold text-primary-600">
+                        {% if student_summary.total and student_summary.total > 0 %}
+                            {{ ((student_summary.present|default(0) / student_summary.total) * 100)|round(1) }}%
+                        {% else %}
+                            0%
+                        {% endif %}
+                    </span>
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- تقرير المعلمين -->
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 overflow-hidden">
+        <div class="p-4 border-b border-slate-100 dark:border-slate-700">
+            <h3 class="font-semibold text-slate-800 dark:text-white">👨‍🏫 حضور المعلمين</h3>
+        </div>
+        <div class="p-4">
+            <div class="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                <div class="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-3 text-center">
+                    <p class="text-sm text-slate-500 dark:text-slate-400">الإجمالي</p>
+                    <p class="text-xl font-bold text-slate-800 dark:text-white">
+                        {{ teacher_summary|length if teacher_summary else 0 }}
+                    </p>
+                </div>
+                <div class="bg-red-50 dark:bg-red-900/20 rounded-lg p-3 text-center">
+                    <p class="text-sm text-red-600 dark:text-red-400">❌ غائبين</p>
+                    <p class="text-xl font-bold text-red-700 dark:text-red-300">
+                        {{ teacher_summary|length if teacher_summary else 0 }}
+                    </p>
+                </div>
+                <div class="bg-green-50 dark:bg-green-900/20 rounded-lg p-3 text-center">
+                    <p class="text-sm text-green-600 dark:text-green-400">✅ حاضرين</p>
+                    <p class="text-xl font-bold text-green-700 dark:text-green-300">
+                        {% set total_teachers = 10 %}
+                        {% set absent = teacher_summary|length if teacher_summary else 0 %}
+                        {{ total_teachers - absent }}
+                    </p>
+                </div>
+            </div>
+            
+            {% if teacher_summary %}
+            <div class="mt-4 overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead class="bg-slate-50 dark:bg-slate-700/50 text-slate-500 dark:text-slate-300">
+                        <tr>
+                            <th class="text-right p-2 font-medium">#</th>
+                            <th class="text-right p-2 font-medium">اسم المعلم</th>
+                            <th class="text-right p-2 font-medium">الحالة</th>
+                            <th class="text-right p-2 font-medium">الملاحظات</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
+                        {% for teacher in teacher_summary %}
+                        <tr>
+                            <td class="p-2 text-slate-400 text-xs">{{ loop.index }}</td>
+                            <td class="p-2">{{ teacher.teacher_name or teacher.teacher_id }}</td>
+                            <td class="p-2">
+                                <span class="px-2 py-1 text-xs rounded-full bg-red-100 text-red-700">❌ غائب</span>
+                            </td>
+                            <td class="p-2">{{ teacher.note or '—' }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="mt-4 text-center text-slate-400">
+                جميع المعلمين حاضرين ✅
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<style>
+@media print {
+    .no-print {
+        display: none !important;
+    }
+    body {
+        background: white !important;
+    }
+    .bg-slate-50, .bg-primary-50, .bg-green-50, .bg-red-50, .bg-yellow-50, .bg-blue-50 {
+        background: #f8fafc !important;
+    }
+}
+</style>
+{% endblock %}
