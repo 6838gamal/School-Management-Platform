@@ -69,7 +69,7 @@ async def activity_managers_list(
             activity_role = Role(
                 id=str(uuid.uuid4()),
                 key="activity_managers",
-                name="مسؤول أنشطة",
+                name_ar="مسؤول أنشطة",  # ✅ استخدام name_ar بدلاً من name
                 name_en="Activities Manager"
             )
             db.add(activity_role)
@@ -145,6 +145,7 @@ async def activity_managers_create_form(
                 "user": current_user,
                 "schools": schools,
                 "page_title": "إضافة مدير نشاط جديد",
+                "is_director": True,
             }
         )
         
@@ -185,7 +186,7 @@ async def activity_managers_create(
             activity_role = Role(
                 id=str(uuid.uuid4()),
                 key="activity_managers",
-                name="مسؤول أنشطة",
+                name_ar="مسؤول أنشطة",  # ✅ استخدام name_ar بدلاً من name
                 name_en="Activities Manager"
             )
             db.add(activity_role)
@@ -296,6 +297,7 @@ async def activity_managers_update_form(
                 "manager": manager,
                 "schools": schools,
                 "page_title": "تعديل مدير نشاط",
+                "is_director": True,
             }
         )
         
