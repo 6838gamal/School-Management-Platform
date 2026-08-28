@@ -42,6 +42,7 @@ async def get_teachers(db: AsyncSession, school_id: str):
 async def get_students_by_section(db: AsyncSession, section_id: str):
     """جلب طلاب الشعبة"""
     service = GradeService(db)
+    # ✅ استخدام get_by_section مع section_id فقط
     students = await service.students.get_by_section(section_id)
     return students if students else []
 
@@ -352,7 +353,7 @@ async def view_assessment_grades(
     if not assessment:
         raise HTTPException(status_code=404, detail="التقييم غير موجود")
     
-    # جلب طلاب الشعبة باستخدام get_by_section
+    # ✅ استخدام get_by_section مع section_id فقط
     students = await service.students.get_by_section(assessment.section_id)
     if not students:
         students = []
