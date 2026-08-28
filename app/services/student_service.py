@@ -132,8 +132,8 @@ class StudentService:
             "address": student.address,
             "photo_url": student.photo_url,
             "is_active": student.is_active,
-            "created_at": student.created_at.isoformat() if hasattr(student, 'created_at') and student.created_at else None,
-            "updated_at": student.updated_at.isoformat() if hasattr(student, 'updated_at') and student.updated_at else None,
+          #  "created_at": student.created_at.isoformat() if hasattr(student, 'created_at') and student.created_at else None,
+            #"updated_at": student.updated_at.isoformat() if hasattr(student, 'updated_at') and student.updated_at else None,
             "enrollments": []
         }
         
@@ -231,8 +231,8 @@ class StudentService:
             guardian_email=data.guardian_email.strip().lower() if data.guardian_email else None,
             address=data.address.strip() if data.address else None,
             is_active=True,
-            created_by=user_id,
-            updated_by=user_id
+         #   created_by=user_id,
+         #   updated_by=user_id
         )
         
         self.db.add(student)
@@ -248,8 +248,8 @@ class StudentService:
                 status="active",
                 enrolled_at=datetime.now().isoformat(),
                 ended_at=None,
-                created_by=user_id,
-                updated_by=user_id
+           #     created_by=user_id,
+         #       updated_by=user_id
             )
             self.db.add(enrollment)
         
