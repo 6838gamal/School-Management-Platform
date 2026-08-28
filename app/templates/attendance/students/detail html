@@ -1,0 +1,110 @@
+{% extends "layouts/director.html" %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-bold text-slate-800 dark:text-white">تفاصيل حضور طالب</h1>
+            <p class="text-slate-400 text-sm mt-1">عرض تفاصيل سجل الحضور</p>
+        </div>
+        <div class="flex gap-2">
+            <a href="/attendance/students?date={{ record.date if record else today }}" 
+               class="bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+                ← العودة
+            </a>
+            {% if can('attendance.update') %}
+            <a href="/attendance/students/{{ record.id }}/edit" 
+               class="bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors">
+                ✏️ تعديل
+            </a>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if record %}
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-6">
+        <dl class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+                <dt class="text-sm text-slate-500 dark:text-slate-400">الطالب</dt>
+                <dd class="font-medium text-slate-800 dark:text-white">{{ record.student_name or record.student_id }}</dd>
+            </div>
+            <div>
+                <dt class="text-sm text-slate-500 dark:text-slate-400">المجموعة</dt>
+                <dd class="font-medium text-slate-800 dark:text-white">{{ record.section_name or '—' }}</dd>
+            </div>
+            <div>
+                <dt class="text-sm text-slate-500 dark:text-slate-400">التاريخ</dt>
+                <dd class="font-medium text-slate-800 dark:text-white">{{ record.date }}</dd>
+            </div>
+            <div>
+                <dt class="text-sm text-slate-500 dark:text-slate-400">الحالة</dt>
+                <dd class="font-medium">
+                    {% if record.status == 'present' %}
+                    <span class="px-2 py-1 text-xs rounded-full bg-green-100 text-green-700">✅ حاضر</span>
+                    {% elif record.status == 'absent' %}
+                    <span class="px-2 py-1 text-xs rounded-full bg-red-100 text-red-700">❌ غائب</span>
+                    {% elif record.status == 'late' %}
+                    <span class="px-2 py-1 text-xs rounded-full bg-yellow-100 text-yellow-700">⏰ متأخر</span>
+                    {% elif record.status == 'excused' %}
+                    <span class="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-700">📝 معذور</span>
+                    {% else %}
+                    <span class="px-2 py-1 text-xs rounded-full bg-slate-100 text-slate-700">{{ record.status }}</span>
+                    {% endif %}
+                </dd>
+            </div>
+            <div class="sm:col-span-2">
+                <dt class="text-sm text-slate-500 dark:text-slate-400">الملاحظات</dt>
+                <dd class="font-medium text-slate-800 dark:text-white">{{ record.note or '—' }}</dd>
+            </div>
+            {% if record.recorded_by %}
+            <div>
+                <dt class="text-sm text-slate-500 dark:text-slate-400">سجل بواسطة</dt>
+                <dd class="font-medium text-slate-800 dark:text-white">{{ record.recorded_by }}</dd>
+            </div>
+            {% endif %}
+            {% if record.created_at %}
+            <div>
+                <dt class="text-sm text-slate-500 dark:text-slate-400">تاريخ التسجيل</dt>
+                <dd class="font-medium text-slate-800 dark:text-white">{{ record.created_at }}</dd>
+            </div>
+            {% endif %}
+        </dl>
+    </div>
+
+    <!-- إحصائيات سريعة -->
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-4 text-center">
+            <p class="text-sm text-slate-500 dark:text-slate-400">التاريخ</p>
+            <p class="text-lg font-bold text-slate-800 dark:text-white">{{ record.date }}</p>
+        </div>
+        <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-4 text-center">
+            <p class="text-sm text-slate-500 dark:text-slate-400">الحالة</p>
+            <p class="text-lg font-bold">
+                {% if record.status == 'present' %}
+                <span class="text-green-600">✅ حاضر</span>
+                {% elif record.status == 'absent' %}
+                <span class="text-red-600">❌ غائب</span>
+                {% elif record.status == 'late' %}
+                <span class="text-yellow-600">⏰ متأخر</span>
+                {% elif record.status == 'excused' %}
+                <span class="text-blue-600">📝 معذور</span>
+                {% else %}
+                <span class="text-slate-600">{{ record.status }}</span>
+                {% endif %}
+            </p>
+        </div>
+        <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-4 text-center">
+            <a href="/attendance/reports/daily?date={{ record.date }}" 
+               class="text-primary-600 hover:text-primary-700 font-medium">
+                عرض التقرير اليومي →
+            </a>
+            <p class="text-sm text-slate-500 dark:text-slate-400">تقارير الحضور</p>
+        </div>
+    </div>
+    {% else %}
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-12 text-center">
+        <p class="text-slate-400">سجل الحضور غير موجود</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
