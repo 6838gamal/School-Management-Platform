@@ -31,14 +31,36 @@ async def deputy_list(
         
         logger.info(f"📄 Deputy list page requested by user: {current_user.email}")
         
-        # جلب جميع المستخدمين المسجلين
-        result = await db.execute(
-            select(User)
-            .order_by(User.created_at.desc())
+        # جلب دور deputy
+        deputy_role_result = await db.execute(
+            select(Role).where(Role.key == 'deputy')
         )
-        deputies = result.scalars().all()
+        deputy_role = deputy_role_result.scalars().first()
         
-        logger.info(f"📊 Found {len(deputies)} deputies")
+        deputies = []
+        if deputy_role:
+            # جلب المستخدمين الذين لديهم دور deputy فقط
+            result = await db.execute(
+                select(User)
+                .join(UserRole, UserRole.user_id == User.id)
+                .where(UserRole.role_id == deputy_role.id)
+                .order_by(User.created_at.desc())
+            )
+            deputies = result.scalars().all()
+            logger.info(f"📊 Found {len(deputies)} deputies")
+        else:
+            logger.warning("⚠️ Deputy role not found in database!")
+            # إنشاء دور deputy إذا لم يكن موجوداً
+            deputy_role = Role(
+                id=str(uuid.uuid4()),
+                key="deputy",
+                name="وكيل",
+                name_en="Deputy Director"
+            )
+            db.add(deputy_role)
+            await db.commit()
+            await db.refresh(deputy_role)
+            logger.info("✅ Deputy role created successfully")
         
         # طباعة تفاصيل الوكلاء للتصحيح
         for deputy in deputies:
@@ -156,6 +178,21 @@ async def deputy_create(
         # التحقق من نجاح التسجيل
         if result and result.get("user"):
             logger.info(f"✅ Deputy created successfully: {result['user'].email}")
+            
+            # التحقق من أن المستخدم لديه دور deputy
+            user_id = result['user'].id
+            role_check = await db.execute(
+                select(UserRole)
+                .join(Role, Role.id == UserRole.role_id)
+                .where(UserRole.user_id == user_id)
+                .where(Role.key == 'deputy')
+            )
+            user_role = role_check.scalars().first()
+            
+            if user_role:
+                logger.info(f"✅ User {user_id} has deputy role")
+            else:
+                logger.warning(f"⚠️ User {user_id} does NOT have deputy role!")
         else:
             logger.error(f"❌ Failed to create deputy: {result}")
         
