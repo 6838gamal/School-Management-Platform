@@ -1,8 +1,8 @@
-"""Attendance routes for web interface."""
-from datetime import datetime, date
+"""Web routes for modules."""
+from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, Request, Form, Query, HTTPException, Depends
+from fastapi import APIRouter, Request, Form, Query, Depends, HTTPException
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
@@ -11,11 +11,10 @@ from starlette import status
 from app.core.database import get_db
 from app.core.auth import get_current_user, require_permission
 from app.models.user import User
-from app.models.student import Student
-from app.models.teacher import Teacher
+from app.models.students import Student
+from app.models.teachers import Teacher
 from app.models.section import Section
 from app.models.period import Period
-from app.models.schedule_entry import ScheduleEntry
 from app.models.attendance import StudentAttendance, TeacherAttendance
 from app.schemas.attendance import (
     StudentAttendanceCreate,
@@ -24,8 +23,8 @@ from app.schemas.attendance import (
     StudentAttendanceStatus,
     TeacherAttendanceCreate,
     TeacherAttendanceStatus,
-    AttendanceSummary,
     AttendanceQueryParams,
+    AttendanceSummary,
 )
 from app.services.attendance_service import AttendanceService
 from app.services.student_service import StudentService
@@ -34,6 +33,66 @@ from app.services.section_service import SectionService
 
 router = APIRouter(prefix="/attendance", tags=["Attendance"])
 templates = Jinja2Templates(directory="app/templates")
+
+
+# ==================== Main Attendance Page ====================
+
+@router.get("")
+async def attendance_page(
+    request: Request,
+    date: Optional[str] = Query(None, description="التاريخ (YYYY-MM-DD)"),
+    section_id: Optional[str] = Query(None, description="معرف المجموعة"),
+    status: Optional[StudentAttendanceStatus] = Query(None, description="حالة الحضور"),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """الصفحة الرئيسية لإدارة الحضور."""
+    # Get current date for default value
+    today = datetime.now().strftime("%Y-%m-%d")
+    selected_date = date or today
+    
+    # Build query params
+    params = AttendanceQueryParams(
+        date_from=selected_date,
+        date_to=selected_date,
+        section_id=section_id,
+        status=status,
+    )
+    
+    # Get attendance records
+    service = AttendanceService(db)
+    records, total = service.get_student_attendance(
+        params=params,
+        page=page,
+        page_size=page_size,
+    )
+    
+    # Get sections for filter
+    sections = SectionService(db).get_all()
+    
+    # Calculate pagination
+    start_index = (page - 1) * page_size
+    end_index = min(start_index + page_size, total)
+    
+    context = {
+        "request": request,
+        "records": records,
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "start_index": start_index,
+        "end_index": end_index,
+        "sections": sections,
+        "selected_date": selected_date,
+        "selected_section": section_id,
+        "selected_status": status,
+        "today": today,
+        "can": lambda p: current_user.has_permission(p),
+    }
+    
+    return templates.TemplateResponse("attendance/index.html", context)
 
 
 # ==================== Student Attendance ====================
@@ -51,10 +110,13 @@ async def student_attendance_list(
     current_user: User = Depends(get_current_user),
 ):
     """عرض قائمة حضور الطلاب."""
+    today = datetime.now().strftime("%Y-%m-%d")
+    selected_date = date or today
+    
     # Build query params
     params = AttendanceQueryParams(
-        date_from=date,
-        date_to=date,
+        date_from=selected_date,
+        date_to=selected_date,
         section_id=section_id,
         status=status,
     )
@@ -67,7 +129,7 @@ async def student_attendance_list(
         page_size=page_size,
     )
     
-    # Get sections for filter
+    # Get sections and periods for filters
     sections = SectionService(db).get_all()
     periods = db.query(Period).filter(Period.is_active == True).all()
     
@@ -85,10 +147,11 @@ async def student_attendance_list(
         "end_index": end_index,
         "sections": sections,
         "periods": periods,
-        "selected_date": date,
+        "selected_date": selected_date,
         "selected_section": section_id,
         "selected_period": period_id,
         "selected_status": status,
+        "today": today,
         "can": lambda p: current_user.has_permission(p),
     }
     
@@ -105,6 +168,9 @@ async def student_attendance_create_form(
     current_user: User = Depends(require_permission("attendance.create")),
 ):
     """عرض نموذج إضافة حضور طلاب."""
+    today = datetime.now().strftime("%Y-%m-%d")
+    selected_date = date or today
+    
     # Get sections and periods for dropdowns
     sections = SectionService(db).get_all()
     periods = db.query(Period).filter(Period.is_active == True).all()
@@ -114,10 +180,6 @@ async def student_attendance_create_form(
     if section_id:
         students = StudentService(db).get_by_section(section_id, is_active=True)
     
-    # Default date to today
-    if not date:
-        date = datetime.now().strftime("%Y-%m-%d")
-    
     context = {
         "request": request,
         "sections": sections,
@@ -125,7 +187,8 @@ async def student_attendance_create_form(
         "students": students,
         "selected_section": section_id,
         "selected_period": period_id,
-        "selected_date": date,
+        "selected_date": selected_date,
+        "today": today,
         "can": lambda p: current_user.has_permission(p),
     }
     
@@ -170,16 +233,21 @@ async def student_attendance_create(
         )
         
     except Exception as e:
-        # Handle errors
+        # Get data for re-rendering
+        sections = SectionService(db).get_all()
+        periods = db.query(Period).filter(Period.is_active == True).all()
+        
         return templates.TemplateResponse(
             "attendance/students/form.html",
             {
                 "request": request,
                 "error": str(e),
-                "date": date,
-                "section_id": section_id,
-                "period_id": period_id,
-                "records": records,
+                "sections": sections,
+                "periods": periods,
+                "selected_date": date,
+                "selected_section": section_id,
+                "selected_period": period_id,
+                "today": datetime.now().strftime("%Y-%m-%d"),
                 "can": lambda p: current_user.has_permission(p),
             },
             status_code=400,
@@ -287,12 +355,12 @@ async def student_attendance_summary(
     current_user: User = Depends(get_current_user),
 ):
     """عرض ملخص حضور الطلاب."""
-    if not date:
-        date = datetime.now().strftime("%Y-%m-%d")
+    today = datetime.now().strftime("%Y-%m-%d")
+    selected_date = date or today
     
     service = AttendanceService(db)
     summary = service.get_student_attendance_summary(
-        date=date,
+        date=selected_date,
         section_id=section_id,
     )
     
@@ -303,8 +371,9 @@ async def student_attendance_summary(
         "request": request,
         "summary": summary,
         "sections": sections,
-        "selected_date": date,
+        "selected_date": selected_date,
         "selected_section": section_id,
+        "today": today,
         "can": lambda p: current_user.has_permission(p),
     }
     
@@ -324,12 +393,12 @@ async def teacher_attendance_list(
     current_user: User = Depends(get_current_user),
 ):
     """عرض قائمة حضور المعلمين."""
-    if not date:
-        date = datetime.now().strftime("%Y-%m-%d")
+    today = datetime.now().strftime("%Y-%m-%d")
+    selected_date = date or today
     
     service = AttendanceService(db)
     records, total = service.get_teacher_attendance(
-        date=date,
+        date=selected_date,
         status=status,
         page=page,
         page_size=page_size,
@@ -347,8 +416,9 @@ async def teacher_attendance_list(
         "page_size": page_size,
         "start_index": start_index,
         "end_index": end_index,
-        "selected_date": date,
+        "selected_date": selected_date,
         "selected_status": status,
+        "today": today,
         "can": lambda p: current_user.has_permission(p),
     }
     
@@ -363,17 +433,18 @@ async def teacher_attendance_create_form(
     current_user: User = Depends(require_permission("attendance.create")),
 ):
     """عرض نموذج إضافة حضور معلمين."""
+    today = datetime.now().strftime("%Y-%m-%d")
+    selected_date = date or today
+    
     # Get all active teachers
     teachers = TeacherService(db).get_all(is_active=True)
-    
-    if not date:
-        date = datetime.now().strftime("%Y-%m-%d")
     
     context = {
         "request": request,
         "teachers": teachers,
-        "selected_date": date,
+        "selected_date": selected_date,
         "statuses": TeacherAttendanceStatus,
+        "today": today,
         "can": lambda p: current_user.has_permission(p),
     }
     
@@ -419,10 +490,11 @@ async def teacher_attendance_create(
                 "teachers": teachers,
                 "error": str(e),
                 "teacher_id": teacher_id,
-                "date": date,
+                "selected_date": date,
                 "status": status,
                 "note": note,
                 "statuses": TeacherAttendanceStatus,
+                "today": datetime.now().strftime("%Y-%m-%d"),
                 "can": lambda p: current_user.has_permission(p),
             },
             status_code=400,
@@ -474,7 +546,7 @@ async def teacher_attendance_update(
         raise HTTPException(status_code=404, detail="سجل الحضور غير موجود")
     
     return RedirectResponse(
-        f"/attendance/teachers/{attendance_id}",
+        f"/attendance/teachers?date={datetime.now().strftime('%Y-%m-%d')}",
         status_code=status.HTTP_303_SEE_OTHER,
     )
 
@@ -553,7 +625,7 @@ async def check_student_attendance(
     
     return {
         "exists": record is not None,
-        "status": record.status.value if record else None,
+        "status": record.status if record else None,
         "record_id": record.id if record else None,
     }
 
@@ -564,26 +636,36 @@ async def check_student_attendance(
 async def attendance_daily_report(
     request: Request,
     date: Optional[str] = Query(None),
+    section_id: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("attendance.view_reports")),
 ):
     """تقرير الحضور اليومي."""
-    if not date:
-        date = datetime.now().strftime("%Y-%m-%d")
+    today = datetime.now().strftime("%Y-%m-%d")
+    selected_date = date or today
     
     service = AttendanceService(db)
     
     # Get student attendance summary
-    student_summary = service.get_student_attendance_summary(date=date)
+    student_summary = service.get_student_attendance_summary(
+        date=selected_date,
+        section_id=section_id,
+    )
     
     # Get teacher attendance summary
-    teacher_summary = service.get_teacher_attendance_summary(date=date)
+    teacher_summary = service.get_teacher_attendance_summary(date=selected_date)
+    
+    # Get sections for filter
+    sections = SectionService(db).get_all()
     
     context = {
         "request": request,
-        "date": date,
+        "date": selected_date,
         "student_summary": student_summary,
         "teacher_summary": teacher_summary,
+        "sections": sections,
+        "selected_section": section_id,
+        "today": today,
         "can": lambda p: current_user.has_permission(p),
     }
     
@@ -595,6 +677,7 @@ async def attendance_monthly_report(
     request: Request,
     month: Optional[str] = Query(None),
     year: Optional[str] = Query(None),
+    section_id: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("attendance.view_reports")),
 ):
@@ -613,22 +696,93 @@ async def attendance_monthly_report(
     stats = service.get_monthly_attendance_stats(
         year=int(year),
         month=int(month),
+        section_id=section_id,
     )
     
     # Get daily breakdown
     daily_breakdown = service.get_daily_attendance_breakdown(
         year=int(year),
         month=int(month),
+        section_id=section_id,
     )
+    
+    # Get sections for filter
+    sections = SectionService(db).get_all()
+    
+    # Month name in Arabic
+    month_names = {
+        "01": "يناير", "02": "فبراير", "03": "مارس", "04": "أبريل",
+        "05": "مايو", "06": "يونيو", "07": "يوليو", "08": "أغسطس",
+        "09": "سبتمبر", "10": "أكتوبر", "11": "نوفمبر", "12": "ديسمبر"
+    }
     
     context = {
         "request": request,
         "month": month,
         "year": year,
+        "month_name": month_names.get(month, month),
         "stats": stats,
         "daily_breakdown": daily_breakdown,
         "days_in_month": calendar.monthrange(int(year), int(month))[1],
+        "sections": sections,
+        "selected_section": section_id,
         "can": lambda p: current_user.has_permission(p),
     }
     
     return templates.TemplateResponse("attendance/reports/monthly.html", context)
+
+
+# ==================== API Endpoints (JSON) ====================
+
+@router.get("/api/sections/{section_id}/students")
+async def get_section_students(
+    section_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """الحصول على طلاب مجموعة معينة (AJAX)."""
+    students = StudentService(db).get_by_section(section_id, is_active=True)
+    
+    return {
+        "students": [
+            {
+                "id": s.id,
+                "full_name": s.full_name,
+                "student_number": s.student_number,
+            }
+            for s in students
+        ]
+    }
+
+
+@router.get("/api/attendance/student/{student_id}")
+async def get_student_attendance_api(
+    student_id: str,
+    date_from: str = Query(..., description="تاريخ البداية"),
+    date_to: str = Query(..., description="تاريخ النهاية"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """الحصول على سجلات حضور طالب (API)."""
+    service = AttendanceService(db)
+    
+    params = AttendanceQueryParams(
+        student_id=student_id,
+        date_from=date_from,
+        date_to=date_to,
+    )
+    
+    records, total = service.get_student_attendance(params=params)
+    
+    return {
+        "total": total,
+        "records": [
+            {
+                "id": r.id,
+                "date": r.date,
+                "status": r.status,
+                "note": r.note,
+            }
+            for r in records
+        ]
+    }
