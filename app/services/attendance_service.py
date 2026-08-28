@@ -18,6 +18,7 @@ from app.schemas.attendance import (
 from app.models.students import Student
 from app.models.teachers import Teacher
 from app.models.academics import Section, Period
+from app.models.attendance import StudentAttendance
 
 logger = logging.getLogger(__name__)
 
@@ -454,12 +455,18 @@ class AttendanceService:
         """
         جلب حضور شعبة مع تفاصيل الطلاب من Students Routes.
         """
+        from sqlalchemy import select
+        
         # --- جلب سجلات الحضور ---
+        # ✅ إصلاح: إزالة period_id من الاستدعاء
         records = await self.student_att.list_by_section_date(
             section_id, 
-            date,
-            period_id
+            date
         )
+        
+        # --- فلترة حسب period_id إذا تم تحديده ---
+        if period_id:
+            records = [r for r in records if r.period_id == period_id]
         
         # --- جلب تفاصيل الطلاب ---
         result = []
@@ -473,12 +480,15 @@ class AttendanceService:
                     "student_id": r.student_id,
                     "student_number": student.student_number,
                     "student_name": student.full_name,
+                    "first_name": student.first_name,
+                    "last_name": student.last_name,
                     "status": r.status,
                     "note": r.note,
                     "date": r.date,
                     "section_id": r.section_id,
                     "period_id": r.period_id,
                     "recorded_by": r.recorded_by,
+                    "created_at": r.created_at,
                 })
             else:
                 result.append({
@@ -487,6 +497,248 @@ class AttendanceService:
                     "status": r.status,
                     "note": r.note,
                     "date": r.date,
+                    "section_id": r.section_id,
+                    "period_id": r.period_id,
                 })
         
         return result
+
+    # ============================================================
+    # 7️⃣ جلب سجل حضور طالب (مدمج مع Students و Academics)
+    # ============================================================
+
+    async def get_student_attendance_history(
+        self,
+        student_id: str,
+        date_from: Optional[str] = None,
+        date_to: Optional[str] = None,
+        limit: int = 100,
+    ) -> List[Dict[str, Any]]:
+        """
+        جلب سجل حضور طالب مع تفاصيل من Academics Routes.
+        """
+        from sqlalchemy import select
+        
+        # --- التحقق من وجود الطالب من Students Routes ---
+        result = await self.db.execute(
+            select(Student).where(Student.id == student_id)
+        )
+        student = result.scalar_one_or_none()
+        if not student:
+            raise NotFoundException(f"الطالب {student_id} غير موجود")
+        
+        # --- جلب سجلات الحضور ---
+        stmt = select(StudentAttendance).where(
+            StudentAttendance.student_id == student_id
+        )
+        
+        if date_from:
+            stmt = stmt.where(StudentAttendance.date >= date_from)
+        if date_to:
+            stmt = stmt.where(StudentAttendance.date <= date_to)
+        
+        stmt = stmt.order_by(StudentAttendance.date.desc()).limit(limit)
+        records = await self.db.execute(stmt)
+        records = list(records.scalars().all())
+        
+        # --- تجميع النتائج مع التفاصيل ---
+        result = []
+        for r in records:
+            # جلب تفاصيل الحصة من Academics Routes
+            period_name = None
+            if r.period_id:
+                res = await self.db.execute(
+                    select(Period).where(Period.id == r.period_id)
+                )
+                period = res.scalar_one_or_none()
+                if period:
+                    period_name = period.name
+            
+            # جلب تفاصيل الشعبة من Academics Routes
+            section_name = None
+            if r.section_id:
+                res = await self.db.execute(
+                    select(Section).where(Section.id == r.section_id)
+                )
+                section = res.scalar_one_or_none()
+                if section:
+                    section_name = section.name
+            
+            result.append({
+                "id": r.id,
+                "date": r.date,
+                "status": r.status,
+                "note": r.note,
+                "period_name": period_name,
+                "section_name": section_name,
+                "recorded_at": r.created_at,
+                "recorded_by": r.recorded_by,
+            })
+        
+        return result
+
+    # ============================================================
+    # 8️⃣ جلب إحصائيات الحضور لكل شعبة (مدمج مع Academics)
+    # ============================================================
+
+    async def section_attendance_stats(
+        self,
+        school_id: str,
+        date: str,
+    ) -> List[Dict[str, Any]]:
+        """
+        جلب إحصائيات الحضور لكل شعبة مع تفاصيل من Academics Routes.
+        """
+        from sqlalchemy import select
+        
+        # --- جلب جميع الشعب من Academics Routes ---
+        result = await self.db.execute(
+            select(Section).where(
+                Section.school_id == school_id,
+                Section.is_active == True
+            )
+        )
+        sections = list(result.scalars().all())
+        
+        result_list = []
+        for section in sections:
+            # جلب عدد الطلاب في الشعبة من Students Routes
+            student_count_result = await self.db.execute(
+                select(func.count()).select_from(Student).where(
+                    Student.section_id == section.id,
+                    Student.is_active == True
+                )
+            )
+            student_count = student_count_result.scalar() or 0
+            
+            if student_count == 0:
+                result_list.append({
+                    "section_id": section.id,
+                    "section_name": section.name,
+                    "grade_name": section.grade.name if hasattr(section, 'grade') and section.grade else None,
+                    "stage_name": section.grade.stage.name if hasattr(section, 'grade') and section.grade and hasattr(section.grade, 'stage') and section.grade.stage else None,
+                    "total_students": 0,
+                    "present": 0,
+                    "absent": 0,
+                    "late": 0,
+                    "excused": 0,
+                    "attendance_percentage": 0,
+                })
+                continue
+            
+            # --- جلب إحصائيات الحضور لهذه الشعبة ---
+            records_result = await self.db.execute(
+                select(StudentAttendance).where(
+                    StudentAttendance.section_id == section.id,
+                    StudentAttendance.date == date
+                )
+            )
+            records = list(records_result.scalars().all())
+            
+            present = sum(1 for r in records if r.status == "present")
+            absent = sum(1 for r in records if r.status == "absent")
+            late = sum(1 for r in records if r.status == "late")
+            excused = sum(1 for r in records if r.status == "excused")
+            
+            percentage = round((present / student_count) * 100, 2) if student_count > 0 else 0
+            
+            result_list.append({
+                "section_id": section.id,
+                "section_name": section.name,
+                "grade_name": section.grade.name if hasattr(section, 'grade') and section.grade else None,
+                "stage_name": section.grade.stage.name if hasattr(section, 'grade') and section.grade and hasattr(section.grade, 'stage') and section.grade.stage else None,
+                "total_students": student_count,
+                "present": present,
+                "absent": absent,
+                "late": late,
+                "excused": excused,
+                "attendance_percentage": percentage,
+            })
+        
+        return result_list
+
+    # ============================================================
+    # 9️⃣ جلب تفاصيل الطالب من Attendance (مدمج مع Students)
+    # ============================================================
+
+    async def get_student_attendance_details(
+        self,
+        student_id: str,
+        date: Optional[str] = None,
+        period_id: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        جلب تفاصيل حضور طالب مع بياناته من Students Routes.
+        """
+        from sqlalchemy import select
+        
+        # --- التحقق من وجود الطالب من Students Routes ---
+        result = await self.db.execute(
+            select(Student).where(Student.id == student_id)
+        )
+        student = result.scalar_one_or_none()
+        if not student:
+            return None
+        
+        # --- جلب سجل الحضور ---
+        stmt = select(StudentAttendance).where(
+            StudentAttendance.student_id == student_id
+        )
+        
+        if date:
+            stmt = stmt.where(StudentAttendance.date == date)
+        if period_id:
+            stmt = stmt.where(StudentAttendance.period_id == period_id)
+        
+        record_result = await self.db.execute(stmt)
+        record = record_result.scalar_one_or_none()
+        
+        if not record:
+            return {
+                "student_id": student.id,
+                "student_number": student.student_number,
+                "student_name": student.full_name,
+                "has_attendance": False,
+                "attendance_status": None,
+                "section_name": None,
+                "grade_name": None,
+            }
+        
+        # --- جلب تفاصيل الحصة من Academics Routes ---
+        period_name = None
+        if record.period_id:
+            res = await self.db.execute(
+                select(Period).where(Period.id == record.period_id)
+            )
+            period = res.scalar_one_or_none()
+            if period:
+                period_name = period.name
+        
+        # --- جلب تفاصيل الشعبة من Academics Routes ---
+        section_name = None
+        grade_name = None
+        if record.section_id:
+            res = await self.db.execute(
+                select(Section).where(Section.id == record.section_id)
+            )
+            section = res.scalar_one_or_none()
+            if section:
+                section_name = section.name
+                if hasattr(section, 'grade') and section.grade:
+                    grade_name = section.grade.name
+        
+        return {
+            "student_id": student.id,
+            "student_number": student.student_number,
+            "student_name": student.full_name,
+            "has_attendance": True,
+            "attendance_id": record.id,
+            "attendance_status": record.status,
+            "attendance_note": record.note,
+            "attendance_date": record.date,
+            "period_name": period_name,
+            "section_name": section_name,
+            "grade_name": grade_name,
+            "recorded_by": record.recorded_by,
+            "created_at": record.created_at,
+        }
