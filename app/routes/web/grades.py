@@ -53,7 +53,6 @@ async def get_assessment_with_details(db: AsyncSession, assessment_id: str):
     if not assessment:
         return None
     
-    # إضافة معلومات إضافية
     return {
         "id": assessment.id,
         "title": assessment.title,
@@ -73,7 +72,7 @@ async def get_assessment_with_details(db: AsyncSession, assessment_id: str):
 
 
 # ============= الصفحة الرئيسية =============
-@router.get("")
+@router.get("", name="grades.index")  # ✅ إضافة اسم الراوت
 async def grades_page(
     request: Request,
     user: CurrentUser = Depends(require_any_permission("grades.view")),
@@ -87,21 +86,14 @@ async def grades_page(
     """عرض صفحة الدرجات الرئيسية"""
     service = GradeService(db)
     
-    # جلب التقييمات (حسب الشعبة إذا تم تحديدها)
     if section_id:
         assessments = await service.list_assessments(section_id)
     else:
-        # جلب جميع التقييمات للمدرسة
-        # ملاحظة: الخدمة الحالية لا تدعم جلب كل التقييمات،
-        # سنستخدم حل مؤقت أو نضيف دالة جديدة
         assessments = []
-        # TODO: إضافة دالة list_all_assessments في الخدمة
     
-    # جلب البيانات للفلاتر من AcademicService
     sections = await get_sections(db, user.school_id)
     subjects = await get_subjects(db, user.school_id)
     
-    # تحويل البيانات للتنسيق المطلوب في القالب
     formatted_assessments = []
     for a in assessments:
         formatted_assessments.append({
@@ -132,7 +124,7 @@ async def grades_page(
     )
 
 
-@router.get("/list")
+@router.get("/list", name="grades.list")  # ✅ إضافة اسم الراوت
 async def list_assessments(
     request: Request,
     user: CurrentUser = Depends(require_any_permission("grades.view")),
@@ -156,7 +148,7 @@ async def list_assessments(
 
 # ============= التقييمات =============
 
-@router.get("/create")
+@router.get("/create", name="grades.create")  # ✅ إضافة اسم الراوت
 async def create_assessment_page(
     request: Request,
     user: CurrentUser = Depends(require_any_permission("grades.create")),
@@ -164,7 +156,6 @@ async def create_assessment_page(
     ctx: dict = Depends(template_context),
 ):
     """عرض صفحة إنشاء تقييم جديد"""
-    # جلب البيانات من AcademicService
     sections = await get_sections(db, user.school_id)
     subjects = await get_subjects(db, user.school_id)
     teachers = await get_teachers(db, user.school_id)
@@ -181,7 +172,7 @@ async def create_assessment_page(
     )
 
 
-@router.post("/create")
+@router.post("/create", name="grades.store")  # ✅ إضافة اسم الراوت
 async def store_assessment(
     request: Request,
     user: CurrentUser = Depends(require_any_permission("grades.create")),
@@ -191,7 +182,6 @@ async def store_assessment(
     service = GradeService(db)
     form_data = await request.form()
     
-    # تحويل البيانات من النموذج
     data = {
         "title": form_data.get("title"),
         "section_id": form_data.get("section_id"),
@@ -213,14 +203,13 @@ async def store_assessment(
             status_code=303
         )
     except Exception as e:
-        # عرض رسالة خطأ
         return RedirectResponse(
             url="/grades/create?error=" + str(e),
             status_code=303
         )
 
 
-@router.get("/{assessment_id}/update")
+@router.get("/{assessment_id}/update", name="grades.edit")  # ✅ إضافة اسم الراوت
 async def edit_assessment_page(
     request: Request,
     assessment_id: str,
@@ -234,7 +223,6 @@ async def edit_assessment_page(
     if not assessment:
         raise HTTPException(status_code=404, detail="التقييم غير موجود")
     
-    # جلب البيانات للقوائم المنسدلة
     sections = await get_sections(db, user.school_id)
     subjects = await get_subjects(db, user.school_id)
     teachers = await get_teachers(db, user.school_id)
@@ -253,7 +241,7 @@ async def edit_assessment_page(
     )
 
 
-@router.post("/{assessment_id}/update")
+@router.post("/{assessment_id}/update", name="grades.update")  # ✅ إضافة اسم الراوت
 async def update_assessment(
     request: Request,
     assessment_id: str,
@@ -264,12 +252,10 @@ async def update_assessment(
     service = GradeService(db)
     form_data = await request.form()
     
-    # التحقق من وجود التقييم
     existing = await service.assessments.get(assessment_id)
     if not existing:
         raise HTTPException(status_code=404, detail="التقييم غير موجود")
     
-    # تحديث البيانات
     update_data = {}
     for key in ["title", "section_id", "subject_id", "assessment_type", "date", "description", "teacher_id"]:
         value = form_data.get(key)
@@ -291,7 +277,7 @@ async def update_assessment(
     )
 
 
-@router.get("/{assessment_id}")
+@router.get("/{assessment_id}", name="grades.show")  # ✅ إضافة اسم الراوت
 async def show_assessment(
     request: Request,
     assessment_id: str,
@@ -305,11 +291,9 @@ async def show_assessment(
     if not assessment:
         raise HTTPException(status_code=404, detail="التقييم غير موجود")
     
-    # جلب درجات الطلاب لهذا التقييم
     service = GradeService(db)
     grades = await service.grades.list_by_assessment(assessment_id)
     
-    # تنسيق الدرجات للعرض
     formatted_grades = []
     for g in grades:
         formatted_grades.append({
@@ -334,7 +318,7 @@ async def show_assessment(
     )
 
 
-@router.get("/{assessment_id}/grades")
+@router.get("/{assessment_id}/grades", name="grades.entry")  # ✅ إضافة اسم الراوت
 async def view_assessment_grades(
     request: Request,
     assessment_id: str,
@@ -349,13 +333,9 @@ async def view_assessment_grades(
     if not assessment:
         raise HTTPException(status_code=404, detail="التقييم غير موجود")
     
-    # جلب الطلاب في الشعبة
     students = await service.students.list_by_section(assessment.section_id)
-    
-    # جلب الدرجات المسجلة
     grades = await service.grades.list_by_assessment(assessment_id)
     
-    # إنشاء قاموس للدرجات المسجلة
     grades_map = {}
     for g in grades:
         grades_map[g.student_id] = {
@@ -364,7 +344,6 @@ async def view_assessment_grades(
             "grade_id": g.id,
         }
     
-    # تجهيز بيانات الطلاب مع الدرجات
     students_with_grades = []
     for student in students:
         students_with_grades.append({
@@ -393,7 +372,7 @@ async def view_assessment_grades(
     )
 
 
-@router.post("/{assessment_id}/grades/save")
+@router.post("/{assessment_id}/grades/save", name="grades.save_grades")  # ✅ إضافة اسم الراوت
 async def save_grades(
     request: Request,
     assessment_id: str,
@@ -404,7 +383,6 @@ async def save_grades(
     service = GradeService(db)
     form_data = await request.form()
     
-    # تجميع الدرجات من النموذج
     records = []
     for key, value in form_data.items():
         if key.startswith("score_"):
@@ -433,7 +411,7 @@ async def save_grades(
     )
 
 
-@router.post("/{assessment_id}/delete")
+@router.post("/{assessment_id}/delete", name="grades.delete")  # ✅ إضافة اسم الراوت
 async def delete_assessment(
     request: Request,
     assessment_id: str,
@@ -457,7 +435,7 @@ async def delete_assessment(
 
 # ============= الطلاب والدرجات =============
 
-@router.get("/students/{student_id}")
+@router.get("/students/{student_id}", name="grades.student")  # ✅ إضافة اسم الراوت
 async def student_grades(
     request: Request,
     student_id: str,
@@ -469,10 +447,8 @@ async def student_grades(
     service = GradeService(db)
     grades = await service.student_grades(student_id)
     
-    # جلب معلومات الطالب
     student = await service.students.get(student_id)
     
-    # حساب الإحصائيات
     total_weighted = 0
     total_weight = 0
     for g in grades:
@@ -498,7 +474,7 @@ async def student_grades(
 
 # ============= API Routes =============
 
-@router.post("/api/assessments/create")
+@router.post("/api/assessments/create", name="grades.api.create")
 async def create_assessment_api(
     req: AssessmentCreate,
     user: CurrentUser = Depends(require_any_permission("grades.create")),
@@ -514,7 +490,7 @@ async def create_assessment_api(
     }
 
 
-@router.put("/api/assessments/{assessment_id}")
+@router.put("/api/assessments/{assessment_id}", name="grades.api.update")
 async def update_assessment_api(
     assessment_id: str,
     req: AssessmentUpdate,
@@ -530,7 +506,7 @@ async def update_assessment_api(
     }
 
 
-@router.delete("/api/assessments/{assessment_id}")
+@router.delete("/api/assessments/{assessment_id}", name="grades.api.delete")
 async def delete_assessment_api(
     assessment_id: str,
     user: CurrentUser = Depends(require_any_permission("grades.delete")),
@@ -548,7 +524,7 @@ async def delete_assessment_api(
     }
 
 
-@router.post("/api/grades/batch")
+@router.post("/api/grades/batch", name="grades.api.batch")
 async def create_grades_batch_api(
     req: GradeRecordBatch,
     user: CurrentUser = Depends(require_any_permission("grades.create")),
@@ -564,7 +540,7 @@ async def create_grades_batch_api(
     }
 
 
-@router.post("/api/grades/single")
+@router.post("/api/grades/single", name="grades.api.single")
 async def create_grade_api(
     req: GradeRecordCreate,
     user: CurrentUser = Depends(require_any_permission("grades.create")),
@@ -580,7 +556,7 @@ async def create_grade_api(
     }
 
 
-@router.get("/api/assessments")
+@router.get("/api/assessments", name="grades.api.list")
 async def get_assessments_api(
     user: CurrentUser = Depends(require_any_permission("grades.view")),
     db: AsyncSession = Depends(get_db),
@@ -599,7 +575,7 @@ async def get_assessments_api(
     }
 
 
-@router.get("/api/assessments/{assessment_id}")
+@router.get("/api/assessments/{assessment_id}", name="grades.api.show")
 async def get_assessment_api(
     assessment_id: str,
     user: CurrentUser = Depends(require_any_permission("grades.view")),
@@ -612,7 +588,7 @@ async def get_assessment_api(
     return {"success": True, "item": assessment}
 
 
-@router.get("/api/assessments/{assessment_id}/grades")
+@router.get("/api/assessments/{assessment_id}/grades", name="grades.api.grades")
 async def get_assessment_grades_api(
     assessment_id: str,
     user: CurrentUser = Depends(require_any_permission("grades.view")),
@@ -624,7 +600,7 @@ async def get_assessment_grades_api(
     return {"success": True, "items": grades}
 
 
-@router.get("/api/students/{student_id}/grades")
+@router.get("/api/students/{student_id}/grades", name="grades.api.student")
 async def get_student_grades_api(
     student_id: str,
     user: CurrentUser = Depends(require_any_permission("grades.view")),
