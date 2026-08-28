@@ -1,11 +1,14 @@
 """Teacher service with assignment logic."""
 from datetime import datetime, timezone
+from typing import Optional, List
 
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
 from app.core.exceptions import ConflictException, NotFoundException
 from app.core.security import hash_password
 from app.models.users import User
+from app.models.teachers import Teacher
 from app.repositories.teachers import AssignmentRepository, TeacherRepository
 from app.repositories.users import RoleRepository, UserRoleRepository, UserRepository
 from app.schemas.teachers import AssignmentCreate, TeacherCreate, TeacherUpdate
@@ -65,8 +68,23 @@ class TeacherService:
         teacher = await self.teachers.update(teacher, **req.model_dump(exclude_unset=True))
         return {"id": teacher.id}
 
-    async def list_teachers(self, school_id: str, page: int, page_size: int, search: str | None = None) -> dict:
-        items, total = await self.teachers.list_by_school(school_id, page, page_size, search)
+    # ✅ تحديث الدالة: إضافة معامل is_active مع قيمة افتراضية
+    async def list_teachers(
+        self, 
+        school_id: str, 
+        page: int = 1, 
+        page_size: int = 20, 
+        search: str | None = None,
+        is_active: bool = True,  # ✅ إضافة المعامل الجديد
+    ) -> dict:
+        """جلب قائمة المعلمين مع إمكانية التصفية حسب الحالة."""
+        items, total = await self.teachers.list_by_school(
+            school_id, 
+            page, 
+            page_size, 
+            search,
+            is_active=is_active,  # ✅ تمرير المعامل إلى المستودع
+        )
         return {
             "items": [
                 {
@@ -83,6 +101,23 @@ class TeacherService:
             "page": page,
             "page_size": page_size,
         }
+
+    # ✅ إضافة دالة جديدة لجلب المعلمين كـ List (للاستخدام في Attendance)
+    async def get_teachers_list(
+        self, 
+        school_id: str, 
+        is_active: bool = True,
+    ) -> List[Teacher]:
+        """جلب قائمة المعلمين كـ List (للاستخدام في Attendance)."""
+        from sqlalchemy import select
+        
+        result = await self.db.execute(
+            select(Teacher).where(
+                Teacher.school_id == school_id,
+                Teacher.is_active == is_active
+            ).order_by(Teacher.first_name)
+        )
+        return list(result.scalars().all())
 
     async def get_teacher_detail(self, teacher_id: str) -> dict:
         teacher = await self.teachers.get(teacher_id)
