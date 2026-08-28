@@ -424,7 +424,7 @@ class AttendanceService:
                 result.append({
                     "teacher_id": r.teacher_id,
                     "teacher_name": teacher.full_name,
-                    "teacher_number": teacher.teacher_number,
+                    "employee_number": teacher.employee_number,
                     "email": teacher.email,
                     "phone": teacher.phone,
                     "status": r.status,
