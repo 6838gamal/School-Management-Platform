@@ -57,27 +57,27 @@ async def activity_managers_list(
         
         logger.info(f"📄 Activity Managers list page requested by user: {current_user.email}")
         
-        # جلب دور activity_managers
+        # ✅ استخدام المفتاح الصحيح: activities_manager (بدون s)
         result = await db.execute(
-            select(Role).where(Role.key == 'activity_managers')
+            select(Role).where(Role.key == 'activities_manager')
         )
         activity_role = result.scalars().first()
         
-        # إذا لم يكن دور activity_managers موجوداً، قم بإنشائه
+        # إذا لم يكن دور activities_manager موجوداً، قم بإنشائه
         if not activity_role:
-            logger.warning("⚠️ Activity Managers role not found, creating it...")
+            logger.warning("⚠️ Activities Manager role not found, creating it...")
             activity_role = Role(
                 id=str(uuid.uuid4()),
-                key="activity_managers",
-                name_ar="مسؤول أنشطة",  # ✅ استخدام name_ar بدلاً من name
+                key="activities_manager",  # ✅ المفتاح الصحيح
+                name_ar="مسؤول أنشطة",
                 name_en="Activities Manager"
             )
             db.add(activity_role)
             await db.commit()
             await db.refresh(activity_role)
-            logger.info("✅ Activity Managers role created successfully")
+            logger.info("✅ Activities Manager role created successfully")
         
-        # جلب المستخدمين الذين لديهم دور activity_managers
+        # جلب المستخدمين الذين لديهم دور activities_manager
         result = await db.execute(
             select(User)
             .join(UserRole, UserRole.user_id == User.id)
@@ -175,24 +175,24 @@ async def activity_managers_create(
         logger.info(f"   - Email: {form_data.get('email')}")
         logger.info(f"   - Phone: {form_data.get('phone')}")
         
-        # التأكد من وجود دور activity_managers
+        # ✅ استخدام المفتاح الصحيح: activities_manager (بدون s)
         activity_role_result = await db.execute(
-            select(Role).where(Role.key == 'activity_managers')
+            select(Role).where(Role.key == 'activities_manager')
         )
         activity_role = activity_role_result.scalars().first()
         
         if not activity_role:
-            logger.warning("⚠️ Activity Managers role not found, creating it...")
+            logger.warning("⚠️ Activities Manager role not found, creating it...")
             activity_role = Role(
                 id=str(uuid.uuid4()),
-                key="activity_managers",
-                name_ar="مسؤول أنشطة",  # ✅ استخدام name_ar بدلاً من name
+                key="activities_manager",  # ✅ المفتاح الصحيح
+                name_ar="مسؤول أنشطة",
                 name_en="Activities Manager"
             )
             db.add(activity_role)
             await db.commit()
             await db.refresh(activity_role)
-            logger.info("✅ Activity Managers role created successfully")
+            logger.info("✅ Activities Manager role created successfully")
         
         # إنشاء المستخدم
         service = AuthService(db)
@@ -203,7 +203,7 @@ async def activity_managers_create(
             full_name=form_data.get("full_name"),
             phone=form_data.get("phone"),
             school_code=form_data.get("school_code") or "SCH001",
-            role_name="activity_managers"
+            role_name="activities_manager"  # ✅ استخدام المفتاح الصحيح (بدون s)
         )
         
         result = await service.register_user(user_data)
@@ -217,7 +217,7 @@ async def activity_managers_create(
             # الحصول على ID المستخدم بشكل آمن
             user_id = new_user.id if hasattr(new_user, 'id') else new_user.get('id')
             
-            # التحقق من ربط المستخدم بدور activity_managers
+            # التحقق من ربط المستخدم بدور activities_manager
             user_role_result = await db.execute(
                 select(UserRole)
                 .where(
@@ -228,7 +228,7 @@ async def activity_managers_create(
             existing_role = user_role_result.scalars().first()
             
             if not existing_role:
-                # ربط المستخدم بدور activity_managers
+                # ربط المستخدم بدور activities_manager
                 user_role = UserRole(
                     id=str(uuid.uuid4()),
                     user_id=user_id,
@@ -236,9 +236,9 @@ async def activity_managers_create(
                 )
                 db.add(user_role)
                 await db.commit()
-                logger.info(f"✅ User linked to activity_managers role")
+                logger.info(f"✅ User linked to activities_manager role")
             else:
-                logger.info(f"✅ User already has activity_managers role")
+                logger.info(f"✅ User already has activities_manager role")
         else:
             logger.error(f"❌ Failed to create activity manager: {result}")
             return RedirectResponse(
