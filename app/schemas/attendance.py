@@ -1,8 +1,68 @@
 """Attendance schemas."""
+from enum import Enum
 from pydantic import BaseModel, Field
 
 from app.schemas.common import ORMBase
 
+
+# ============================================================
+# Enums (القيم الثابتة)
+# ============================================================
+
+class StudentAttendanceStatus(str, Enum):
+    """حالة حضور الطالب."""
+    PRESENT = "present"
+    ABSENT = "absent"
+    LATE = "late"
+    EXCUSED = "excused"
+    
+    @classmethod
+    def get_arabic_name(cls, value: str) -> str:
+        """الحصول على الاسم العربي للحالة."""
+        mapping = {
+            cls.PRESENT: "حاضر",
+            cls.ABSENT: "غائب",
+            cls.LATE: "متأخر",
+            cls.EXCUSED: "معذور",
+        }
+        return mapping.get(value, value)
+    
+    @classmethod
+    def get_color(cls, value: str) -> str:
+        """الحصول على لون الحالة."""
+        mapping = {
+            cls.PRESENT: "success",
+            cls.ABSENT: "danger",
+            cls.LATE: "warning",
+            cls.EXCUSED: "info",
+        }
+        return mapping.get(value, "secondary")
+
+
+class TeacherAttendanceStatus(str, Enum):
+    """حالة حضور المعلم."""
+    PRESENT = "present"
+    ABSENT = "absent"
+    LATE = "late"
+    EXCUSED = "excused"
+    LEAVE = "leave"  # إجازة
+    
+    @classmethod
+    def get_arabic_name(cls, value: str) -> str:
+        """الحصول على الاسم العربي للحالة."""
+        mapping = {
+            cls.PRESENT: "حاضر",
+            cls.ABSENT: "غائب",
+            cls.LATE: "متأخر",
+            cls.EXCUSED: "معذور",
+            cls.LEAVE: "إجازة",
+        }
+        return mapping.get(value, value)
+
+
+# ============================================================
+# الـ Schemas الموجودة
+# ============================================================
 
 class StudentAttendanceCreate(BaseModel):
     student_id: str
