@@ -5,14 +5,14 @@ Student is the person record. StudentEnrollment tracks the history of
 which section/grade a student belongs to over time, enabling transfers
 without losing history.
 """
-from sqlalchemy import Boolean, Date, ForeignKey, Integer, String, UniqueConstraint
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy import Boolean, Date, ForeignKey, Integer, String, UniqueConstraint, func
+from sqlalchemy.orm import Mapped, mapped_column, relationship, hybrid_property
 
-from app.core.database import Base  # ✅ أضف هذا الاستيراد
+from app.core.database import Base
 from app.models._mixins import TimestampMixin, UUIDPkMixin
 
 
-class Student(UUIDPkMixin, TimestampMixin, Base):  # ✅ أضف Base
+class Student(UUIDPkMixin, TimestampMixin, Base):
     __tablename__ = "students"
 
     school_id: Mapped[str] = mapped_column(
@@ -35,8 +35,30 @@ class Student(UUIDPkMixin, TimestampMixin, Base):  # ✅ أضف Base
         "StudentEnrollment", back_populates="student", cascade="all, delete-orphan"
     )
 
+    # ============================================================
+    # الخصائص المحسوبة
+    # ============================================================
+    
+    @hybrid_property
+    def full_name(self) -> str:
+        """إرجاع الاسم الكامل للطالب"""
+        return f"{self.first_name} {self.last_name}".strip()
+    
+    @full_name.expression
+    def full_name(cls):
+        """للاستخدام في استعلامات SQL - يسمح بالبحث والفرز باستخدام الاسم الكامل"""
+        return func.concat(cls.first_name, " ", cls.last_name)
+    
+    @property
+    def display_name(self) -> str:
+        """اسم الطالب مع رقم الطالب للعرض"""
+        return f"{self.full_name} ({self.student_number})"
+    
+    def __repr__(self) -> str:
+        return f"<Student {self.full_name} ({self.student_number})>"
 
-class StudentEnrollment(UUIDPkMixin, TimestampMixin, Base):  # ✅ أضف Base
+
+class StudentEnrollment(UUIDPkMixin, TimestampMixin, Base):
     """Tracks a student's placement in a section for a given academic year."""
     __tablename__ = "student_enrollments"
     __table_args__ = (
@@ -62,7 +84,6 @@ class StudentEnrollment(UUIDPkMixin, TimestampMixin, Base):  # ✅ أضف Base
     student: Mapped["Student"] = relationship("Student", back_populates="enrollments")
 
 
-# ✅ أضف هذا في نهاية الملف
 __all__ = [
     "Student",
     "StudentEnrollment"
