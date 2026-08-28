@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, Request, HTTPException
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 
@@ -11,6 +12,7 @@ from app.core.dependencies import CurrentUser, require_any_permission, template_
 from app.core.exceptions import NotFoundException
 from app.services.grade_service import GradeService
 from app.services.academic_service import AcademicService
+from app.models.student import Student
 from app.schemas.grades import (
     AssessmentCreate, AssessmentUpdate, GradeRecordCreate, GradeRecordBatch
 )
@@ -37,14 +39,6 @@ async def get_teachers(db: AsyncSession, school_id: str):
     """جلب المعلمين (مؤقت - استبدل بخدمة المعلمين عند توفرها)"""
     # TODO: استبدل بخدمة المعلمين
     return []
-
-
-async def get_students_by_section(db: AsyncSession, section_id: str):
-    """جلب طلاب الشعبة"""
-    service = GradeService(db)
-    # ✅ استخدام get_by_section مع section_id فقط
-    students = await service.students.get_by_section(section_id)
-    return students if students else []
 
 
 async def get_assessment_with_details(db: AsyncSession, assessment_id: str):
@@ -314,11 +308,19 @@ async def show_assessment(
     service = GradeService(db)
     grades = await service.grades.list_by_assessment(assessment_id)
     
+    # جلب أسماء الطلاب
+    student_names = {}
+    for g in grades:
+        student = await service.students.get(g.student_id)
+        if student:
+            student_names[g.student_id] = student.name
+    
     formatted_grades = []
     for g in grades:
         formatted_grades.append({
             "id": g.id,
             "student_id": g.student_id,
+            "student_name": student_names.get(g.student_id, g.student_id),
             "score": float(g.score) if g.score is not None else None,
             "note": g.note,
             "graded_by": g.graded_by,
@@ -353,10 +355,13 @@ async def view_assessment_grades(
     if not assessment:
         raise HTTPException(status_code=404, detail="التقييم غير موجود")
     
-    # ✅ استخدام get_by_section مع section_id فقط
-    students = await service.students.get_by_section(assessment.section_id)
-    if not students:
-        students = []
+    # ✅ استعلام مباشر باستخدام SQLAlchemy
+    stmt = select(Student).where(
+        Student.section_id == assessment.section_id,
+        Student.school_id == user.school_id
+    )
+    result = await db.execute(stmt)
+    students = result.scalars().all()
     
     # جلب الدرجات المسجلة
     grades = await service.grades.list_by_assessment(assessment_id)
@@ -373,16 +378,26 @@ async def view_assessment_grades(
     # تجهيز بيانات الطلاب مع الدرجات
     students_with_grades = []
     for student in students:
-        student_id = student.id if hasattr(student, 'id') else student.get('id')
-        student_name = student.name if hasattr(student, 'name') else student.get('name', 'طالب')
-        
         students_with_grades.append({
-            "id": student_id,
-            "name": student_name,
-            "grade": grades_map.get(student_id, {}).get("score"),
-            "note": grades_map.get(student_id, {}).get("note"),
-            "grade_id": grades_map.get(student_id, {}).get("grade_id"),
+            "id": student.id,
+            "name": student.name,
+            "grade": grades_map.get(student.id, {}).get("score"),
+            "note": grades_map.get(student.id, {}).get("note"),
+            "grade_id": grades_map.get(student.id, {}).get("grade_id"),
         })
+    
+    # رسائل النجاح والخطأ
+    success_message = None
+    error_message = None
+    warning_message = None
+    
+    if request.query_params.get('success') == 'grades_saved':
+        count = request.query_params.get('count', '0')
+        success_message = f"✅ تم حفظ {count} درجة بنجاح"
+    elif request.query_params.get('error'):
+        error_message = f"❌ حدث خطأ: {request.query_params.get('error')}"
+    elif request.query_params.get('warning') == 'no_grades':
+        warning_message = "⚠️ لم يتم إدخال أي درجات للحفظ"
     
     return templates.TemplateResponse(
         "grades/entry.html",
@@ -397,6 +412,9 @@ async def view_assessment_grades(
                 "weight": float(assessment.weight) if hasattr(assessment, 'weight') else 1.0,
             },
             "students": students_with_grades,
+            "success_message": success_message,
+            "error_message": error_message,
+            "warning_message": warning_message,
             "now": datetime.now(),
         }
     )
@@ -418,7 +436,7 @@ async def save_grades(
     for key, value in form_data.items():
         if key.startswith("score_"):
             student_id = key.replace("score_", "")
-            score = float(value) if value else None
+            score = float(value) if value and value.strip() else None
             
             if score is not None:
                 note_key = f"note_{student_id}"
@@ -426,18 +444,33 @@ async def save_grades(
                 records.append({
                     "student_id": student_id,
                     "score": score,
-                    "note": note,
+                    "note": note or "",
                 })
     
+    # حفظ الدرجات
     if records:
-        batch_data = GradeRecordBatch(
-            assessment_id=assessment_id,
-            records=records
-        )
-        result = await service.batch_record(user.id, batch_data)
+        try:
+            batch_data = GradeRecordBatch(
+                assessment_id=assessment_id,
+                records=records
+            )
+            result = await service.batch_record(user.id, batch_data)
+            
+            # إعادة التوجيه مع رسالة نجاح
+            return RedirectResponse(
+                url=f"/grades/{assessment_id}/grades?success=grades_saved&count={result.get('recorded', 0)}",
+                status_code=303
+            )
+        except Exception as e:
+            # في حالة الخطأ، إعادة التوجيه مع رسالة خطأ
+            return RedirectResponse(
+                url=f"/grades/{assessment_id}/grades?error={str(e)}",
+                status_code=303
+            )
     
+    # إذا لم توجد درجات للحفظ
     return RedirectResponse(
-        url=f"/grades/{assessment_id}?success=grades_saved",
+        url=f"/grades/{assessment_id}/grades?warning=no_grades",
         status_code=303
     )
 
