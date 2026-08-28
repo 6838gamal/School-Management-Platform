@@ -719,3 +719,184 @@ class AttendanceService:
             "recorded_by": record.recorded_by,
             "created_at": record.created_at,
         }
+
+
+# ============================================================
+# 🔟 نقل طالب بين الشعب (Transfer)
+# ============================================================
+
+async def transfer_student(
+    self,
+    school_id: str,
+    req: TransferRequest
+) -> Dict[str, Any]:
+    """
+    نقل طالب بين الشعب.
+    
+    Args:
+        school_id: معرف المدرسة
+        req: بيانات النقل (student_id, from_section_id, to_section_id, year_id)
+    
+    Returns:
+        Dict: نتيجة النقل
+    """
+    # التحقق من وجود الطالب
+    student = await self.repo.get_by_id(req.student_id)
+    if not student:
+        raise NotFoundException(f"الطالب {req.student_id} غير موجود")
+    
+    # التحقق من أن الطالب ينتمي لنفس المدرسة
+    if student.school_id != school_id:
+        raise ValidationException("الطالب لا ينتمي إلى مدرستك")
+    
+    # التحقق من أن الطالب نشط
+    if not student.is_active:
+        raise ValidationException("الطالب غير نشط")
+    
+    # التحقق من الشعبة الجديدة (إذا تم تحديدها)
+    if req.to_section_id:
+        section = await self.db.get(Section, req.to_section_id)
+        if not section:
+            raise NotFoundException(f"الشعبة {req.to_section_id} غير موجودة")
+        
+        if section.school_id != school_id:
+            raise ValidationException("الشعبة لا تنتمي إلى مدرستك")
+        
+        if not section.is_active:
+            raise ValidationException("الشعبة غير نشطة")
+    
+    # تسجيل النقل
+    old_section_id = student.section_id
+    
+    # تحديث الطالب
+    update_data = {
+        "section_id": req.to_section_id,
+    }
+    if req.year_id:
+        update_data["year_id"] = req.year_id
+    
+    updated_student = await self.repo.update(req.student_id, update_data)
+    
+    # جلب تفاصيل الشعبة القديمة والجديدة
+    old_section_name = None
+    if old_section_id:
+        old_section = await self.db.get(Section, old_section_id)
+        if old_section:
+            old_section_name = old_section.name
+    
+    new_section_name = None
+    if req.to_section_id:
+        new_section = await self.db.get(Section, req.to_section_id)
+        if new_section:
+            new_section_name = new_section.name
+    
+    return {
+        "student_id": req.student_id,
+        "student_name": updated_student.full_name,
+        "from_section_id": old_section_id,
+        "from_section_name": old_section_name,
+        "to_section_id": req.to_section_id,
+        "to_section_name": new_section_name,
+        "year_id": req.year_id,
+    }
+
+
+# ============================================================
+# 1️⃣1️⃣ البحث عن طالب
+# ============================================================
+
+async def search_students(
+    self,
+    school_id: str,
+    query: str,
+    limit: int = 10,
+) -> List[Dict[str, Any]]:
+    """البحث عن طالب بالاسم أو رقم الطالب."""
+    search_term = f"%{query}%"
+    
+    students = await self.db.query(Student).filter(
+        Student.school_id == school_id,
+        Student.is_active == True,
+        or_(
+            Student.student_number.ilike(search_term),
+            Student.first_name.ilike(search_term),
+            Student.last_name.ilike(search_term),
+            Student.full_name.ilike(search_term),
+        )
+    ).limit(limit).all()
+    
+    return [
+        {
+            "id": s.id,
+            "student_number": s.student_number,
+            "full_name": s.full_name,
+            "first_name": s.first_name,
+            "last_name": s.last_name,
+            "section_id": s.section_id,
+            "is_active": s.is_active,
+        }
+        for s in students
+    ]
+
+
+# ============================================================
+# 1️⃣2️⃣ إحصائيات الطلاب
+# ============================================================
+
+async def get_stats(
+    self,
+    school_id: str,
+    section_id: Optional[str] = None,
+) -> Dict[str, Any]:
+    """جلب إحصائيات الطلاب."""
+    # العدد الإجمالي
+    total_query = self.db.query(Student).filter(
+        Student.school_id == school_id,
+        Student.is_active == True
+    )
+    if section_id:
+        total_query = total_query.filter(Student.section_id == section_id)
+    total = await total_query.count()
+    
+    # عدد الذكور والإناث
+    males = await self.db.query(Student).filter(
+        Student.school_id == school_id,
+        Student.is_active == True,
+        Student.gender == "male"
+    ).count()
+    
+    females = await self.db.query(Student).filter(
+        Student.school_id == school_id,
+        Student.is_active == True,
+        Student.gender == "female"
+    ).count()
+    
+    # عدد الطلاب حسب الشعبة
+    sections_stats = []
+    if not section_id:
+        sections = await self.db.query(Section).filter(
+            Section.school_id == school_id,
+            Section.is_active == True
+        ).all()
+        
+        for section in sections:
+            count = await self.db.query(Student).filter(
+                Student.section_id == section.id,
+                Student.is_active == True
+            ).count()
+            
+            if count > 0:
+                sections_stats.append({
+                    "section_id": section.id,
+                    "section_name": section.name,
+                    "student_count": count,
+                })
+    
+    return {
+        "total": total,
+        "males": males,
+        "females": females,
+        "sections": sections_stats,
+        "school_id": school_id,
+        "section_id": section_id,
+    }
