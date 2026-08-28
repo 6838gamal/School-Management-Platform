@@ -1,0 +1,100 @@
+{% extends "layouts/director.html" %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-bold text-slate-800 dark:text-white">تعديل حضور طالب</h1>
+            <p class="text-slate-400 text-sm mt-1">تعديل سجل حضور الطالب</p>
+        </div>
+        <a href="/attendance/students/{{ record.id }}" 
+           class="bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+            ← العودة
+        </a>
+    </div>
+
+    {% if error %}
+    <div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 px-4 py-3 rounded-lg">
+        ❌ {{ error }}
+    </div>
+    {% endif %}
+
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-6">
+        <form method="POST" action="/attendance/students/{{ record.id }}">
+            <div class="space-y-4">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                            الطالب
+                        </label>
+                        <p class="px-4 py-2 rounded-lg bg-slate-50 dark:bg-slate-700 text-slate-800 dark:text-white">
+                            {{ record.student_name or record.student_id }}
+                        </p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                            التاريخ
+                        </label>
+                        <p class="px-4 py-2 rounded-lg bg-slate-50 dark:bg-slate-700 text-slate-800 dark:text-white">
+                            {{ record.date }}
+                        </p>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                        الحالة <span class="text-red-500">*</span>
+                    </label>
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        <label class="flex items-center gap-2 p-3 rounded-lg border border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700/30 cursor-pointer transition-colors">
+                            <input type="radio" name="status" value="present" 
+                                   {% if record.status == 'present' %}checked{% endif %}
+                                   class="w-4 h-4 text-green-600 focus:ring-green-500">
+                            <span>✅ حاضر</span>
+                        </label>
+                        <label class="flex items-center gap-2 p-3 rounded-lg border border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700/30 cursor-pointer transition-colors">
+                            <input type="radio" name="status" value="absent" 
+                                   {% if record.status == 'absent' %}checked{% endif %}
+                                   class="w-4 h-4 text-red-600 focus:ring-red-500">
+                            <span>❌ غائب</span>
+                        </label>
+                        <label class="flex items-center gap-2 p-3 rounded-lg border border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700/30 cursor-pointer transition-colors">
+                            <input type="radio" name="status" value="late" 
+                                   {% if record.status == 'late' %}checked{% endif %}
+                                   class="w-4 h-4 text-yellow-600 focus:ring-yellow-500">
+                            <span>⏰ متأخر</span>
+                        </label>
+                        <label class="flex items-center gap-2 p-3 rounded-lg border border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700/30 cursor-pointer transition-colors">
+                            <input type="radio" name="status" value="excused" 
+                                   {% if record.status == 'excused' %}checked{% endif %}
+                                   class="w-4 h-4 text-blue-600 focus:ring-blue-500">
+                            <span>📝 معذور</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                        ملاحظات
+                    </label>
+                    <textarea name="note" 
+                              rows="3"
+                              class="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500"
+                              placeholder="أضف ملاحظة (اختياري)">{{ record.note or '' }}</textarea>
+                </div>
+
+                <div class="flex gap-3 pt-4">
+                    <button type="submit" 
+                            class="bg-primary-600 hover:bg-primary-700 text-white px-6 py-2.5 rounded-lg text-sm font-semibold transition-colors">
+                        💾 حفظ التغييرات
+                    </button>
+                    <a href="/attendance/students/{{ record.id }}" 
+                       class="bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 px-6 py-2.5 rounded-lg text-sm font-medium transition-colors">
+                        إلغاء
+                    </a>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
