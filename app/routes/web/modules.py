@@ -140,6 +140,7 @@ async def student_attendance_create_form(
             "selected_section": section_id,
             "selected_date": selected_date,
             "today": today,
+            "can": user.has_permission,
         },
     )
 
@@ -190,6 +191,7 @@ async def student_attendance_create(
                 "selected_date": date,
                 "selected_section": section_id,
                 "today": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+                "can": user.has_permission,
             },
             status_code=400,
         )
@@ -235,7 +237,6 @@ async def teacher_attendance_create_form(
     selected_date = date or today
     
     teacher_service = TeacherService(db)
-    # ✅ استخدام الدالة الجديدة get_teachers_list
     teachers = await teacher_service.get_teachers_list(
         user.school_id, 
         is_active=True
@@ -250,6 +251,7 @@ async def teacher_attendance_create_form(
             "selected_date": selected_date,
             "statuses": ["present", "absent", "late", "leave"],
             "today": today,
+            "can": user.has_permission,
         },
     )
 
@@ -287,7 +289,6 @@ async def teacher_attendance_create(
         
     except Exception as e:
         teacher_service = TeacherService(db)
-        # ✅ استخدام الدالة الجديدة get_teachers_list
         teachers = await teacher_service.get_teachers_list(
             user.school_id, 
             is_active=True
@@ -306,6 +307,7 @@ async def teacher_attendance_create(
                 "note": note,
                 "statuses": ["present", "absent", "late", "leave"],
                 "today": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+                "can": user.has_permission,
             },
             status_code=400,
         )
