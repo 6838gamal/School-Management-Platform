@@ -25,7 +25,7 @@ templates = Jinja2Templates(directory="app/templates")
 #    المسارات الثابتة (مثل /new) يجب أن تأتي قبل المسارات الديناميكية (مثل /{student_id})
 # ============================================================
 
-# 1️⃣ GET /students/new - صفحة إضافة طالب جديد (يجب أن يكون أولاً!)
+# 1️⃣ GET /students/new - صفحة إضافة طالب جديد
 @router.get("/new")
 async def student_new(
     request: Request,
@@ -70,7 +70,7 @@ async def student_create(
     year_id: Optional[str] = Form(None),
 ):
     service = StudentService(db)
-    ctx = await template_context(request, user)
+    ctx = await template_context(request)  # ✅ تم التعديل
     
     # التحقق من صحة البيانات الأساسية
     if not student_number or len(student_number) < 3:
@@ -113,7 +113,6 @@ async def student_create(
     )
     
     try:
-        # ✅ تمرير user.id و user.school_id
         student = await service.create_student(student_data, user.id, user.school_id)
         return RedirectResponse(url=f"/students/{student.id}", status_code=303)
     except ConflictException as e:
@@ -170,7 +169,7 @@ async def students_list(
     )
 
 
-# 4️⃣ GET /students/{student_id}/edit - صفحة تعديل الطالب (يجب أن يأتي قبل /{student_id})
+# 4️⃣ GET /students/{student_id}/edit - صفحة تعديل الطالب
 @router.get("/{student_id}/edit")
 async def student_edit(
     request: Request,
@@ -225,7 +224,7 @@ async def student_update(
     is_active: Optional[bool] = Form(None),
 ):
     service = StudentService(db)
-    ctx = await template_context(request, user)
+    ctx = await template_context(request)  # ✅ تم التعديل
     
     # التحقق من صحة البيانات
     if first_name is not None and len(first_name) < 2:
@@ -345,7 +344,7 @@ async def student_delete(
         return RedirectResponse(url="/students", status_code=303)
 
 
-# 7️⃣ GET /students/{student_id} - تفاصيل الطالب (يجب أن يكون في النهاية!)
+# 7️⃣ GET /students/{student_id} - تفاصيل الطالب
 @router.get("/{student_id}")
 async def student_detail(
     request: Request,
