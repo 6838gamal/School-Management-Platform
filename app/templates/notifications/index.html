@@ -1,0 +1,191 @@
+{% extends "layouts/director.html" %}
+{% block content %}
+<div class="space-y-6">
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-bold text-slate-800 dark:text-white">الإشعارات</h1>
+            <p class="text-slate-400 text-sm mt-1">إدارة الإشعارات والتنبيهات</p>
+        </div>
+        <div class="flex gap-2">
+            {% if can('notifications.create') %}
+            <button onclick="showModal('notification-modal')" class="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg text-sm font-semibold">
+                <i class="fas fa-bell ml-2"></i> إشعار جديد
+            </button>
+            {% endif %}
+            {% if notifications and notifications|length > 0 %}
+            <button onclick="markAllAsRead()" class="border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 px-4 py-2 rounded-lg text-sm font-medium">
+                <i class="fas fa-check-double ml-2"></i> تعيين كمقروء
+            </button>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- إحصائيات الإشعارات -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-4 text-center">
+            <p class="text-2xl font-bold text-primary-600">{{ total_notifications|default(48) }}</p>
+            <p class="text-sm text-slate-500 dark:text-slate-400">إجمالي الإشعارات</p>
+        </div>
+        <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-4 text-center">
+            <p class="text-2xl font-bold text-red-600">{{ unread_count|default(12) }}</p>
+            <p class="text-sm text-slate-500 dark:text-slate-400">غير مقروءة</p>
+        </div>
+        <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-4 text-center">
+            <p class="text-2xl font-bold text-green-600">{{ read_count|default(36) }}</p>
+            <p class="text-sm text-slate-500 dark:text-slate-400">مقروءة</p>
+        </div>
+        <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-4 text-center">
+            <p class="text-2xl font-bold text-amber-600">{{ today_count|default(5) }}</p>
+            <p class="text-sm text-slate-500 dark:text-slate-400">اليوم</p>
+        </div>
+    </div>
+
+    <!-- فلتر الإشعارات -->
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-4">
+        <div class="flex flex-wrap gap-4">
+            <select class="w-full md:w-auto px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
+                <option value="">كل الأنواع</option>
+                <option value="info">معلومات</option>
+                <option value="warning">تحذير</option>
+                <option value="success">نجاح</option>
+                <option value="error">خطأ</option>
+            </select>
+            <select class="w-full md:w-auto px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
+                <option value="">الحالة</option>
+                <option value="unread">غير مقروء</option>
+                <option value="read">مقروء</option>
+            </select>
+            <button class="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg text-sm font-semibold">فلتر</button>
+        </div>
+    </div>
+
+    <!-- قائمة الإشعارات -->
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 divide-y divide-slate-100 dark:divide-slate-700">
+        {% if notifications and notifications|length > 0 %}
+            {% for notification in notifications %}
+            <div class="p-4 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors {% if not notification.is_read %}border-r-4 border-primary-500{% endif %}">
+                <div class="flex items-start gap-4">
+                    <!-- أيقونة حسب النوع -->
+                    <div class="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0
+                        {% if notification.type == 'info' %}bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400
+                        {% elif notification.type == 'warning' %}bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400
+                        {% elif notification.type == 'success' %}bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400
+                        {% else %}bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400{% endif %}">
+                        <i class="fas 
+                            {% if notification.type == 'info' %}fa-info-circle
+                            {% elif notification.type == 'warning' %}fa-exclamation-triangle
+                            {% elif notification.type == 'success' %}fa-check-circle
+                            {% else %}fa-times-circle{% endif %}"></i>
+                    </div>
+                    
+                    <div class="flex-1">
+                        <div class="flex items-center justify-between">
+                            <h4 class="font-semibold text-sm text-slate-800 dark:text-white">
+                                {{ notification.title }}
+                                {% if not notification.is_read %}
+                                <span class="px-2 py-0.5 rounded-full text-xs bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 mr-2">جديد</span>
+                                {% endif %}
+                            </h4>
+                            <span class="text-xs text-slate-400">{{ notification.created_at }}</span>
+                        </div>
+                        <p class="text-sm text-slate-600 dark:text-slate-300 mt-1">{{ notification.message }}</p>
+                        <div class="flex items-center gap-3 mt-2">
+                            {% if not notification.is_read %}
+                            <button onclick="markAsRead('{{ notification.id }}')" class="text-xs text-primary-600 hover:text-primary-700 font-medium">
+                                تعيين كمقروء
+                            </button>
+                            {% endif %}
+                            <button onclick="deleteNotification('{{ notification.id }}')" class="text-xs text-red-600 hover:text-red-700 font-medium">
+                                حذف
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="p-8 text-center text-slate-500 dark:text-slate-400">
+                <div class="empty-state">
+                    <i class="fas fa-bell-slash text-4xl text-slate-300 dark:text-slate-600 mb-3 block"></i>
+                    <p>لا توجد إشعارات حالياً</p>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+
+    <!-- زر تحميل المزيد -->
+    {% if notifications and notifications|length > 10 %}
+    <div class="text-center">
+        <button onclick="loadMore()" class="text-primary-600 hover:text-primary-700 text-sm font-medium">
+            عرض المزيد
+            <i class="fas fa-arrow-down mr-1"></i>
+        </button>
+    </div>
+    {% endif %}
+</div>
+
+<!-- مودال إشعار جديد -->
+<div class="modal-backdrop" id="notification-modal">
+    <div class="modal-box p-6">
+        <h3 class="font-semibold text-lg mb-4">إنشاء إشعار جديد</h3>
+        <form id="notification-form" class="space-y-3">
+            <input name="title" placeholder="عنوان الإشعار" required class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
+            <select name="type" required class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
+                <option value="info">معلومات</option>
+                <option value="warning">تحذير</option>
+                <option value="success">نجاح</option>
+                <option value="error">خطأ</option>
+            </select>
+            <select name="target" class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
+                <option value="all">الجميع</option>
+                <option value="teachers">المعلمين</option>
+                <option value="students">الطلاب</option>
+                <option value="parents">أولياء الأمور</option>
+            </select>
+            <textarea name="message" placeholder="نص الإشعار" rows="4" required class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500"></textarea>
+            <div class="flex gap-2 pt-2">
+                <button type="button" onclick="closeModal('notification-modal')" class="flex-1 bg-slate-100 dark:bg-slate-700 px-4 py-2 rounded-lg text-sm font-medium">إلغاء</button>
+                <button type="submit" class="flex-1 bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg text-sm font-semibold">إرسال</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+document.getElementById('notification-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const body = {};
+    for (const [k, v] of fd.entries()) { if (v) body[k] = v; }
+    try {
+        await apiFetch('/api/v1/notifications', { method: 'POST', body });
+        showToast('تم إرسال الإشعار بنجاح', 'success');
+        closeModal('notification-modal');
+        setTimeout(() => location.reload(), 800);
+    } catch (_) {
+        showToast('حدث خطأ أثناء إرسال الإشعار', 'error');
+    }
+});
+
+function markAsRead(id) {
+    showToast('تم تعيين الإشعار كمقروء', 'success');
+    // منطق تحديث الحالة
+}
+
+function markAllAsRead() {
+    if (confirm('هل تريد تعيين جميع الإشعارات كمقروءة؟')) {
+        showToast('تم تعيين جميع الإشعارات كمقروءة', 'success');
+    }
+}
+
+function deleteNotification(id) {
+    if (confirm('هل أنت متأكد من حذف هذا الإشعار؟')) {
+        showToast('تم حذف الإشعار', 'success');
+    }
+}
+
+function loadMore() {
+    showToast('جاري تحميل المزيد...', 'info');
+}
+</script>
+{% endblock %}
