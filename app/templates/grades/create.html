@@ -1,0 +1,384 @@
+{% extends "layouts/director.html" %}
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-bold text-slate-800 dark:text-white">إنشاء تقييم جديد</h1>
+            <p class="text-slate-400 text-sm mt-1">إضافة تقييم جديد للطلاب</p>
+        </div>
+        <div class="flex gap-3">
+            <a href="{{ url_for('grades.index') }}" class="bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+                </svg>
+                العودة للقائمة
+            </a>
+        </div>
+    </div>
+
+    <!-- Form -->
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-6 max-w-4xl">
+        <form id="assessment-create-form" class="space-y-6" method="POST" action="{{ url_for('grades.store') }}">
+            <!-- CSRF Token -->
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            
+            <!-- قسم: المعلومات الأساسية -->
+            <div class="border-b border-slate-200 dark:border-slate-700 pb-4">
+                <h3 class="font-semibold text-lg text-slate-800 dark:text-white mb-4">المعلومات الأساسية</h3>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <!-- الشعبة -->
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                            الشعبة <span class="text-red-500">*</span>
+                        </label>
+                        <select name="section_id" id="section-id" required 
+                                class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500 transition-colors">
+                            <option value="">اختر الشعبة</option>
+                            {% for section in sections %}
+                            <option value="{{ section.id }}" {% if old_section_id == section.id %}selected{% endif %}>
+                                {{ section.name }} 
+                                {% if section.grade_level %}({{ section.grade_level }}){% endif %}
+                            </option>
+                            {% endfor %}
+                        </select>
+                        <p class="text-xs text-slate-400 mt-1">اختر الشعبة التي سيشملها التقييم</p>
+                    </div>
+
+                    <!-- المادة -->
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                            المادة <span class="text-red-500">*</span>
+                        </label>
+                        <select name="subject_id" id="subject-id" required 
+                                class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500 transition-colors">
+                            <option value="">اختر المادة</option>
+                            {% for subject in subjects %}
+                            <option value="{{ subject.id }}" {% if old_subject_id == subject.id %}selected{% endif %}>
+                                {{ subject.name }} 
+                                {% if subject.code %}({{ subject.code }}){% endif %}
+                            </option>
+                            {% endfor %}
+                        </select>
+                        <p class="text-xs text-slate-400 mt-1">اختر المادة التي سيشملها التقييم</p>
+                    </div>
+                </div>
+
+                <!-- عنوان التقييم -->
+                <div class="mt-4">
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                        عنوان التقييم <span class="text-red-500">*</span>
+                    </label>
+                    <input type="text" name="title" id="title" 
+                           value="{{ old_title or '' }}"
+                           placeholder="أدخل عنوان التقييم (مثال: اختبار الفصل الأول)" 
+                           required
+                           class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500 transition-colors">
+                    <p class="text-xs text-slate-400 mt-1">عنوان واضح يعبر عن محتوى التقييم</p>
+                </div>
+
+                <!-- الوصف -->
+                <div class="mt-4">
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                        الوصف
+                    </label>
+                    <textarea name="description" id="description" rows="3" 
+                              placeholder="وصف تفصيلي للتقييم (اختياري)"
+                              class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500 transition-colors resize-none">{{ old_description or '' }}</textarea>
+                    <p class="text-xs text-slate-400 mt-1">وصف إضافي لتوضيح محتوى التقييم</p>
+                </div>
+            </div>
+
+            <!-- قسم: نوع التقييم والتاريخ -->
+            <div class="border-b border-slate-200 dark:border-slate-700 pb-4">
+                <h3 class="font-semibold text-lg text-slate-800 dark:text-white mb-4">نوع التقييم والتاريخ</h3>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <!-- نوع التقييم -->
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                            نوع التقييم <span class="text-red-500">*</span>
+                        </label>
+                        <select name="assessment_type" id="assessment-type" required 
+                                class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500 transition-colors">
+                            <option value="exam" {% if old_type == 'exam' %}selected{% endif %}>📝 اختبار</option>
+                            <option value="quiz" {% if old_type == 'quiz' %}selected{% endif %}>⚡ قصير</option>
+                            <option value="assignment" {% if old_type == 'assignment' %}selected{% endif %}>📄 واجب</option>
+                            <option value="homework" {% if old_type == 'homework' %}selected{% endif %}>📚 تكليف</option>
+                            <option value="activity" {% if old_type == 'activity' %}selected{% endif %}>🎯 نشاط</option>
+                            <option value="participation" {% if old_type == 'participation' %}selected{% endif %}>🗣️ مشاركة</option>
+                        </select>
+                        <p class="text-xs text-slate-400 mt-1">اختر نوع التقييم المناسب</p>
+                    </div>
+
+                    <!-- التاريخ -->
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                            التاريخ
+                        </label>
+                        <input type="date" name="date" id="date" 
+                               value="{{ old_date or '' }}"
+                               class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500 transition-colors">
+                        <p class="text-xs text-slate-400 mt-1">تاريخ أداء التقييم (اختياري)</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- قسم: الدرجات والوزن -->
+            <div class="border-b border-slate-200 dark:border-slate-700 pb-4">
+                <h3 class="font-semibold text-lg text-slate-800 dark:text-white mb-4">الدرجات والوزن</h3>
+                
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <!-- الدرجة العظمى -->
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                            الدرجة العظمى <span class="text-red-500">*</span>
+                        </label>
+                        <div class="relative">
+                            <input type="number" name="max_score" id="max-score" 
+                                   value="{{ old_max_score or 100 }}"
+                                   min="0" step="0.5" required
+                                   class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500 transition-colors">
+                            <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">نقطة</span>
+                        </div>
+                        <p class="text-xs text-slate-400 mt-1">الدرجة القصوى للتقييم</p>
+                    </div>
+
+                    <!-- درجة النجاح -->
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                            درجة النجاح
+                        </label>
+                        <div class="relative">
+                            <input type="number" name="passing_score" id="passing-score" 
+                                   value="{{ old_passing_score or 50 }}"
+                                   min="0" step="0.5"
+                                   class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500 transition-colors">
+                            <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">نقطة</span>
+                        </div>
+                        <p class="text-xs text-slate-400 mt-1">الدرجة الدنيا للنجاح (افتراضي: 50)</p>
+                    </div>
+
+                    <!-- الوزن -->
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                            الوزن
+                        </label>
+                        <div class="relative">
+                            <input type="number" name="weight" id="weight" 
+                                   value="{{ old_weight or 1.0 }}"
+                                   min="0" max="10" step="0.1"
+                                   class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500 transition-colors">
+                            <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">×</span>
+                        </div>
+                        <p class="text-xs text-slate-400 mt-1">وزن التقييم في المعدل النهائي (افتراضي: 1.0)</p>
+                    </div>
+                </div>
+
+                <!-- مؤشر مرئي للدرجات -->
+                <div class="mt-4 p-4 bg-slate-50 dark:bg-slate-700/30 rounded-lg">
+                    <div class="flex items-center justify-between text-sm">
+                        <span class="text-slate-600 dark:text-slate-300">معاينة الدرجات:</span>
+                        <div class="flex items-center gap-4">
+                            <span class="text-green-600 dark:text-green-400">ناجح: <span id="preview-passing">50</span></span>
+                            <span class="text-red-600 dark:text-red-400">راسب: <span id="preview-failing">أقل من 50</span></span>
+                            <span class="text-blue-600 dark:text-blue-400">العظمى: <span id="preview-max">100</span></span>
+                        </div>
+                    </div>
+                    <!-- Progress bar -->
+                    <div class="mt-2 h-2 bg-slate-200 dark:bg-slate-600 rounded-full overflow-hidden">
+                        <div id="preview-progress" class="h-full bg-gradient-to-r from-red-500 via-yellow-500 to-green-500 transition-all duration-300" style="width: 100%"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- قسم: إعدادات إضافية -->
+            <div>
+                <h3 class="font-semibold text-lg text-slate-800 dark:text-white mb-4">إعدادات إضافية</h3>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <!-- المعلم -->
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                            المعلم المسؤول
+                        </label>
+                        <select name="teacher_id" id="teacher-id" 
+                                class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500 transition-colors">
+                            <option value="">اختر المعلم (اختياري)</option>
+                            {% for teacher in teachers %}
+                            <option value="{{ teacher.id }}" {% if old_teacher_id == teacher.id or current_user.id == teacher.id %}selected{% endif %}>
+                                {{ teacher.name }} 
+                                {% if teacher.specialization %}({{ teacher.specialization }}){% endif %}
+                            </option>
+                            {% endfor %}
+                        </select>
+                        <p class="text-xs text-slate-400 mt-1">المعلم المسؤول عن تصحيح التقييم</p>
+                    </div>
+
+                    <!-- حالة التقييم -->
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                            حالة التقييم
+                        </label>
+                        <select name="status" id="status" 
+                                class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500 transition-colors">
+                            <option value="draft" {% if old_status == 'draft' %}selected{% endif %}>📄 مسودة</option>
+                            <option value="published" {% if old_status == 'published' or not old_status %}selected{% endif %}>📢 منشور</option>
+                            <option value="archived" {% if old_status == 'archived' %}selected{% endif %}>🗄️ مؤرشف</option>
+                        </select>
+                        <p class="text-xs text-slate-400 mt-1">حالة التقييم (مسودة، منشور، مؤرشف)</p>
+                    </div>
+                </div>
+
+                <!-- خيارات إضافية -->
+                <div class="mt-4 space-y-2">
+                    <label class="flex items-center gap-3 cursor-pointer">
+                        <input type="checkbox" name="allow_late_submission" id="allow-late" 
+                               {% if old_allow_late %}checked{% endif %}
+                               class="w-4 h-4 text-primary-600 border-slate-300 rounded focus:ring-primary-500">
+                        <span class="text-sm text-slate-700 dark:text-slate-300">السماح بالتسليم المتأخر</span>
+                    </label>
+                    <label class="flex items-center gap-3 cursor-pointer">
+                        <input type="checkbox" name="show_results" id="show-results" 
+                               {% if old_show_results or not old_show_results is defined %}checked{% endif %}
+                               class="w-4 h-4 text-primary-600 border-slate-300 rounded focus:ring-primary-500">
+                        <span class="text-sm text-slate-700 dark:text-slate-300">عرض النتائج للطلاب</span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- أزرار الإجراء -->
+            <div class="flex flex-col sm:flex-row gap-3 pt-4 border-t border-slate-200 dark:border-slate-700">
+                <button type="submit" 
+                        class="flex-1 bg-primary-600 hover:bg-primary-700 text-white px-6 py-3 rounded-lg text-sm font-semibold transition-colors flex items-center justify-center gap-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                    </svg>
+                    إنشاء التقييم
+                </button>
+                <a href="{{ url_for('grades.index') }}" 
+                   class="flex-1 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 px-6 py-3 rounded-lg text-sm font-medium transition-colors text-center">
+                    إلغاء
+                </a>
+            </div>
+        </form>
+    </div>
+
+    <!-- مساعدة سريعة -->
+    <div class="bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-100 dark:border-blue-800 p-4">
+        <div class="flex items-start gap-3">
+            <svg class="w-5 h-5 text-blue-600 dark:text-blue-400 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            <div>
+                <p class="text-sm font-medium text-blue-800 dark:text-blue-300">نصائح لإضافة تقييم جديد</p>
+                <ul class="text-sm text-blue-700 dark:text-blue-400 mt-1 space-y-1 list-disc list-inside">
+                    <li>تأكد من اختيار الشعبة والمادة الصحيحة</li>
+                    <li>حدد الدرجة العظمى المناسبة للتقييم</li>
+                    <li>الوزن يؤثر في حساب المعدل النهائي للطالب</li>
+                    <li>يمكنك تعديل التقييم لاحقاً من صفحة القائمة</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// ============================================
+// 📊 Preview Update - تحديث المعاينة
+// ============================================
+
+document.addEventListener('DOMContentLoaded', function() {
+    const maxScoreInput = document.getElementById('max-score');
+    const passingScoreInput = document.getElementById('passing-score');
+    const previewMax = document.getElementById('preview-max');
+    const previewPassing = document.getElementById('preview-passing');
+    const previewFailing = document.getElementById('preview-failing');
+    const previewProgress = document.getElementById('preview-progress');
+
+    function updatePreview() {
+        const max = parseFloat(maxScoreInput.value) || 100;
+        const passing = parseFloat(passingScoreInput.value) || 50;
+        
+        previewMax.textContent = max;
+        previewPassing.textContent = passing;
+        previewFailing.textContent = passing > 0 ? `أقل من ${passing}` : 'لا يوجد';
+        
+        // تحديث شريط التقدم
+        const passingPercentage = (passing / max) * 100;
+        previewProgress.style.width = `${Math.min(passingPercentage, 100)}%`;
+    }
+
+    maxScoreInput.addEventListener('input', updatePreview);
+    passingScoreInput.addEventListener('input', updatePreview);
+    updatePreview();
+
+    // ============================================
+    // 🎯 Auto-fill - تعبئة تلقائية للمعلم
+    // ============================================
+    
+    // إذا كان المستخدم الحالي معلم، يتم تحديده تلقائياً
+    const currentUserId = "{{ current_user.id }}";
+    const teacherSelect = document.getElementById('teacher-id');
+    if (teacherSelect) {
+        const options = teacherSelect.options;
+        for (let i = 0; i < options.length; i++) {
+            if (options[i].value === currentUserId) {
+                options[i].selected = true;
+                break;
+            }
+        }
+    }
+});
+
+// ============================================
+// 📝 Form Validation - التحقق من صحة النموذج
+// ============================================
+
+document.getElementById('assessment-create-form').addEventListener('submit', function(e) {
+    const maxScore = parseFloat(document.getElementById('max-score').value);
+    const passingScore = parseFloat(document.getElementById('passing-score').value);
+    
+    if (passingScore > maxScore) {
+        e.preventDefault();
+        alert('⚠️ درجة النجاح لا يمكن أن تكون أكبر من الدرجة العظمى');
+        document.getElementById('passing-score').focus();
+        return false;
+    }
+    
+    if (maxScore <= 0) {
+        e.preventDefault();
+        alert('⚠️ الدرجة العظمى يجب أن تكون أكبر من صفر');
+        document.getElementById('max-score').focus();
+        return false;
+    }
+});
+</script>
+
+<style>
+/* تنسيقات إضافية */
+input:focus, select:focus, textarea:focus {
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+/* تنسيق الحقول المطلوبة */
+input:required, select:required {
+    border-color: #e2e8f0;
+}
+
+input:required:focus, select:required:focus {
+    border-color: #818cf8;
+}
+
+/* تنسيق الأيقونات في الـ select */
+select option {
+    padding: 8px;
+}
+
+/* تنسيق شريط التقدم */
+#preview-progress {
+    background: linear-gradient(to right, #ef4444, #eab308, #22c55e);
+}
+</style>
+{% endblock %}
