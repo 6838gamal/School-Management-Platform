@@ -70,10 +70,10 @@ async def student_create(
     year_id: Optional[str] = Form(None),
 ):
     service = StudentService(db)
+    ctx = await template_context(request, user)
     
     # التحقق من صحة البيانات الأساسية
     if not student_number or len(student_number) < 3:
-        ctx = await template_context(request, user)
         from app.services.academic_service import AcademicService
         academic = AcademicService(db)
         data = await academic.get_onboarding_data(user.school_id)
@@ -86,7 +86,6 @@ async def student_create(
         )
     
     if not first_name or len(first_name) < 2:
-        ctx = await template_context(request, user)
         from app.services.academic_service import AcademicService
         academic = AcademicService(db)
         data = await academic.get_onboarding_data(user.school_id)
@@ -114,10 +113,10 @@ async def student_create(
     )
     
     try:
+        # ✅ تمرير user.id و user.school_id
         student = await service.create_student(student_data, user.id, user.school_id)
         return RedirectResponse(url=f"/students/{student.id}", status_code=303)
     except ConflictException as e:
-        ctx = await template_context(request, user)
         from app.services.academic_service import AcademicService
         academic = AcademicService(db)
         data = await academic.get_onboarding_data(user.school_id)
@@ -129,7 +128,6 @@ async def student_create(
             status_code=409
         )
     except ValidationException as e:
-        ctx = await template_context(request, user)
         from app.services.academic_service import AcademicService
         academic = AcademicService(db)
         data = await academic.get_onboarding_data(user.school_id)
@@ -141,7 +139,6 @@ async def student_create(
             status_code=422
         )
     except AppException as e:
-        ctx = await template_context(request, user)
         from app.services.academic_service import AcademicService
         academic = AcademicService(db)
         data = await academic.get_onboarding_data(user.school_id)
@@ -228,6 +225,28 @@ async def student_update(
     is_active: Optional[bool] = Form(None),
 ):
     service = StudentService(db)
+    ctx = await template_context(request, user)
+    
+    # التحقق من صحة البيانات
+    if first_name is not None and len(first_name) < 2:
+        try:
+            detail = await service.get_student_detail(student_id)
+            from app.services.academic_service import AcademicService
+            academic = AcademicService(db)
+            data = await academic.get_onboarding_data(user.school_id)
+            return templates.TemplateResponse(
+                "students/form.html",
+                {**ctx, "title": "تعديل طالب", "mode": "edit", "student": detail,
+                 "sections": data.get("sections", []), "years": data.get("years", []), 
+                 "error": "الاسم الأول يجب أن يكون حرفين على الأقل"},
+                status_code=400
+            )
+        except NotFoundException:
+            return templates.TemplateResponse(
+                "errors/404.html",
+                {**ctx, "message": "الطالب غير موجود"},
+                status_code=404
+            )
     
     student_update = StudentUpdate(
         first_name=first_name,
@@ -248,48 +267,66 @@ async def student_update(
     except NotFoundException as e:
         return templates.TemplateResponse(
             "errors/404.html",
-            {"request": request, "message": str(e)},
+            {**ctx, "message": str(e)},
             status_code=404
         )
     except ConflictException as e:
-        ctx = await template_context(request, user)
-        detail = await service.get_student_detail(student_id)
-        from app.services.academic_service import AcademicService
-        academic = AcademicService(db)
-        data = await academic.get_onboarding_data(user.school_id)
-        return templates.TemplateResponse(
-            "students/form.html",
-            {**ctx, "title": "تعديل طالب", "mode": "edit", "student": detail,
-             "sections": data.get("sections", []), "years": data.get("years", []), 
-             "error": str(e)},
-            status_code=409
-        )
+        try:
+            detail = await service.get_student_detail(student_id)
+            from app.services.academic_service import AcademicService
+            academic = AcademicService(db)
+            data = await academic.get_onboarding_data(user.school_id)
+            return templates.TemplateResponse(
+                "students/form.html",
+                {**ctx, "title": "تعديل طالب", "mode": "edit", "student": detail,
+                 "sections": data.get("sections", []), "years": data.get("years", []), 
+                 "error": str(e)},
+                status_code=409
+            )
+        except NotFoundException:
+            return templates.TemplateResponse(
+                "errors/404.html",
+                {**ctx, "message": "الطالب غير موجود"},
+                status_code=404
+            )
     except ValidationException as e:
-        ctx = await template_context(request, user)
-        detail = await service.get_student_detail(student_id)
-        from app.services.academic_service import AcademicService
-        academic = AcademicService(db)
-        data = await academic.get_onboarding_data(user.school_id)
-        return templates.TemplateResponse(
-            "students/form.html",
-            {**ctx, "title": "تعديل طالب", "mode": "edit", "student": detail,
-             "sections": data.get("sections", []), "years": data.get("years", []), 
-             "error": str(e)},
-            status_code=422
-        )
+        try:
+            detail = await service.get_student_detail(student_id)
+            from app.services.academic_service import AcademicService
+            academic = AcademicService(db)
+            data = await academic.get_onboarding_data(user.school_id)
+            return templates.TemplateResponse(
+                "students/form.html",
+                {**ctx, "title": "تعديل طالب", "mode": "edit", "student": detail,
+                 "sections": data.get("sections", []), "years": data.get("years", []), 
+                 "error": str(e)},
+                status_code=422
+            )
+        except NotFoundException:
+            return templates.TemplateResponse(
+                "errors/404.html",
+                {**ctx, "message": "الطالب غير موجود"},
+                status_code=404
+            )
     except AppException as e:
-        ctx = await template_context(request, user)
-        detail = await service.get_student_detail(student_id)
-        from app.services.academic_service import AcademicService
-        academic = AcademicService(db)
-        data = await academic.get_onboarding_data(user.school_id)
-        return templates.TemplateResponse(
-            "students/form.html",
-            {**ctx, "title": "تعديل طالب", "mode": "edit", "student": detail,
-             "sections": data.get("sections", []), "years": data.get("years", []), 
-             "error": str(e)},
-            status_code=400
-        )
+        try:
+            detail = await service.get_student_detail(student_id)
+            from app.services.academic_service import AcademicService
+            academic = AcademicService(db)
+            data = await academic.get_onboarding_data(user.school_id)
+            return templates.TemplateResponse(
+                "students/form.html",
+                {**ctx, "title": "تعديل طالب", "mode": "edit", "student": detail,
+                 "sections": data.get("sections", []), "years": data.get("years", []), 
+                 "error": str(e)},
+                status_code=400
+            )
+        except NotFoundException:
+            return templates.TemplateResponse(
+                "errors/404.html",
+                {**ctx, "message": "الطالب غير موجود"},
+                status_code=404
+            )
 
 
 # 6️⃣ POST /students/{student_id} - حذف الطالب
@@ -304,9 +341,7 @@ async def student_delete(
     try:
         await service.delete_student(student_id)
         return RedirectResponse(url="/students", status_code=303)
-    except NotFoundException:
-        return RedirectResponse(url="/students", status_code=303)
-    except AppException:
+    except (NotFoundException, AppException):
         return RedirectResponse(url="/students", status_code=303)
 
 
