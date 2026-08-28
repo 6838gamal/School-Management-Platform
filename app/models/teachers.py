@@ -5,14 +5,17 @@ Teacher is the person record (linked to a User for login).
 TeacherAssignment tracks which subject/section a teacher is assigned to,
 preserving history when assignments change.
 """
-from sqlalchemy import Boolean, ForeignKey, String, UniqueConstraint
+from sqlalchemy import Boolean, ForeignKey, String, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.ext.hybrid import hybrid_property
 
-from app.core.database import Base  # ✅ أضف هذا الاستيراد
+from app.core.database import Base
 from app.models._mixins import TimestampMixin, UUIDPkMixin
 
 
-class Teacher(UUIDPkMixin, TimestampMixin, Base):  # ✅ أضف Base
+class Teacher(UUIDPkMixin, TimestampMixin, Base):
+    """نموذج المعلم."""
+    
     __tablename__ = "teachers"
 
     school_id: Mapped[str] = mapped_column(
@@ -38,9 +41,32 @@ class Teacher(UUIDPkMixin, TimestampMixin, Base):  # ✅ أضف Base
         "TeacherAssignment", back_populates="teacher", cascade="all, delete-orphan"
     )
 
+    # ============================================================
+    # ✅ إضافة hybrid_property للاسم الكامل
+    # ============================================================
+    
+    @hybrid_property
+    def full_name(self) -> str:
+        """إرجاع الاسم الكامل للمعلم"""
+        return f"{self.first_name} {self.last_name}".strip()
+    
+    @full_name.expression
+    def full_name(cls):
+        """للاستخدام في استعلامات SQL - يسمح بالبحث والفرز"""
+        return func.concat(cls.first_name, " ", cls.last_name)
+    
+    @property
+    def display_name(self) -> str:
+        """اسم المعلم مع رقم الموظف للعرض"""
+        return f"{self.full_name} ({self.employee_number})"
+    
+    def __repr__(self) -> str:
+        return f"<Teacher {self.full_name} ({self.employee_number})>"
 
-class TeacherAssignment(UUIDPkMixin, TimestampMixin, Base):  # ✅ أضف Base
+
+class TeacherAssignment(UUIDPkMixin, TimestampMixin, Base):
     """Tracks a teacher's assignment to a subject + section for a year."""
+    
     __tablename__ = "teacher_assignments"
     __table_args__ = (
         UniqueConstraint("teacher_id", "subject_id", "section_id", "year_id", name="uq_teacher_assign"),
@@ -68,7 +94,7 @@ class TeacherAssignment(UUIDPkMixin, TimestampMixin, Base):  # ✅ أضف Base
     teacher: Mapped["Teacher"] = relationship("Teacher", back_populates="assignments")
 
 
-# ✅ أضف هذا في نهاية الملف
+# ✅ تصدير الكلاسات
 __all__ = [
     "Teacher",
     "TeacherAssignment"
