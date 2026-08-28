@@ -9,7 +9,7 @@
             <p class="text-slate-400 text-sm mt-1">إجمالي {{ total|default(assessments|length) }} تقييم</p>
         </div>
         {% if can('grades.create') %}
-        <a href="/grades/create" class="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors shadow-sm hover:shadow-md">
+        <a href="/create" class="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors shadow-sm hover:shadow-md">
             <i class="fas fa-plus ml-2"></i> تقييم جديد
         </a>
         {% endif %}
