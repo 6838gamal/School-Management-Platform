@@ -2,12 +2,12 @@
 from datetime import datetime, timezone
 from typing import Optional
 import json
+import logging
 
-from fastapi import APIRouter, Depends, Request, Form, Query, HTTPException
+from fastapi import APIRouter, Depends, Request, Form, Query, HTTPException, status
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
-from starlette import status
 
 from app.core.database import get_db
 from app.core.dependencies import CurrentUser, require_any_permission, template_context
@@ -27,6 +27,7 @@ from app.schemas.attendance import (
     TeacherAttendanceCreate,
 )
 
+logger = logging.getLogger(__name__)
 templates = Jinja2Templates(directory="app/templates")
 
 
@@ -99,6 +100,7 @@ async def student_attendance_list(
             "selected_date": selected_date,
             "selected_section": section_id,
             "today": today,
+            "can": user.has_permission,
         },
     )
 
@@ -172,11 +174,12 @@ async def student_attendance_create(
         )
         
         return RedirectResponse(
-            f"/attendance/students?date={date}&section_id={section_id}",
+            f"/attendance/students?date={date}&section_id={section_id}&success=true",
             status_code=status.HTTP_303_SEE_OTHER,
         )
         
     except Exception as e:
+        logger.error(f"Error creating student attendance: {e}")
         academic_service = AcademicService(db)
         onboarding_data = await academic_service.get_onboarding_data(user.school_id)
         sections = onboarding_data.get("sections", [])
@@ -201,6 +204,7 @@ async def student_attendance_create(
 async def teacher_attendance_list(
     request: Request,
     date: Optional[str] = Query(None),
+    success: Optional[bool] = Query(None),
     user: CurrentUser = Depends(require_any_permission("attendance.view")),
     db: AsyncSession = Depends(get_db),
     ctx: dict = Depends(template_context),
@@ -220,6 +224,7 @@ async def teacher_attendance_list(
             "absent_teachers": absent_teachers,
             "selected_date": selected_date,
             "today": today,
+            "success": success,
         },
     )
 
@@ -268,6 +273,16 @@ async def teacher_attendance_create(
 ):
     """إنشاء حضور معلم."""
     try:
+        # التحقق من صحة البيانات
+        if not teacher_id:
+            raise ValueError("يجب اختيار معلم")
+        
+        if not date:
+            raise ValueError("يجب تحديد التاريخ")
+        
+        if status not in ["present", "absent", "late", "leave"]:
+            raise ValueError(f"الحالة غير صالحة: {status}")
+        
         attendance_data = TeacherAttendanceCreate(
             teacher_id=teacher_id,
             date=date,
@@ -283,11 +298,13 @@ async def teacher_attendance_create(
         )
         
         return RedirectResponse(
-            f"/attendance/teachers?date={date}",
+            f"/attendance/teachers?date={date}&success=true",
             status_code=status.HTTP_303_SEE_OTHER,
         )
         
     except Exception as e:
+        logger.error(f"Error creating teacher attendance: {e}")
+        
         teacher_service = TeacherService(db)
         teachers = await teacher_service.get_teachers_list(
             user.school_id, 
@@ -363,6 +380,7 @@ async def section_attendance_page(
             "section_id": section_id,
             "records": records,
             "date": today,
+            "can": user.has_permission,
         },
     )
 
