@@ -49,13 +49,19 @@ async def deputy_list(
         
         logger.info(f"✅ Templates is set successfully")
         
+        # ✅ إضافة دالة can() إلى سياق القالب
+        def can(permission: str) -> bool:
+            """التحقق من صلاحية المستخدم"""
+            return current_user.can(permission) if hasattr(current_user, 'can') else False
+        
         return templates.TemplateResponse(
             "deputy/list.html",
             {
                 "request": request,
                 "user": current_user,
                 "deputies": deputies,
-                "page_title": "وكلاء المدرسة"
+                "page_title": "وكلاء المدرسة",
+                "can": can,  # ✅ تمرير دالة can إلى القالب
             }
         )
         
@@ -80,13 +86,17 @@ async def deputy_create_form(
         if templates is None:
             raise HTTPException(status_code=500, detail="Templates not initialized")
         
+        def can(permission: str) -> bool:
+            return current_user.can(permission) if hasattr(current_user, 'can') else False
+        
         return templates.TemplateResponse(
             "deputy/create.html",
             {
                 "request": request,
                 "user": current_user,
                 "schools": schools,
-                "page_title": "إضافة وكيل جديد"
+                "page_title": "إضافة وكيل جديد",
+                "can": can,  # ✅ تمرير دالة can إلى القالب
             }
         )
         
@@ -156,6 +166,9 @@ async def deputy_update_form(
         if templates is None:
             raise HTTPException(status_code=500, detail="Templates not initialized")
         
+        def can(permission: str) -> bool:
+            return current_user.can(permission) if hasattr(current_user, 'can') else False
+        
         return templates.TemplateResponse(
             "deputy/update.html",
             {
@@ -163,7 +176,8 @@ async def deputy_update_form(
                 "user": current_user,
                 "deputy": deputy,
                 "schools": schools,
-                "page_title": "تعديل وكيل"
+                "page_title": "تعديل وكيل",
+                "can": can,  # ✅ تمرير دالة can إلى القالب
             }
         )
         
