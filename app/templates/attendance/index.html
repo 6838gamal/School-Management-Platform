@@ -2,17 +2,16 @@
 
 {% block content %}
 <div class="space-y-6">
-    <!-- Header -->
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
             <h1 class="text-2xl font-bold text-slate-800 dark:text-white">حضور الطلاب</h1>
             <p class="text-slate-400 text-sm mt-1">
-                {{ total|default(0)|number_format }} سجل حضور
+                {{ total or 0 }} سجل حضور
                 {% if selected_date %} - {{ selected_date }}{% endif %}
             </p>
         </div>
         {% if can('attendance.create') %}
-        <a href="/attendance/students/new?date={{ selected_date|default(now().strftime('%Y-%m-%d')) }}" 
+        <a href="/attendance/students/new?date={{ selected_date or now().strftime('%Y-%m-%d') }}" 
            class="bg-primary-600 hover:bg-primary-700 text-white px-6 py-2.5 rounded-lg text-sm font-semibold inline-flex items-center gap-2 transition-colors">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
@@ -28,7 +27,7 @@
             <form method="GET" class="flex flex-col sm:flex-row gap-3">
                 <input type="date" 
                        name="date" 
-                       value="{{ selected_date|default(now().strftime('%Y-%m-%d')) }}" 
+                       value="{{ selected_date or now().strftime('%Y-%m-%d') }}" 
                        class="px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
                 
                 <select name="section_id" class="px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
@@ -86,13 +85,25 @@
                         <td class="p-3">
                             <a href="/students/{{ record.student_id }}" 
                                class="text-primary-600 hover:text-primary-700 hover:underline font-medium">
-                                {{ record.student_name|default('—') }}
+                                {{ record.student_name or '—' }}
                             </a>
                         </td>
-                        <td class="p-3">{{ record.section_name|default('—') }}</td>
-                        <td class="p-3">{{ record.status|status_badge|safe }}</td>
+                        <td class="p-3">{{ record.section_name or '—' }}</td>
+                        <td class="p-3">
+                            {% if record.status == 'present' %}
+                            <span class="px-2 py-1 text-xs rounded-full bg-green-100 text-green-700">✅ حاضر</span>
+                            {% elif record.status == 'absent' %}
+                            <span class="px-2 py-1 text-xs rounded-full bg-red-100 text-red-700">❌ غائب</span>
+                            {% elif record.status == 'late' %}
+                            <span class="px-2 py-1 text-xs rounded-full bg-yellow-100 text-yellow-700">⏰ متأخر</span>
+                            {% elif record.status == 'excused' %}
+                            <span class="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-700">📝 معذور</span>
+                            {% else %}
+                            {{ record.status or '—' }}
+                            {% endif %}
+                        </td>
                         <td class="p-3 text-slate-600 dark:text-slate-300">
-                            {{ record.note|default('—')|truncate(30) }}
+                            {{ record.note or '—' }}
                         </td>
                         <td class="p-3">
                             <div class="flex items-center gap-1.5">
@@ -129,20 +140,12 @@
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="6" class="p-12 text-center">
-                            <div class="flex flex-col items-center gap-3">
-                                <svg class="w-12 h-12 text-slate-300 dark:text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-                                </svg>
-                                <p class="text-slate-600 dark:text-slate-300 font-medium">لا توجد سجلات حضور</p>
-                                <p class="text-slate-400 text-sm">
-                                    {% if selected_date %}
-                                    لا توجد سجلات حضور في تاريخ {{ selected_date }}
-                                    {% else %}
-                                    قم بتسجيل حضور الطلاب
-                                    {% endif %}
-                                </p>
-                            </div>
+                        <td colspan="6" class="p-12 text-center text-slate-400">
+                            {% if selected_date %}
+                            لا توجد سجلات حضور في تاريخ {{ selected_date }}
+                            {% else %}
+                            لا توجد سجلات حضور
+                            {% endif %}
                         </td>
                     </tr>
                     {% endfor %}
@@ -154,11 +157,11 @@
         {% if total > page_size %}
         <div class="p-4 border-t border-slate-100 dark:border-slate-700 flex flex-col sm:flex-row justify-between items-center gap-3">
             <div class="text-sm text-slate-400">
-                عرض {{ (start_index + 1)|number_format }} - {{ end_index|default(total)|number_format }} من {{ total|number_format }}
+                عرض {{ start_index + 1 }} - {{ end_index or total }} من {{ total }}
             </div>
             <div class="flex gap-2">
                 {% if page > 1 %}
-                <a href="?page={{ page - 1 }}&date={{ selected_date|default(now().strftime('%Y-%m-%d')) }}{% if selected_section %}&section_id={{ selected_section }}{% endif %}{% if selected_status %}&status={{ selected_status }}{% endif %}" 
+                <a href="?page={{ page - 1 }}&date={{ selected_date or now().strftime('%Y-%m-%d') }}{% if selected_section %}&section_id={{ selected_section }}{% endif %}{% if selected_status %}&status={{ selected_status }}{% endif %}" 
                    class="bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
                     السابق
                 </a>
@@ -169,7 +172,7 @@
                 </span>
                 
                 {% if (page * page_size) < total %}
-                <a href="?page={{ page + 1 }}&date={{ selected_date|default(now().strftime('%Y-%m-%d')) }}{% if selected_section %}&section_id={{ selected_section }}{% endif %}{% if selected_status %}&status={{ selected_status }}{% endif %}" 
+                <a href="?page={{ page + 1 }}&date={{ selected_date or now().strftime('%Y-%m-%d') }}{% if selected_section %}&section_id={{ selected_section }}{% endif %}{% if selected_status %}&status={{ selected_status }}{% endif %}" 
                    class="bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
                     التالي
                 </a>
