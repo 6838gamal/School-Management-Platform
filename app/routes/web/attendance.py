@@ -13,8 +13,8 @@ from app.core.auth import get_current_user, require_permission
 from app.models.user import User
 from app.models.students import Student
 from app.models.teachers import Teacher
-from app.models.section import Section
-from app.models.period import Period
+from app.models.academics import Section
+from app.models.academics import Period
 from app.models.attendance import StudentAttendance, TeacherAttendance
 from app.schemas.attendance import (
     StudentAttendanceCreate,
