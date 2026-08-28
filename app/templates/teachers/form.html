@@ -1,6 +1,7 @@
 {% extends "layouts/director.html" %}
+
 {% block content %}
-<div class="space-y-6 max-w-2xl">
+<div class="space-y-6 max-w-4xl">
     <div>
         <h1 class="text-2xl font-bold text-slate-800 dark:text-white">{{ title }}</h1>
         <p class="text-slate-400 text-sm mt-1">
@@ -11,63 +12,141 @@
     <form method="POST" 
           action="{% if mode == 'create' %}/teachers{% else %}/teachers/{{ teacher.id }}/update{% endif %}" 
           class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-6 space-y-4"
-          id="teacher-form">
+          id="teacher-form"
+          enctype="multipart/form-data">
         
         <div class="grid grid-cols-2 gap-4">
             <!-- رقم الموظف -->
             <div>
-                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">رقم الموظف *</label>
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                    رقم الموظف <span class="text-red-500">*</span>
+                </label>
                 <input type="text" 
                        name="employee_number" 
                        value="{{ teacher.employee_number if teacher else '' }}" 
                        required 
-                       class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 outline-none focus:ring-2 focus:ring-primary-500">
+                       class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent">
+            </div>
+            
+            <!-- الرقم الوطني -->
+            <div>
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                    الرقم الوطني
+                </label>
+                <input type="text" 
+                       name="national_id" 
+                       value="{{ teacher.national_id if teacher else '' }}" 
+                       class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent">
             </div>
             
             <!-- الاسم الكامل -->
             <div class="col-span-2">
-                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">الاسم الكامل *</label>
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                    الاسم الكامل <span class="text-red-500">*</span>
+                </label>
                 <input type="text" 
                        name="full_name" 
-                       value="{{ teacher.full_name if teacher else '' }}" 
+                       value="{{ full_name if full_name else '' }}"
                        required 
-                       class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 outline-none focus:ring-2 focus:ring-primary-500">
+                       class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                       placeholder="مثال: أحمد محمد علي">
+            </div>
+            
+            <!-- الجنس -->
+            <div>
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                    الجنس
+                </label>
+                <select name="gender" 
+                        class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent">
+                    <option value="">اختر الجنس</option>
+                    <option value="M" {% if teacher and teacher.gender == 'M' %}selected{% endif %}>ذكر</option>
+                    <option value="F" {% if teacher and teacher.gender == 'F' %}selected{% endif %}>أنثى</option>
+                </select>
+            </div>
+            
+            <!-- تاريخ التعيين -->
+            <div>
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                    تاريخ التعيين
+                </label>
+                <input type="date" 
+                       name="hire_date" 
+                       value="{{ teacher.hire_date if teacher else '' }}" 
+                       class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent">
             </div>
             
             <!-- التخصص -->
             <div>
-                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">التخصص</label>
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                    التخصص
+                </label>
                 <input type="text" 
                        name="specialization" 
                        value="{{ teacher.specialization if teacher else '' }}" 
-                       class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 outline-none focus:ring-2 focus:ring-primary-500">
+                       class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                       placeholder="مثال: رياضيات، لغة عربية، فيزياء">
+            </div>
+            
+            <!-- المؤهل العلمي -->
+            <div>
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                    المؤهل العلمي
+                </label>
+                <input type="text" 
+                       name="qualification" 
+                       value="{{ teacher.qualification if teacher else '' }}" 
+                       class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                       placeholder="مثال: بكالوريوس، ماجستير، دكتوراه">
             </div>
             
             <!-- الهاتف -->
             <div>
-                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">الهاتف</label>
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                    رقم الهاتف
+                </label>
                 <input type="tel" 
                        name="phone" 
                        value="{{ teacher.phone if teacher else '' }}" 
-                       class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 outline-none focus:ring-2 focus:ring-primary-500">
+                       class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                       placeholder="مثال: 05XXXXXXXX">
             </div>
             
             <!-- البريد الإلكتروني -->
-            <div class="col-span-2">
-                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">البريد الإلكتروني</label>
+            <div>
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                    البريد الإلكتروني
+                </label>
                 <input type="email" 
                        name="email" 
                        value="{{ teacher.email if teacher else '' }}" 
-                       class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 outline-none focus:ring-2 focus:ring-primary-500">
+                       class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                       placeholder="teacher@school.edu">
             </div>
             
-            <!-- حالة الحساب -->
-            <div class="col-span-2 flex items-center gap-6">
+            <!-- صورة المعلم -->
+            <div class="col-span-2">
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                    صورة المعلم
+                </label>
+                <input type="file" 
+                       name="photo" 
+                       accept="image/*"
+                       class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-primary-50 file:text-primary-700 hover:file:bg-primary-100 dark:file:bg-primary-900/30 dark:file:text-primary-300">
+                {% if teacher and teacher.photo_url %}
+                <div class="mt-2">
+                    <img src="{{ teacher.photo_url }}" alt="صورة المعلم" class="h-20 w-20 rounded-full object-cover">
+                </div>
+                {% endif %}
+            </div>
+            
+            <!-- حالة الحساب وخيارات إضافية -->
+            <div class="col-span-2 grid grid-cols-2 gap-4 pt-2">
                 <label class="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-300">
                     <input type="checkbox" 
                            name="is_active" 
                            {% if not teacher or teacher.is_active %}checked{% endif %}
-                           class="rounded border-slate-300 text-primary-600 focus:ring-primary-500">
+                           class="w-4 h-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500">
                     حساب نشط
                 </label>
                 
@@ -75,26 +154,74 @@
                 <label class="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-300">
                     <input type="checkbox" 
                            name="create_user" 
-                           class="rounded border-slate-300 text-primary-600 focus:ring-primary-500">
+                           class="w-4 h-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500">
                     إنشاء حساب دخول للمعلم
                 </label>
                 {% endif %}
             </div>
+            
+            <!-- ملاحظة عند إنشاء حساب -->
+            {% if mode == 'create' %}
+            <div class="col-span-2 text-xs text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-700/50 p-3 rounded-lg">
+                <span class="font-medium">ملاحظة:</span> عند تفعيل "إنشاء حساب دخول"، سيتم إنشاء حساب للمعلم بكلمة مرور افتراضية <code class="bg-slate-200 dark:bg-slate-600 px-2 py-0.5 rounded">password123</code>، وسيتم إرسال رابط لتغييرها لاحقاً.
+            </div>
+            {% endif %}
         </div>
         
         <!-- أزرار التحكم -->
         <div class="flex items-center gap-3 pt-4 border-t border-slate-100 dark:border-slate-700">
             <button type="submit" 
-                    class="bg-primary-600 hover:bg-primary-700 text-white px-6 py-2.5 rounded-lg font-semibold transition-colors">
-                {% if mode == 'create' %}إضافة المعلم{% else %}حفظ التغييرات{% endif %}
+                    class="bg-primary-600 hover:bg-primary-700 active:bg-primary-800 text-white px-6 py-2.5 rounded-lg font-semibold transition-colors shadow-sm hover:shadow-md focus:ring-2 focus:ring-primary-500 focus:ring-offset-2">
+                {% if mode == 'create' %}
+                    <i class="fas fa-plus ml-2"></i>إضافة المعلم
+                {% else %}
+                    <i class="fas fa-save ml-2"></i>حفظ التغييرات
+                {% endif %}
             </button>
             <a href="/teachers" 
-               class="px-6 py-2.5 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors text-sm">
-                إلغاء
+               class="px-6 py-2.5 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors text-sm text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white">
+                <i class="fas fa-times ml-2"></i>إلغاء
             </a>
         </div>
     </form>
 </div>
 
-<script src="/static/js/teachers.js"></script>
+{% block scripts %}
+<script>
+    // تحقق من صحة النموذج قبل الإرسال
+    document.getElementById('teacher-form').addEventListener('submit', function(e) {
+        const fullName = this.querySelector('input[name="full_name"]');
+        const employeeNumber = this.querySelector('input[name="employee_number"]');
+        
+        // تحقق من الاسم الكامل (يجب أن يحتوي على اسمين على الأقل)
+        if (fullName.value.trim().split(' ').length < 2) {
+            e.preventDefault();
+            alert('يرجى إدخال الاسم الكامل (الاسم الأول والاسم الأخير)');
+            fullName.focus();
+            return false;
+        }
+        
+        // تحقق من رقم الموظف (لا يمكن أن يكون فارغاً)
+        if (!employeeNumber.value.trim()) {
+            e.preventDefault();
+            alert('يرجى إدخال رقم الموظف');
+            employeeNumber.focus();
+            return false;
+        }
+        
+        return true;
+    });
+    
+    // تحديث عرض الاسم الكامل عند التعديل
+    {% if mode == 'edit' and teacher %}
+    // إذا كان لدينا first_name و last_name منفصلين، نجمعهما
+    const firstName = "{{ teacher.first_name if teacher else '' }}";
+    const lastName = "{{ teacher.last_name if teacher else '' }}";
+    const fullNameInput = document.querySelector('input[name="full_name"]');
+    if (fullNameInput && !fullNameInput.value) {
+        fullNameInput.value = (firstName + ' ' + lastName).trim();
+    }
+    {% endif %}
+</script>
+{% endblock %}
 {% endblock %}
