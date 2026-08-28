@@ -1,0 +1,204 @@
+{% extends "layouts/director.html" %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-bold text-slate-800 dark:text-white">تسجيل حضور الطلاب</h1>
+            <p class="text-slate-400 text-sm mt-1">تسجيل حضور الطلاب ليوم {{ selected_date }}</p>
+        </div>
+        <a href="/attendance/students?date={{ selected_date }}" 
+           class="bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+            ← العودة
+        </a>
+    </div>
+
+    {% if error %}
+    <div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 px-4 py-3 rounded-lg">
+        ❌ {{ error }}
+    </div>
+    {% endif %}
+
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-6">
+        <form method="POST" action="/attendance/students" id="attendanceForm">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                        التاريخ <span class="text-red-500">*</span>
+                    </label>
+                    <input type="date" 
+                           name="date" 
+                           id="attendanceDate"
+                           value="{{ selected_date }}" 
+                           required
+                           class="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                        المجموعة <span class="text-red-500">*</span>
+                    </label>
+                    <select name="section_id" 
+                            id="sectionSelect"
+                            required
+                            class="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
+                        <option value="">اختر المجموعة</option>
+                        {% for section in sections %}
+                        <option value="{{ section.id }}" {% if section.id == selected_section %}selected{% endif %}>
+                            {{ section.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <!-- جدول الطلاب -->
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead class="bg-slate-50 dark:bg-slate-700/50 text-slate-500 dark:text-slate-300">
+                        <tr>
+                            <th class="text-right p-3 font-medium">#</th>
+                            <th class="text-right p-3 font-medium">اسم الطالب</th>
+                            <th class="text-center p-3 font-medium">✅ حاضر</th>
+                            <th class="text-center p-3 font-medium">❌ غائب</th>
+                            <th class="text-center p-3 font-medium">⏰ متأخر</th>
+                            <th class="text-center p-3 font-medium">📝 معذور</th>
+                            <th class="text-right p-3 font-medium">ملاحظات</th>
+                        </tr>
+                    </thead>
+                    <tbody id="studentsTableBody" class="divide-y divide-slate-100 dark:divide-slate-700">
+                        {% if students %}
+                        {% for student in students %}
+                        <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">
+                            <td class="p-3 text-slate-400 text-xs">{{ loop.index }}</td>
+                            <td class="p-3 font-medium text-slate-800 dark:text-white">
+                                {{ student.full_name }}
+                                <input type="hidden" name="student_id" value="{{ student.id }}">
+                            </td>
+                            <td class="p-3 text-center">
+                                <input type="radio" 
+                                       name="status_{{ student.id }}" 
+                                       value="present" 
+                                       checked
+                                       class="w-4 h-4 text-primary-600 focus:ring-primary-500">
+                            </td>
+                            <td class="p-3 text-center">
+                                <input type="radio" 
+                                       name="status_{{ student.id }}" 
+                                       value="absent"
+                                       class="w-4 h-4 text-red-600 focus:ring-red-500">
+                            </td>
+                            <td class="p-3 text-center">
+                                <input type="radio" 
+                                       name="status_{{ student.id }}" 
+                                       value="late"
+                                       class="w-4 h-4 text-yellow-600 focus:ring-yellow-500">
+                            </td>
+                            <td class="p-3 text-center">
+                                <input type="radio" 
+                                       name="status_{{ student.id }}" 
+                                       value="excused"
+                                       class="w-4 h-4 text-blue-600 focus:ring-blue-500">
+                            </td>
+                            <td class="p-3">
+                                <input type="text" 
+                                       name="note_{{ student.id }}" 
+                                       placeholder="ملاحظة"
+                                       class="w-full px-2 py-1 rounded border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
+                            </td>
+                        </tr>
+                        {% endfor %}
+                        {% else %}
+                        <tr>
+                            <td colspan="7" class="p-8 text-center text-slate-400">
+                                {% if selected_section %}
+                                لا يوجد طلاب في هذه المجموعة
+                                {% else %}
+                                الرجاء اختيار مجموعة لعرض الطلاب
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+
+            <input type="hidden" name="records" id="recordsInput">
+
+            <div class="flex gap-3 pt-6">
+                <button type="submit" 
+                        id="submitBtn"
+                        class="bg-primary-600 hover:bg-primary-700 text-white px-6 py-2.5 rounded-lg text-sm font-semibold transition-colors">
+                    💾 حفظ الحضور
+                </button>
+                <a href="/attendance/students?date={{ selected_date }}" 
+                   class="bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 px-6 py-2.5 rounded-lg text-sm font-medium transition-colors">
+                    إلغاء
+                </a>
+            </div>
+        </form>
+    </div>
+
+    <!-- تعليمات سريعة -->
+    <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
+        <h4 class="font-semibold text-blue-800 dark:text-blue-300 mb-2">💡 تعليمات</h4>
+        <ul class="text-sm text-blue-700 dark:text-blue-400 space-y-1">
+            <li>• اختر المجموعة ثم التاريخ لتسجيل الحضور</li>
+            <li>• اختر حالة كل طالب من الخيارات المتاحة</li>
+            <li>• يمكنك إضافة ملاحظة لكل طالب (اختياري)</li>
+            <li>• بعد الحفظ، سيتم توجيهك إلى قائمة الحضور</li>
+        </ul>
+    </div>
+</div>
+
+<script>
+document.getElementById('attendanceForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const form = this;
+    const formData = new FormData(form);
+    const students = [];
+    
+    // جمع بيانات الطلاب
+    const studentIds = document.querySelectorAll('input[name="student_id"]');
+    studentIds.forEach(function(input) {
+        const studentId = input.value;
+        const status = document.querySelector(`input[name="status_${studentId}"]:checked`);
+        const note = document.querySelector(`input[name="note_${studentId}"]`);
+        
+        if (status) {
+            students.push({
+                student_id: studentId,
+                status: status.value,
+                note: note ? note.value : ''
+            });
+        }
+    });
+    
+    // تحديث الحقل المخفي
+    document.getElementById('recordsInput').value = JSON.stringify(students);
+    
+    // إرسال النموذج
+    form.submit();
+});
+
+// تحميل الطلاب عند تغيير المجموعة
+document.getElementById('sectionSelect').addEventListener('change', function() {
+    const sectionId = this.value;
+    const date = document.getElementById('attendanceDate').value;
+    
+    if (sectionId) {
+        window.location.href = `/attendance/students/new?section_id=${sectionId}&date=${date}`;
+    }
+});
+
+// تحديث التاريخ عند التغيير
+document.getElementById('attendanceDate').addEventListener('change', function() {
+    const date = this.value;
+    const sectionId = document.getElementById('sectionSelect').value;
+    
+    if (sectionId) {
+        window.location.href = `/attendance/students/new?section_id=${sectionId}&date=${date}`;
+    }
+});
+</script>
+{% endblock %}
