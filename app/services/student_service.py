@@ -8,7 +8,7 @@ from app.models.students import Student, StudentEnrollment
 from app.models.academics import AcademicYear
 from app.schemas.students import StudentCreate, StudentUpdate
 
-# استيراد الاستثناءات من ملفك الموجود
+# استيراد الاستثناءات
 from app.core.exceptions import (
     AppException,
     NotFoundException,
@@ -132,8 +132,8 @@ class StudentService:
             "address": student.address,
             "photo_url": student.photo_url,
             "is_active": student.is_active,
-          #  "created_at": student.created_at.isoformat() if hasattr(student, 'created_at') and student.created_at else None,
-            #"updated_at": student.updated_at.isoformat() if hasattr(student, 'updated_at') and student.updated_at else None,
+         #   "created_at": student.created_at.isoformat() if hasattr(student, 'created_at') and student.created_at else None,
+          #  "updated_at": student.updated_at.isoformat() if hasattr(student, 'updated_at') and student.updated_at else None,
             "enrollments": []
         }
         
@@ -231,8 +231,6 @@ class StudentService:
             guardian_email=data.guardian_email.strip().lower() if data.guardian_email else None,
             address=data.address.strip() if data.address else None,
             is_active=True,
-         #   created_by=user_id,
-         #   updated_by=user_id
         )
         
         self.db.add(student)
@@ -240,16 +238,17 @@ class StudentService:
         
         # إنشاء تسجيل إذا تم تحديد year_id
         if data.year_id:
+            # استخدام تنسيق تاريخ قصير (YYYY-MM-DD HH:MM:SS) - 19 حرف
+            now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            
             enrollment = StudentEnrollment(
                 student_id=student.id,
                 school_id=school_id,
                 year_id=data.year_id,
                 section_id=data.section_id,
                 status="active",
-                enrolled_at=datetime.now().isoformat(),
+                enrolled_at=now,
                 ended_at=None,
-           #     created_by=user_id,
-         #       updated_by=user_id
             )
             self.db.add(enrollment)
         
@@ -298,14 +297,11 @@ class StudentService:
             if existing.scalar_one_or_none():
                 raise ConflictException(f"الرقم الوطني '{update_data['national_id']}' موجود بالفعل")
         
-        # تحديث الحقول
+        # تحديث الحقول (تجاهل الحقول غير الموجودة)
         for key, value in update_data.items():
-            if value is not None and key not in ["id", "school_id", "student_number", "created_at", "created_by"]:
-                setattr(student, key, value)
-        
-        # تحديث معلومات التعديل
-        if hasattr(student, 'updated_at'):
-            student.updated_at = datetime.now()
+            if value is not None and key not in ["id", "school_id", "student_number", "created_at", "created_by", "updated_by"]:
+                if hasattr(student, key):
+                    setattr(student, key, value)
         
         await self.db.commit()
         await self.db.refresh(student)
@@ -348,8 +344,6 @@ class StudentService:
             raise NotFoundException("الطالب غير موجود")
         
         student.is_active = False
-        if hasattr(student, 'updated_at'):
-            student.updated_at = datetime.now()
         
         await self.db.commit()
         await self.db.refresh(student)
