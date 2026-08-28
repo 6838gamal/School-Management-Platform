@@ -6,7 +6,7 @@
     <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
             <h1 class="text-2xl font-bold text-slate-800 dark:text-white">الدرجات</h1>
-            <p class="text-slate-400 text-sm mt-1">إجمالي {{ total }} تقييم</p>
+            <p class="text-slate-400 text-sm mt-1">إجمالي {{ total|default(assessments|length) }} تقييم</p>
         </div>
         {% if can('grades.create') %}
         <a href="/grades/create" class="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors shadow-sm hover:shadow-md">
@@ -80,7 +80,7 @@
                 <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
                     {% for assessment in assessments %}
                     <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">
-                        <td class="p-3 text-slate-400 text-xs">{{ loop.index + (page - 1) * page_size }}</td>
+                        <td class="p-3 text-slate-400 text-xs">{{ loop.index + ((page|default(1) - 1) * (page_size|default(10))) }}</td>
                         <td class="p-3">
                             <a href="/grades/{{ assessment.id }}" class="text-primary-600 hover:text-primary-800 dark:text-primary-400 dark:hover:text-primary-300 font-medium hover:underline">
                                 {{ assessment.title }}
@@ -105,9 +105,8 @@
                             {% endif %}
                         </td>
                         <td class="p-3">
-                            {% set today = now.date() if now else None %}
                             {% if assessment.date %}
-                                {% if assessment.date < today %}
+                                {% if assessment.date < now.date() %}
                                 <span class="px-2 py-0.5 text-xs rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
                                     <i class="fas fa-circle text-[6px] ml-1"></i> منتهي
                                 </span>
@@ -177,24 +176,29 @@
     </div>
 
     <!-- Pagination -->
-    {% if total > page_size %}
+    {% set total_items = total|default(assessments|length) %}
+    {% set current_page = page|default(1) %}
+    {% set items_per_page = page_size|default(10) %}
+    
+    {% if total_items > items_per_page %}
     <div class="flex flex-col sm:flex-row items-center justify-between gap-4">
         <p class="text-sm text-slate-500 dark:text-slate-400">
-            عرض <span class="font-medium">{{ (page - 1) * page_size + 1 }}</span> - 
-            <span class="font-medium">{{ ((page - 1) * page_size + assessments|length) if assessments|length > 0 else 0 }}</span> 
-            من <span class="font-medium">{{ total }}</span>
+            عرض <span class="font-medium">{{ (current_page - 1) * items_per_page + 1 }}</span> - 
+            <span class="font-medium">{{ ((current_page - 1) * items_per_page + assessments|length) if assessments|length > 0 else 0 }}</span> 
+            من <span class="font-medium">{{ total_items }}</span>
         </p>
         <div class="flex items-center gap-2">
-            {% if page > 1 %}
-            <a href="?page={{ page - 1 }}{% if search %}&search={{ search }}{% endif %}" 
+            {% if current_page > 1 %}
+            <a href="?page={{ current_page - 1 }}{% if search %}&search={{ search }}{% endif %}" 
                class="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors text-sm flex items-center gap-1">
                 <i class="fas fa-chevron-right text-xs"></i>
                 السابق
             </a>
             {% endif %}
             
-            {% set start_page = [page - 2, 1]|max %}
-            {% set end_page = [page + 2, (total / page_size)|round(0, 'ceil')|int]|min %}
+            {% set total_pages = (total_items / items_per_page)|round(0, 'ceil')|int %}
+            {% set start_page = [current_page - 2, 1]|max %}
+            {% set end_page = [current_page + 2, total_pages]|min %}
             
             {% if start_page > 1 %}
             <a href="?page=1{% if search %}&search={{ search }}{% endif %}" class="px-3 py-1.5 rounded-lg text-sm hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">1</a>
@@ -205,23 +209,23 @@
             
             {% for p in range(start_page, end_page + 1) %}
             <a href="?page={{ p }}{% if search %}&search={{ search }}{% endif %}" 
-               class="px-3 py-1.5 rounded-lg text-sm transition-colors {% if p == page %}bg-primary-600 text-white{% else %}hover:bg-slate-50 dark:hover:bg-slate-700{% endif %}">
+               class="px-3 py-1.5 rounded-lg text-sm transition-colors {% if p == current_page %}bg-primary-600 text-white{% else %}hover:bg-slate-50 dark:hover:bg-slate-700{% endif %}">
                 {{ p }}
             </a>
             {% endfor %}
             
-            {% if end_page < (total / page_size)|round(0, 'ceil')|int %}
-            {% if end_page < (total / page_size)|round(0, 'ceil')|int - 1 %}
+            {% if end_page < total_pages %}
+            {% if end_page < total_pages - 1 %}
             <span class="px-2 text-slate-400">...</span>
             {% endif %}
-            <a href="?page={{ (total / page_size)|round(0, 'ceil')|int }}{% if search %}&search={{ search }}{% endif %}" 
+            <a href="?page={{ total_pages }}{% if search %}&search={{ search }}{% endif %}" 
                class="px-3 py-1.5 rounded-lg text-sm hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
-                {{ (total / page_size)|round(0, 'ceil')|int }}
+                {{ total_pages }}
             </a>
             {% endif %}
             
-            {% if (page * page_size) < total %}
-            <a href="?page={{ page + 1 }}{% if search %}&search={{ search }}{% endif %}" 
+            {% if current_page < total_pages %}
+            <a href="?page={{ current_page + 1 }}{% if search %}&search={{ search }}{% endif %}" 
                class="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors text-sm flex items-center gap-1">
                 التالي
                 <i class="fas fa-chevron-left text-xs"></i>
