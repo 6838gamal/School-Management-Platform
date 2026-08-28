@@ -19,8 +19,8 @@ from app.services.homework_service import HomeworkService
 from app.services.notification_service import NotificationService
 from app.services.report_service import ReportService
 from app.services.schedule_service import ScheduleService
-from app.services.section_service import SectionService
 from app.services.student_service import StudentService
+from app.services.teacher_service import TeacherService
 from app.schemas.attendance import (
     StudentAttendanceBatch,
     StudentAttendanceCreate,
@@ -49,10 +49,6 @@ async def attendance_page(
     summary = await service.student_summary(user.school_id, today)
     absent = await service.absent_teachers(user.school_id, today)
     
-    # Get sections for filter
-    section_service = SectionService(db)
-    sections = await section_service.get_all(user.school_id)
-    
     return templates.TemplateResponse(
         "attendance/index.html",
         {
@@ -60,7 +56,6 @@ async def attendance_page(
             "title": "الحضور",
             "summary": summary or {"total": 0, "present": 0, "absent": 0},
             "absent_teachers": absent,
-            "sections": sections,
             "selected_date": today,
             "today": today,
         },
@@ -87,8 +82,10 @@ async def student_attendance_list(
     if section_id:
         records = await service.section_attendance(section_id, selected_date)
     
-    section_service = SectionService(db)
-    sections = await section_service.get_all(user.school_id)
+    # Get sections for filter - استخدام AcademicService
+    academic_service = AcademicService(db)
+    onboarding_data = await academic_service.get_onboarding_data(user.school_id)
+    sections = onboarding_data.get("sections", [])
     
     return templates.TemplateResponse(
         "attendance/students/list.html",
@@ -119,13 +116,16 @@ async def student_attendance_create_form(
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     selected_date = date or today
     
-    section_service = SectionService(db)
-    sections = await section_service.get_all(user.school_id)
+    # Get sections - استخدام AcademicService
+    academic_service = AcademicService(db)
+    onboarding_data = await academic_service.get_onboarding_data(user.school_id)
+    sections = onboarding_data.get("sections", [])
     
     students = []
     if section_id:
         student_service = StudentService(db)
-        students = await student_service.get_by_section(user.school_id, section_id, is_active=True)
+        # استخدام الدالة المناسبة من StudentService
+        students = await student_service.get_students_by_section(user.school_id, section_id)
     
     return templates.TemplateResponse(
         "attendance/students/form.html",
@@ -173,8 +173,9 @@ async def student_attendance_create(
         )
         
     except Exception as e:
-        section_service = SectionService(db)
-        sections = await section_service.get_all(user.school_id)
+        academic_service = AcademicService(db)
+        onboarding_data = await academic_service.get_onboarding_data(user.school_id)
+        sections = onboarding_data.get("sections", [])
         
         return templates.TemplateResponse(
             "attendance/students/form.html",
@@ -231,7 +232,7 @@ async def teacher_attendance_create_form(
     selected_date = date or today
     
     teacher_service = TeacherService(db)
-    teachers = await teacher_service.get_all(user.school_id, is_active=True)
+    teachers = await teacher_service.get_teachers(user.school_id, is_active=True)
     
     return templates.TemplateResponse(
         "attendance/teachers/form.html",
@@ -279,7 +280,7 @@ async def teacher_attendance_create(
         
     except Exception as e:
         teacher_service = TeacherService(db)
-        teachers = await teacher_service.get_all(user.school_id, is_active=True)
+        teachers = await teacher_service.get_teachers(user.school_id, is_active=True)
         
         return templates.TemplateResponse(
             "attendance/teachers/form.html",
