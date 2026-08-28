@@ -42,8 +42,8 @@ async def get_teachers(db: AsyncSession, school_id: str):
 async def get_students_by_section(db: AsyncSession, section_id: str):
     """جلب طلاب الشعبة"""
     service = GradeService(db)
-    students = await service.students.list_by_section(section_id)
-    return students
+    students = await service.students.get_by_section(section_id)
+    return students if students else []
 
 
 async def get_assessment_with_details(db: AsyncSession, assessment_id: str):
@@ -190,12 +190,10 @@ async def store_assessment(
         current_year = await academic_service.get_current_year(user.school_id)
         year_id = current_year.id
     except NotFoundException:
-        # إذا لم يوجد عام دراسي حالي، جلب أول عام دراسي
         years = await academic_service.years.list_by_school(user.school_id)
         if years:
             year_id = years[0].id
         else:
-            # إذا لم يوجد أي عام دراسي، عرض خطأ
             return RedirectResponse(
                 url="/grades/create?error=يجب إنشاء عام دراسي أولاً",
                 status_code=303
@@ -214,11 +212,10 @@ async def store_assessment(
         "description": form_data.get("description"),
         "teacher_id": form_data.get("teacher_id") or None,
         "school_id": user.school_id,
-        "year_id": year_id,  # ✅ إضافة year_id
+        "year_id": year_id,
     }
     
     try:
-        # إنشاء التقييم باستخدام الـ repository مباشرة
         assessment = await service.assessments.create(**data)
         return RedirectResponse(
             url=f"/grades/{assessment.id}?success=created",
@@ -355,9 +352,15 @@ async def view_assessment_grades(
     if not assessment:
         raise HTTPException(status_code=404, detail="التقييم غير موجود")
     
-    students = await service.students.list_by_section(assessment.section_id)
+    # جلب طلاب الشعبة باستخدام get_by_section
+    students = await service.students.get_by_section(assessment.section_id)
+    if not students:
+        students = []
+    
+    # جلب الدرجات المسجلة
     grades = await service.grades.list_by_assessment(assessment_id)
     
+    # إنشاء قاموس للدرجات المسجلة
     grades_map = {}
     for g in grades:
         grades_map[g.student_id] = {
@@ -366,14 +369,18 @@ async def view_assessment_grades(
             "grade_id": g.id,
         }
     
+    # تجهيز بيانات الطلاب مع الدرجات
     students_with_grades = []
     for student in students:
+        student_id = student.id if hasattr(student, 'id') else student.get('id')
+        student_name = student.name if hasattr(student, 'name') else student.get('name', 'طالب')
+        
         students_with_grades.append({
-            "id": student.id,
-            "name": student.name,
-            "grade": grades_map.get(student.id, {}).get("score"),
-            "note": grades_map.get(student.id, {}).get("note"),
-            "grade_id": grades_map.get(student.id, {}).get("grade_id"),
+            "id": student_id,
+            "name": student_name,
+            "grade": grades_map.get(student_id, {}).get("score"),
+            "note": grades_map.get(student_id, {}).get("note"),
+            "grade_id": grades_map.get(student_id, {}).get("grade_id"),
         })
     
     return templates.TemplateResponse(
@@ -405,6 +412,7 @@ async def save_grades(
     service = GradeService(db)
     form_data = await request.form()
     
+    # تجميع الدرجات من النموذج
     records = []
     for key, value in form_data.items():
         if key.startswith("score_"):
@@ -471,6 +479,7 @@ async def student_grades(
     
     student = await service.students.get(student_id)
     
+    # حساب الإحصائيات
     total_weighted = 0
     total_weight = 0
     for g in grades:
@@ -516,7 +525,7 @@ async def create_assessment_api(
             raise HTTPException(status_code=400, detail="لا يوجد عام دراسي")
         year_id = years[0].id
     
-    # إضافة year_id إلى الطلب
+    # إضافة year_id و school_id إلى الطلب
     req_data = req.model_dump()
     req_data["year_id"] = year_id
     req_data["school_id"] = user.school_id
