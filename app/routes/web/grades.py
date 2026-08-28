@@ -4,17 +4,45 @@ from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List, Dict, Any
 
 from app.core.database import get_db
 from app.core.dependencies import CurrentUser, require_any_permission, template_context
 from app.services.grade_service import GradeService
+from app.services.academic_service import AcademicService
 from app.schemas.grades import (
     AssessmentCreate, AssessmentUpdate, GradeRecordCreate, GradeRecordBatch
 )
 
 router = APIRouter(prefix="/grades", tags=["grades"])
 templates = Jinja2Templates(directory="app/templates")
+
+
+# ============= دوال مساعدة مؤقتة =============
+# TODO: استبدل هذه الدوال بالخدمات الحقيقية عند توفرها
+
+async def get_sections(db: AsyncSession, school_id: str):
+    """جلب الشعب من AcademicService"""
+    service = AcademicService(db)
+    return await service.sections.list_by_school(school_id)
+
+
+async def get_subjects(db: AsyncSession, school_id: str):
+    """جلب المواد من AcademicService"""
+    service = AcademicService(db)
+    return await service.subjects.list_by_school(school_id)
+
+
+async def get_teachers(db: AsyncSession, school_id: str):
+    """جلب المعلمين (مؤقت)"""
+    # TODO: استبدل بخدمة المعلمين
+    return []
+
+
+async def get_students_by_section(db: AsyncSession, section_id: str, school_id: str):
+    """جلب طلاب الشعبة (مؤقت)"""
+    # TODO: استبدل بخدمة الطلاب
+    return []
 
 
 # ============= الصفحة الرئيسية =============
@@ -30,6 +58,8 @@ async def grades_page(
 ):
     """عرض صفحة الدرجات الرئيسية"""
     service = GradeService(db)
+    
+    # جلب التقييمات
     assessments = await service.get_all_assessments(
         school_id=user.school_id,
         search=search,
@@ -37,9 +67,9 @@ async def grades_page(
         page_size=page_size
     )
     
-    # جلب البيانات للفلاتر
-    sections = await service.get_sections(user.school_id)
-    subjects = await service.get_subjects(user.school_id)
+    # جلب البيانات للفلاتر من AcademicService
+    sections = await get_sections(db, user.school_id)
+    subjects = await get_subjects(db, user.school_id)
     
     return templates.TemplateResponse(
         "grades/index.html",
@@ -84,10 +114,10 @@ async def create_assessment_page(
     ctx: dict = Depends(template_context),
 ):
     """عرض صفحة إنشاء تقييم جديد"""
-    service = GradeService(db)
-    sections = await service.get_sections(user.school_id)
-    subjects = await service.get_subjects(user.school_id)
-    teachers = await service.get_teachers(user.school_id)
+    # جلب البيانات من AcademicService
+    sections = await get_sections(db, user.school_id)
+    subjects = await get_subjects(db, user.school_id)
+    teachers = await get_teachers(db, user.school_id)
     
     return templates.TemplateResponse(
         "grades/create.html",
@@ -117,9 +147,9 @@ async def edit_assessment_page(
         raise HTTPException(status_code=404, detail="التقييم غير موجود")
     
     # جلب البيانات للقوائم المنسدلة
-    sections = await service.get_sections(user.school_id)
-    subjects = await service.get_subjects(user.school_id)
-    teachers = await service.get_teachers(user.school_id)
+    sections = await get_sections(db, user.school_id)
+    subjects = await get_subjects(db, user.school_id)
+    teachers = await get_teachers(db, user.school_id)
     
     return templates.TemplateResponse(
         "grades/update.html",
@@ -181,7 +211,7 @@ async def view_assessment_grades(
         raise HTTPException(status_code=404, detail="التقييم غير موجود")
     
     # جلب الطلاب في الشعبة
-    students = await service.get_students_by_section(assessment.section_id)
+    students = await get_students_by_section(db, assessment.section_id, user.school_id)
     
     # جلب الدرجات المسجلة
     grades = await service.get_grades_by_assessment(assessment_id)
@@ -283,7 +313,7 @@ async def create_grade_api(
 @router.put("/api/grades/{grade_id}")
 async def update_grade_api(
     grade_id: str,
-    req: dict,  # يمكن استخدام GradeUpdate إذا كان موجوداً
+    req: dict,
     user: CurrentUser = Depends(require_any_permission("grades.update")),
     db: AsyncSession = Depends(get_db),
 ):
@@ -371,8 +401,7 @@ async def get_students_by_section_api(
     db: AsyncSession = Depends(get_db),
 ):
     """API: جلب طلاب الشعبة لإدخال الدرجات"""
-    service = GradeService(db)
-    students = await service.get_students_by_section(section_id, user.school_id)
+    students = await get_students_by_section(db, section_id, user.school_id)
     return {"success": True, "items": students}
 
 
