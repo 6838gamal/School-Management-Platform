@@ -9,7 +9,8 @@
             <h1 class="text-2xl font-bold text-slate-800 dark:text-white">وكلاء المدرسة</h1>
             <p class="text-slate-600 dark:text-slate-400">إدارة وكلاء المدرسة</p>
         </div>
-        {% if can('deputy.create') %}
+        <!-- ✅ استخدام التحقق المباشر من الصلاحيات -->
+        {% if user and user.role == 'director' or (user and 'deputy.create' in user.permissions) %}
         <a href="/deputy/create" class="btn btn-primary flex items-center gap-2">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
@@ -75,7 +76,8 @@
                         </td>
                         <td class="p-3">
                             <div class="flex gap-2">
-                                {% if can('deputy.update') %}
+                                <!-- ✅ استخدام التحقق المباشر من الصلاحيات -->
+                                {% if user and (user.role == 'director' or 'deputy.update' in user.permissions) %}
                                 <a href="/deputy/{{ deputy.id }}/update" class="btn btn-sm btn-info flex items-center gap-1">
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
@@ -83,7 +85,7 @@
                                     تعديل
                                 </a>
                                 {% endif %}
-                                {% if can('deputy.delete') %}
+                                {% if user and (user.role == 'director' or 'deputy.delete' in user.permissions) %}
                                 <button onclick="confirmDelete('{{ deputy.id }}', '{{ deputy.full_name }}')" 
                                         class="btn btn-sm btn-danger flex items-center gap-1">
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -103,7 +105,7 @@
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/>
                                 </svg>
                                 <span>لا يوجد وكلاء مسجلين</span>
-                                {% if can('deputy.create') %}
+                                {% if user and (user.role == 'director' or 'deputy.create' in user.permissions) %}
                                 <a href="/deputy/create" class="btn btn-primary btn-sm mt-2">إضافة وكيل جديد</a>
                                 {% endif %}
                             </div>
