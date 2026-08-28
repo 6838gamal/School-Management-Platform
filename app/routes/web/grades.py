@@ -66,13 +66,14 @@ async def get_assessment_with_details(db: AsyncSession, assessment_id: str):
         "date": assessment.date,
         "teacher_id": getattr(assessment, 'teacher_id', None),
         "school_id": assessment.school_id,
+        "year_id": getattr(assessment, 'year_id', None),
         "created_at": assessment.created_at,
         "updated_at": assessment.updated_at,
     }
 
 
 # ============= الصفحة الرئيسية =============
-@router.get("", name="grades.index")  # ✅ إضافة اسم الراوت
+@router.get("", name="grades.index")
 async def grades_page(
     request: Request,
     user: CurrentUser = Depends(require_any_permission("grades.view")),
@@ -124,7 +125,7 @@ async def grades_page(
     )
 
 
-@router.get("/list", name="grades.list")  # ✅ إضافة اسم الراوت
+@router.get("/list", name="grades.list")
 async def list_assessments(
     request: Request,
     user: CurrentUser = Depends(require_any_permission("grades.view")),
@@ -148,7 +149,7 @@ async def list_assessments(
 
 # ============= التقييمات =============
 
-@router.get("/create", name="grades.create")  # ✅ إضافة اسم الراوت
+@router.get("/create", name="grades.create")
 async def create_assessment_page(
     request: Request,
     user: CurrentUser = Depends(require_any_permission("grades.create")),
@@ -172,7 +173,7 @@ async def create_assessment_page(
     )
 
 
-@router.post("/create", name="grades.store")  # ✅ إضافة اسم الراوت
+@router.post("/create", name="grades.store")
 async def store_assessment(
     request: Request,
     user: CurrentUser = Depends(require_any_permission("grades.create")),
@@ -180,8 +181,27 @@ async def store_assessment(
 ):
     """معالجة إنشاء تقييم جديد (POST)"""
     service = GradeService(db)
+    academic_service = AcademicService(db)
+    
     form_data = await request.form()
     
+    # جلب العام الدراسي الحالي
+    try:
+        current_year = await academic_service.get_current_year(user.school_id)
+        year_id = current_year.id
+    except NotFoundException:
+        # إذا لم يوجد عام دراسي حالي، جلب أول عام دراسي
+        years = await academic_service.years.list_by_school(user.school_id)
+        if years:
+            year_id = years[0].id
+        else:
+            # إذا لم يوجد أي عام دراسي، عرض خطأ
+            return RedirectResponse(
+                url="/grades/create?error=يجب إنشاء عام دراسي أولاً",
+                status_code=303
+            )
+    
+    # تجميع بيانات التقييم
     data = {
         "title": form_data.get("title"),
         "section_id": form_data.get("section_id"),
@@ -192,11 +212,13 @@ async def store_assessment(
         "passing_score": float(form_data.get("passing_score", 50)),
         "weight": float(form_data.get("weight", 1.0)),
         "description": form_data.get("description"),
-        "teacher_id": form_data.get("teacher_id"),
+        "teacher_id": form_data.get("teacher_id") or None,
         "school_id": user.school_id,
+        "year_id": year_id,  # ✅ إضافة year_id
     }
     
     try:
+        # إنشاء التقييم باستخدام الـ repository مباشرة
         assessment = await service.assessments.create(**data)
         return RedirectResponse(
             url=f"/grades/{assessment.id}?success=created",
@@ -209,7 +231,7 @@ async def store_assessment(
         )
 
 
-@router.get("/{assessment_id}/update", name="grades.edit")  # ✅ إضافة اسم الراوت
+@router.get("/{assessment_id}/update", name="grades.edit")
 async def edit_assessment_page(
     request: Request,
     assessment_id: str,
@@ -241,7 +263,7 @@ async def edit_assessment_page(
     )
 
 
-@router.post("/{assessment_id}/update", name="grades.update")  # ✅ إضافة اسم الراوت
+@router.post("/{assessment_id}/update", name="grades.update")
 async def update_assessment(
     request: Request,
     assessment_id: str,
@@ -277,7 +299,7 @@ async def update_assessment(
     )
 
 
-@router.get("/{assessment_id}", name="grades.show")  # ✅ إضافة اسم الراوت
+@router.get("/{assessment_id}", name="grades.show")
 async def show_assessment(
     request: Request,
     assessment_id: str,
@@ -318,7 +340,7 @@ async def show_assessment(
     )
 
 
-@router.get("/{assessment_id}/grades", name="grades.entry")  # ✅ إضافة اسم الراوت
+@router.get("/{assessment_id}/grades", name="grades.entry")
 async def view_assessment_grades(
     request: Request,
     assessment_id: str,
@@ -372,7 +394,7 @@ async def view_assessment_grades(
     )
 
 
-@router.post("/{assessment_id}/grades/save", name="grades.save_grades")  # ✅ إضافة اسم الراوت
+@router.post("/{assessment_id}/grades/save", name="grades.save_grades")
 async def save_grades(
     request: Request,
     assessment_id: str,
@@ -411,7 +433,7 @@ async def save_grades(
     )
 
 
-@router.post("/{assessment_id}/delete", name="grades.delete")  # ✅ إضافة اسم الراوت
+@router.post("/{assessment_id}/delete", name="grades.delete")
 async def delete_assessment(
     request: Request,
     assessment_id: str,
@@ -435,7 +457,7 @@ async def delete_assessment(
 
 # ============= الطلاب والدرجات =============
 
-@router.get("/students/{student_id}", name="grades.student")  # ✅ إضافة اسم الراوت
+@router.get("/students/{student_id}", name="grades.student")
 async def student_grades(
     request: Request,
     student_id: str,
@@ -482,10 +504,27 @@ async def create_assessment_api(
 ):
     """API: إنشاء تقييم جديد"""
     service = GradeService(db)
-    result = await service.create_assessment(user.school_id, req)
+    academic_service = AcademicService(db)
+    
+    # جلب العام الدراسي الحالي
+    try:
+        current_year = await academic_service.get_current_year(user.school_id)
+        year_id = current_year.id
+    except NotFoundException:
+        years = await academic_service.years.list_by_school(user.school_id)
+        if not years:
+            raise HTTPException(status_code=400, detail="لا يوجد عام دراسي")
+        year_id = years[0].id
+    
+    # إضافة year_id إلى الطلب
+    req_data = req.model_dump()
+    req_data["year_id"] = year_id
+    req_data["school_id"] = user.school_id
+    
+    assessment = await service.assessments.create(**req_data)
     return {
         "success": True,
-        "id": result["id"],
+        "id": assessment.id,
         "message": "تم إنشاء التقييم بنجاح"
     }
 
@@ -499,7 +538,12 @@ async def update_assessment_api(
 ):
     """API: تحديث التقييم"""
     service = GradeService(db)
-    result = await service.update_assessment(assessment_id, req)
+    assessment = await service.assessments.get(assessment_id)
+    if not assessment:
+        raise HTTPException(status_code=404, detail="التقييم غير موجود")
+    
+    update_data = req.model_dump(exclude_unset=True)
+    await service.assessments.update(assessment, **update_data)
     return {
         "success": True,
         "message": "تم تحديث التقييم بنجاح"
