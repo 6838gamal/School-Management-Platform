@@ -12,7 +12,7 @@ from app.core.dependencies import CurrentUser, require_any_permission, template_
 from app.core.exceptions import NotFoundException
 from app.services.grade_service import GradeService
 from app.services.academic_service import AcademicService
-from app.models.student import Student
+from app.models.students import Student
 from app.schemas.grades import (
     AssessmentCreate, AssessmentUpdate, GradeRecordCreate, GradeRecordBatch
 )
