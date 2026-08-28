@@ -10,7 +10,7 @@ from starlette import status
 
 from app.core.database import get_db
 from app.core.auth import get_current_user, require_permission
-from app.models.user import User
+from app.models.users import User
 from app.models.students import Student
 from app.models.teachers import Teacher
 from app.models.academics import Section
@@ -501,6 +501,29 @@ async def teacher_attendance_create(
         )
 
 
+@router.get("/teachers/{attendance_id}")
+async def teacher_attendance_detail(
+    request: Request,
+    attendance_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """عرض تفاصيل حضور معلم."""
+    service = AttendanceService(db)
+    record = service.get_teacher_attendance_by_id(attendance_id)
+    
+    if not record:
+        raise HTTPException(status_code=404, detail="سجل الحضور غير موجود")
+    
+    context = {
+        "request": request,
+        "record": record,
+        "can": lambda p: current_user.has_permission(p),
+    }
+    
+    return templates.TemplateResponse("attendance/teachers/detail.html", context)
+
+
 @router.get("/teachers/{attendance_id}/edit")
 async def teacher_attendance_edit_form(
     request: Request,
@@ -546,7 +569,7 @@ async def teacher_attendance_update(
         raise HTTPException(status_code=404, detail="سجل الحضور غير موجود")
     
     return RedirectResponse(
-        f"/attendance/teachers?date={datetime.now().strftime('%Y-%m-%d')}",
+        f"/attendance/teachers/{attendance_id}",
         status_code=status.HTTP_303_SEE_OTHER,
     )
 
