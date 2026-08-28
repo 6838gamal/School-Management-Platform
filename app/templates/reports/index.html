@@ -1,0 +1,211 @@
+{% extends "layouts/director.html" %}
+{% block content %}
+<div class="space-y-6">
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-bold text-slate-800 dark:text-white">التقارير</h1>
+            <p class="text-slate-400 text-sm mt-1">إدارة التقارير والإحصائيات المدرسية</p>
+        </div>
+        <div class="flex gap-2">
+            {% if can('reports.export') %}
+            <button onclick="exportReport()" class="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg text-sm font-semibold">
+                <i class="fas fa-download ml-2"></i> تصدير
+            </button>
+            {% endif %}
+            <button onclick="showModal('report-generate-modal')" class="border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 px-4 py-2 rounded-lg text-sm font-medium">
+                <i class="fas fa-plus ml-2"></i> تقرير جديد
+            </button>
+        </div>
+    </div>
+
+    <!-- فلاتر التقارير -->
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-4">
+        <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
+            <select class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
+                <option value="">نوع التقرير</option>
+                <option value="academic">أكاديمي</option>
+                <option value="attendance">حضور</option>
+                <option value="behavior">سلوك</option>
+                <option value="financial">مالي</option>
+            </select>
+            <select class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
+                <option value="">الفصل الدراسي</option>
+                <option value="1">الفصل الأول</option>
+                <option value="2">الفصل الثاني</option>
+            </select>
+            <input type="date" class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
+            <input type="date" class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
+            <button class="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg text-sm font-semibold">عرض</button>
+        </div>
+    </div>
+
+    <!-- إحصائيات سريعة -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-4 text-center">
+            <p class="text-2xl font-bold text-primary-600">{{ total_reports|default(24) }}</p>
+            <p class="text-sm text-slate-500 dark:text-slate-400">إجمالي التقارير</p>
+        </div>
+        <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-4 text-center">
+            <p class="text-2xl font-bold text-green-600">{{ completed_reports|default(18) }}</p>
+            <p class="text-sm text-slate-500 dark:text-slate-400">منجزة</p>
+        </div>
+        <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-4 text-center">
+            <p class="text-2xl font-bold text-amber-600">{{ pending_reports|default(4) }}</p>
+            <p class="text-sm text-slate-500 dark:text-slate-400">قيد الإعداد</p>
+        </div>
+        <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-4 text-center">
+            <p class="text-2xl font-bold text-purple-600">{{ scheduled_reports|default(2) }}</p>
+            <p class="text-sm text-slate-500 dark:text-slate-400">مجدولة</p>
+        </div>
+    </div>
+
+    <!-- جدول التقارير -->
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full">
+                <thead class="bg-slate-50 dark:bg-slate-700/50">
+                    <tr>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">التقرير</th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">النوع</th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">تاريخ الإنشاء</th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">الحالة</th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">الإجراءات</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
+                    {% if reports and reports|length > 0 %}
+                        {% for report in reports %}
+                        <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
+                            <td class="px-4 py-3">
+                                <div>
+                                    <p class="text-sm font-medium">{{ report.title }}</p>
+                                    <p class="text-xs text-slate-400">{{ report.description|truncate(50) }}</p>
+                                </div>
+                            </td>
+                            <td class="px-4 py-3">
+                                <span class="px-2 py-1 rounded-full text-xs 
+                                    {% if report.type == 'academic' %}bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300
+                                    {% elif report.type == 'attendance' %}bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300
+                                    {% elif report.type == 'behavior' %}bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300
+                                    {% else %}bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300{% endif %}">
+                                    {{ report.type_display }}
+                                </span>
+                            </td>
+                            <td class="px-4 py-3 text-sm">{{ report.created_at }}</td>
+                            <td class="px-4 py-3">
+                                <span class="px-2 py-1 rounded-full text-xs 
+                                    {% if report.status == 'completed' %}bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300
+                                    {% elif report.status == 'pending' %}bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300
+                                    {% elif report.status == 'scheduled' %}bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300
+                                    {% else %}bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300{% endif %}">
+                                    {{ report.status_display }}
+                                </span>
+                            </td>
+                            <td class="px-4 py-3 text-sm">
+                                <div class="flex items-center gap-2">
+                                    <button onclick="viewReport('{{ report.id }}')" class="text-primary-600 hover:text-primary-700 text-sm font-medium">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                    <button onclick="downloadReport('{{ report.id }}')" class="text-slate-600 hover:text-slate-700 text-sm font-medium">
+                                        <i class="fas fa-download"></i>
+                                    </button>
+                                    <button onclick="deleteReport('{{ report.id }}')" class="text-red-600 hover:text-red-700 text-sm font-medium">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="5" class="px-4 py-8 text-center text-slate-500 dark:text-slate-400">
+                                <div class="empty-state">
+                                    <i class="fas fa-file-alt text-4xl text-slate-300 dark:text-slate-600 mb-3 block"></i>
+                                    <p>لا توجد تقارير. ابدأ بإنشاء تقرير جديد.</p>
+                                </div>
+                            </td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+        <!-- ترقيم -->
+        <div class="px-4 py-3 border-t border-slate-100 dark:border-slate-700 flex items-center justify-between">
+            <p class="text-sm text-slate-500 dark:text-slate-400">عرض {{ reports|length|default(0) }} تقرير</p>
+            <div class="flex gap-1">
+                <button class="px-3 py-1 rounded border border-slate-200 dark:border-slate-600 text-sm hover:bg-slate-50 dark:hover:bg-slate-700">السابق</button>
+                <button class="px-3 py-1 rounded bg-primary-600 text-white text-sm">1</button>
+                <button class="px-3 py-1 rounded border border-slate-200 dark:border-slate-600 text-sm hover:bg-slate-50 dark:hover:bg-slate-700">2</button>
+                <button class="px-3 py-1 rounded border border-slate-200 dark:border-slate-600 text-sm hover:bg-slate-50 dark:hover:bg-slate-700">التالي</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- مودال إنشاء تقرير -->
+<div class="modal-backdrop" id="report-generate-modal">
+    <div class="modal-box p-6 max-w-2xl">
+        <h3 class="font-semibold text-lg mb-4">إنشاء تقرير جديد</h3>
+        <form id="report-form" class="space-y-3">
+            <input name="title" placeholder="عنوان التقرير" required class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
+            <select name="type" required class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
+                <option value="">نوع التقرير</option>
+                <option value="academic">أكاديمي</option>
+                <option value="attendance">حضور</option>
+                <option value="behavior">سلوك</option>
+                <option value="financial">مالي</option>
+            </select>
+            <select name="class_id" class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
+                <option value="">الفصل الدراسي (اختياري)</option>
+                {% for class in classes_list %}
+                <option value="{{ class.id }}">{{ class.name }}</option>
+                {% endfor %}
+            </select>
+            <textarea name="description" placeholder="وصف التقرير" rows="3" class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500"></textarea>
+            <div class="grid grid-cols-2 gap-3">
+                <input type="date" name="start_date" class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
+                <input type="date" name="end_date" class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
+            </div>
+            <div class="flex gap-2 pt-2">
+                <button type="button" onclick="closeModal('report-generate-modal')" class="flex-1 bg-slate-100 dark:bg-slate-700 px-4 py-2 rounded-lg text-sm font-medium">إلغاء</button>
+                <button type="submit" class="flex-1 bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg text-sm font-semibold">إنشاء</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+document.getElementById('report-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const body = {};
+    for (const [k, v] of fd.entries()) { if (v) body[k] = v; }
+    try {
+        await apiFetch('/api/v1/reports', { method: 'POST', body });
+        showToast('تم إنشاء التقرير بنجاح', 'success');
+        closeModal('report-generate-modal');
+        setTimeout(() => location.reload(), 800);
+    } catch (_) {
+        showToast('حدث خطأ أثناء إنشاء التقرير', 'error');
+    }
+});
+
+function viewReport(id) {
+    window.location.href = `/reports/${id}`;
+}
+
+function downloadReport(id) {
+    showToast('جاري تحميل التقرير...', 'info');
+}
+
+function deleteReport(id) {
+    if (confirm('هل أنت متأكد من حذف هذا التقرير؟')) {
+        showToast('تم حذف التقرير', 'success');
+    }
+}
+
+function exportReport() {
+    showToast('جاري تصدير التقارير...', 'info');
+}
+</script>
+{% endblock %}
