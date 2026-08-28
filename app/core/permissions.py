@@ -132,10 +132,10 @@ def permission_label(key: str, lang: str = "ar") -> str:
 # ------------------------------------------------------------------
 ROLE_PERMISSIONS: dict[str, list[str]] = {
     "director": [
+        # جميع صلاحيات المدير (كاملة)
         "schools.view", "schools.update",
         "academics.view", "academics.create", "academics.update", "academics.delete",
         "users.view", "users.create", "users.update", "users.delete", "users.assign_role",
-        # المدير لديه صلاحيات كاملة على الوكلاء ومديري الأنشطة
         "deputy.view", "deputy.create", "deputy.update", "deputy.delete",
         "activity_managers.view", "activity_managers.create", "activity_managers.update", "activity_managers.delete",
         "students.view", "students.create", "students.update", "students.delete", "students.transfer",
@@ -151,25 +151,28 @@ ROLE_PERMISSIONS: dict[str, list[str]] = {
         "settings.view", "settings.update",
     ],
     "deputy": [
-        "schools.view",
-        "academics.view",
-        "users.view",
-        # الوكيل لديه صلاحية عرض نفسه فقط
-        "deputy.view",
-        "students.view",
-        "teachers.view", "teachers.assign",
-        "schedules.view", "schedules.update",
+        # صلاحيات الوكيل (نفس صلاحيات المدير)
+        "schools.view", "schools.update",
+        "academics.view", "academics.create", "academics.update", "academics.delete",
+        "users.view", "users.create", "users.update", "users.delete", "users.assign_role",
+        "deputy.view", "deputy.create", "deputy.update", "deputy.delete",
+        "activity_managers.view", "activity_managers.create", "activity_managers.update", "activity_managers.delete",
+        "students.view", "students.create", "students.update", "students.delete", "students.transfer",
+        "teachers.view", "teachers.create", "teachers.update", "teachers.assign",
+        "schedules.view", "schedules.create", "schedules.update", "schedules.delete",
         "attendance.view", "attendance.create", "attendance.update",
-        "grades.view",
-        "homework.view",
-        "notifications.view", "notifications.create",
-        "reports.view", "reports.generate",
+        "grades.view", "grades.create", "grades.update", "grades.delete",
+        "homework.view", "homework.create", "homework.update", "homework.delete",
+        "activities.view", "activities.create", "activities.update", "activities.delete",
+        "behavior.view", "behavior.create", "behavior.update", "behavior.delete",
+        "notifications.view", "notifications.create", "notifications.manage",
+        "reports.view", "reports.generate", "reports.share",
+        "settings.view", "settings.update",
     ],
     "activities_manager": [
         "schools.view",
         "academics.view",
         "users.view",
-        # مدير الأنشطة لديه صلاحية عرض نفسه فقط
         "activity_managers.view",
         "students.view", "students.update",
         "activities.view", "activities.create", "activities.update", "activities.delete",
