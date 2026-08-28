@@ -124,8 +124,11 @@ async def student_attendance_create_form(
     students = []
     if section_id:
         student_service = StudentService(db)
-        # استخدام الدالة المناسبة من StudentService
-        students = await student_service.get_by_section(user.school_id, section_id, is_active=True)
+        students = await student_service.get_by_section(
+            user.school_id, 
+            section_id, 
+            is_active=True
+        )
     
     return templates.TemplateResponse(
         "attendance/students/form.html",
@@ -232,7 +235,8 @@ async def teacher_attendance_create_form(
     selected_date = date or today
     
     teacher_service = TeacherService(db)
-    teachers = await teacher_service.get_teachers(user.school_id, is_active=True)
+    # ✅ إصلاح: استخدام list_teachers بدلاً من get_teachers
+    teachers = await teacher_service.list_teachers(user.school_id, is_active=True)
     
     return templates.TemplateResponse(
         "attendance/teachers/form.html",
@@ -280,7 +284,8 @@ async def teacher_attendance_create(
         
     except Exception as e:
         teacher_service = TeacherService(db)
-        teachers = await teacher_service.get_teachers(user.school_id, is_active=True)
+        # ✅ إصلاح: استخدام list_teachers بدلاً من get_teachers
+        teachers = await teacher_service.list_teachers(user.school_id, is_active=True)
         
         return templates.TemplateResponse(
             "attendance/teachers/form.html",
