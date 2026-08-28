@@ -6,7 +6,7 @@ from sqlalchemy import and_, or_, func
 from app.core.exceptions import NotFoundException, ConflictException, ValidationException
 from app.models.students import Student
 from app.models.academics import Section, Grade, Stage, AcademicYear
-from app.repositories.student_repository import StudentRepository
+from app.repositories.students import StudentRepository
 from app.schemas.students import StudentCreate, StudentUpdate, TransferRequest  # ✅ تم الإضافة
 
 
