@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, Request, HTTPException
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func, or_
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 
@@ -13,6 +13,7 @@ from app.core.exceptions import NotFoundException
 from app.services.grade_service import GradeService
 from app.services.academic_service import AcademicService
 from app.models.students import Student
+from app.models.academics import Assessment
 from app.schemas.grades import (
     AssessmentCreate, AssessmentUpdate, GradeRecordCreate, GradeRecordBatch
 )
@@ -82,24 +83,86 @@ async def grades_page(
     """عرض صفحة الدرجات الرئيسية"""
     service = GradeService(db)
     
-    if section_id:
-        assessments = await service.list_assessments(section_id)
-    else:
-        assessments = []
+    # ✅ بناء الاستعلام لجلب التقييمات
+    query = select(Assessment).where(Assessment.school_id == user.school_id)
     
+    if section_id:
+        query = query.where(Assessment.section_id == section_id)
+    
+    if search:
+        query = query.where(
+            or_(
+                Assessment.title.ilike(f"%{search}%"),
+                Assessment.description.ilike(f"%{search}%")
+            )
+        )
+    
+    # ترتيب حسب التاريخ (الأحدث أولاً)
+    query = query.order_by(Assessment.date.desc().nullslast(), Assessment.created_at.desc())
+    
+    # حساب العدد الإجمالي
+    count_query = select(func.count()).select_from(Assessment).where(Assessment.school_id == user.school_id)
+    if section_id:
+        count_query = count_query.where(Assessment.section_id == section_id)
+    if search:
+        count_query = count_query.where(
+            or_(
+                Assessment.title.ilike(f"%{search}%"),
+                Assessment.description.ilike(f"%{search}%")
+            )
+        )
+    count_result = await db.execute(count_query)
+    total = count_result.scalar() or 0
+    
+    # تطبيق الترحيل
+    offset = (page - 1) * page_size
+    query = query.offset(offset).limit(page_size)
+    
+    result = await db.execute(query)
+    assessments = result.scalars().all()
+    
+    # جلب الشعب والمواد
     sections = await get_sections(db, user.school_id)
     subjects = await get_subjects(db, user.school_id)
     
+    # تنسيق البيانات للعرض في القالب
     formatted_assessments = []
     for a in assessments:
+        # جلب اسم الشعبة والمادة
+        section_name = None
+        subject_name = None
+        
+        # محاولة جلب الأسماء من العلاقات
+        if hasattr(a, 'section') and a.section:
+            section_name = a.section.name
+        elif hasattr(a, 'section_id'):
+            # البحث عن الشعبة في قائمة sections
+            for sec in sections:
+                if sec.id == a.section_id:
+                    section_name = sec.name
+                    break
+        
+        if hasattr(a, 'subject') and a.subject:
+            subject_name = a.subject.name
+        elif hasattr(a, 'subject_id'):
+            for sub in subjects:
+                if sub.id == a.subject_id:
+                    subject_name = sub.name
+                    break
+        
         formatted_assessments.append({
-            "id": a.get("id") if isinstance(a, dict) else getattr(a, 'id', None),
-            "title": a.get("title") if isinstance(a, dict) else getattr(a, 'title', None),
-            "section_name": a.get("section_name") if isinstance(a, dict) else None,
-            "subject_name": a.get("subject_name") if isinstance(a, dict) else None,
-            "assessment_type": a.get("type") if isinstance(a, dict) else getattr(a, 'assessment_type', None),
-            "max_score": a.get("max_score") if isinstance(a, dict) else getattr(a, 'max_score', None),
-            "date": a.get("date") if isinstance(a, dict) else getattr(a, 'date', None),
+            "id": a.id,
+            "title": a.title,
+            "description": a.description,
+            "section_name": section_name or a.section_id,
+            "subject_name": subject_name or a.subject_id,
+            "assessment_type": a.assessment_type,
+            "assessment_type_label": get_assessment_type_label(a.assessment_type),
+            "max_score": float(a.max_score),
+            "date": a.date,
+            "created_at": a.created_at,
+            "section_id": a.section_id,
+            "subject_id": a.subject_id,
         })
     
     return templates.TemplateResponse(
@@ -108,7 +171,7 @@ async def grades_page(
             **ctx,
             "title": "الدرجات",
             "assessments": formatted_assessments,
-            "total": len(formatted_assessments),
+            "total": total,
             "page": page,
             "page_size": page_size,
             "search": search or "",
@@ -118,6 +181,19 @@ async def grades_page(
             "now": datetime.now(),
         },
     )
+
+
+def get_assessment_type_label(assessment_type: str) -> str:
+    """الحصول على التسمية العربية لنوع التقييم"""
+    labels = {
+        "exam": "اختبار",
+        "quiz": "قصير",
+        "assignment": "واجب",
+        "homework": "تكليف",
+        "activity": "نشاط",
+        "participation": "مشاركة",
+    }
+    return labels.get(assessment_type, assessment_type)
 
 
 @router.get("/list", name="grades.list")
