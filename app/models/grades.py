@@ -9,6 +9,7 @@ from app.models._mixins import TimestampMixin, UUIDPkMixin
 class Assessment(UUIDPkMixin, TimestampMixin, Base):  # ✅ أضف Base
     """An assessment definition: exam, quiz, assignment, homework, participation, activity."""
     __tablename__ = "assessments"
+    __table_args__ = {"extend_existing": True}
 
     school_id: Mapped[str] = mapped_column(
         String(36), ForeignKey("schools.id", ondelete="CASCADE"), index=True
