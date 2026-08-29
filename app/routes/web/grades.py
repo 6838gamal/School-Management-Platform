@@ -7,7 +7,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, text
 from datetime import datetime
 from typing import Optional, List, Dict, Any
-from dataclasses import dataclass
 
 from app.core.database import get_db
 from app.core.dependencies import CurrentUser, require_any_permission, template_context
@@ -39,31 +38,35 @@ def get_assessment_type_label(assessment_type: str) -> str:
     return labels.get(assessment_type, assessment_type)
 
 
-def get_success_message(request: Request) -> Optional[str]:
-    """Extract success message from query params."""
-    param = request.query_params.get('success')
-    if not param:
-        return None
+def get_message(request: Request) -> Dict[str, Optional[str]]:
+    """Extract messages from query params."""
+    messages = {}
     
-    messages = {
-        'created': 'تم إنشاء التقييم بنجاح',
-        'updated': 'تم تحديث التقييم بنجاح',
-        'deleted': 'تم حذف التقييم بنجاح',
-        'grades_saved': 'تم حفظ الدرجات بنجاح',
-    }
-    return messages.get(param)
-
-
-def get_error_message(request: Request) -> Optional[str]:
-    """Extract error message from query params."""
+    success = request.query_params.get('success')
+    if success:
+        success_messages = {
+            'created': 'تم إنشاء التقييم بنجاح',
+            'updated': 'تم تحديث التقييم بنجاح',
+            'deleted': 'تم حذف التقييم بنجاح',
+            'grades_saved': 'تم حفظ الدرجات بنجاح',
+        }
+        messages['success'] = success_messages.get(success)
+    
     error = request.query_params.get('error')
-    return error if error else None
+    if error:
+        messages['error'] = error
+    
+    warning = request.query_params.get('warning')
+    if warning == 'no_grades':
+        messages['warning'] = '⚠️ لم يتم إدخال أي درجات للحفظ'
+    
+    return messages
 
 
 # ============= Data Fetching Helpers =============
 
 class GradeDataHelper:
-    """Helper class to fetch common data with caching per request."""
+    """Helper class to fetch common data with caching."""
     
     def __init__(self, db: AsyncSession, school_id: str):
         self.db = db
@@ -81,25 +84,21 @@ class GradeDataHelper:
         return self._academic_service
     
     async def get_sections(self):
-        """Get sections with caching."""
         if self._sections is None:
             self._sections = await self.academic_service.sections.list_by_school(self.school_id)
         return self._sections
     
     async def get_subjects(self):
-        """Get subjects with caching."""
         if self._subjects is None:
             self._subjects = await self.academic_service.subjects.list_by_school(self.school_id)
         return self._subjects
     
     async def get_teachers(self):
-        """Get teachers (placeholder)."""
         if self._teachers is None:
-            self._teachers = []
+            self._teachers = []  # TODO: Replace with actual teacher service
         return self._teachers
     
     async def get_current_year(self):
-        """Get current academic year with caching."""
         if self._current_year is None:
             try:
                 self._current_year = await self.academic_service.get_current_year(self.school_id)
@@ -141,10 +140,12 @@ async def fetch_assessments(
         query += " AND (a.title ILIKE :search OR a.description ILIKE :search)"
         params["search"] = f"%{search}%"
     
+    # Get total count
     count_query = f"SELECT COUNT(*) FROM ({query}) as subquery"
     count_result = await db.execute(text(count_query), params)
     total = count_result.scalar()
     
+    # Get paginated results
     query += " ORDER BY a.created_at DESC"
     query += f" LIMIT {page_size} OFFSET {(page - 1) * page_size}"
     
@@ -189,6 +190,7 @@ async def fetch_students_with_grades(
     if not assessment:
         return []
     
+    # Fetch students
     stmt = select(Student).where(
         Student.section_id == assessment.section_id,
         Student.school_id == school_id
@@ -196,8 +198,10 @@ async def fetch_students_with_grades(
     result = await db.execute(stmt)
     students = result.scalars().all()
     
+    # Fetch grades
     grades = await service.grades.list_by_assessment(assessment_id)
     
+    # Build grades map
     grades_map = {}
     for g in grades:
         grades_map[g.student_id] = {
@@ -226,6 +230,7 @@ async def get_assessment_with_details(db: AsyncSession, assessment_id: str) -> O
     if not assessment:
         return None
     
+    # Fetch section and subject names
     section_name = None
     subject_name = None
     
@@ -303,8 +308,7 @@ async def grades_page(
         "subjects": subjects,
         "selected_section": section_id,
         "now": datetime.now(),
-        "success": get_success_message(request),
-        "error": get_error_message(request),
+        **get_message(request),
     }
     
     return templates.TemplateResponse("grades/index.html", context)
@@ -326,13 +330,12 @@ async def create_assessment_page(
     context = {
         **ctx,
         "title": "إنشاء تقييم جديد",
-        "is_edit": False,
         "item": None,
         "sections": sections,
         "subjects": subjects,
         "teachers": teachers,
         "now": datetime.now(),
-        "error": get_error_message(request),
+        **get_message(request),
     }
     
     return templates.TemplateResponse("grades/create.html", context)
@@ -373,9 +376,10 @@ async def store_assessment(
     }
     
     try:
-        assessment = await service.assessments.create(**data)
+        await service.assessments.create(**data)
+        # ✅ التوجيه إلى الصفحة الرئيسية مع رسالة نجاح
         return RedirectResponse(
-            url=f"/grades/{assessment.id}/update?success=created",
+            url="/grades?success=created",
             status_code=303
         )
     except Exception as e:
@@ -410,15 +414,13 @@ async def update_assessment_page(
     context = {
         **ctx,
         "title": f"تعديل التقييم: {assessment['title']}",
-        "is_edit": True,
         "item": assessment,
         "sections": sections,
         "subjects": subjects,
         "teachers": teachers,
         "students": students_with_grades,
         "now": datetime.now(),
-        "success": get_success_message(request),
-        "error": get_error_message(request),
+        **get_message(request),
     }
     
     return templates.TemplateResponse("grades/update.html", context)
@@ -454,8 +456,9 @@ async def update_assessment(
     
     await service.assessments.update(existing, **update_data)
     
+    # ✅ التوجيه إلى الصفحة الرئيسية مع رسالة نجاح
     return RedirectResponse(
-        url=f"/grades/{assessment_id}/update?success=updated",
+        url="/grades?success=updated",
         status_code=303
     )
 
@@ -492,10 +495,11 @@ async def save_grades(
                 assessment_id=assessment_id,
                 records=records
             )
-            result = await service.batch_record(user.id, batch_data)
+            await service.batch_record(user.id, batch_data)
             
+            # ✅ التوجيه إلى الصفحة الرئيسية مع رسالة نجاح
             return RedirectResponse(
-                url=f"/grades/{assessment_id}/update?success=grades_saved&count={result.get('recorded', 0)}",
+                url="/grades?success=grades_saved",
                 status_code=303
             )
         except Exception as e:
@@ -526,6 +530,7 @@ async def delete_assessment(
     
     await service.assessments.delete(assessment)
     
+    # ✅ التوجيه إلى الصفحة الرئيسية مع رسالة نجاح
     return RedirectResponse(
         url="/grades?success=deleted",
         status_code=303
