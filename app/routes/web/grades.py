@@ -377,7 +377,6 @@ async def store_assessment(
     
     try:
         await service.assessments.create(**data)
-        # ✅ التوجيه إلى الصفحة الرئيسية مع رسالة نجاح
         return RedirectResponse(
             url="/grades?success=created",
             status_code=303
@@ -456,7 +455,6 @@ async def update_assessment(
     
     await service.assessments.update(existing, **update_data)
     
-    # ✅ التوجيه إلى الصفحة الرئيسية مع رسالة نجاح
     return RedirectResponse(
         url="/grades?success=updated",
         status_code=303
@@ -497,7 +495,6 @@ async def save_grades(
             )
             await service.batch_record(user.id, batch_data)
             
-            # ✅ التوجيه إلى الصفحة الرئيسية مع رسالة نجاح
             return RedirectResponse(
                 url="/grades?success=grades_saved",
                 status_code=303
@@ -530,7 +527,6 @@ async def delete_assessment(
     
     await service.assessments.delete(assessment)
     
-    # ✅ التوجيه إلى الصفحة الرئيسية مع رسالة نجاح
     return RedirectResponse(
         url="/grades?success=deleted",
         status_code=303
