@@ -20,7 +20,14 @@ class Settings:
     # Security
     SECRET_KEY: str = os.getenv("SECRET_KEY", "change-me-to-a-long-random-string-in-production")
     SESSION_COOKIE_NAME: str = os.getenv("SESSION_COOKIE_NAME", "sms_session")
-    SESSION_MAX_AGE: int = int(os.getenv("SESSION_MAX_AGE", "86400"))
+    
+    # ✅ زيادة مدة صلاحية الجلسة إلى 7 أيام (604800 ثانية)
+    SESSION_MAX_AGE: int = int(os.getenv("SESSION_MAX_AGE", "604800"))  # 7 أيام
+    
+    # ✅ تفعيل تجديد الجلسة مع كل طلب
+    SESSION_REFRESH_EACH_REQUEST: bool = os.getenv("SESSION_REFRESH_EACH_REQUEST", "True").lower() == "true"
+    
+    # ✅ جعل الكوكيز آمنة في الإنتاج
     SESSION_SECURE: bool = os.getenv("SESSION_SECURE", "False").lower() == "true"
     SESSION_HTTPONLY: bool = os.getenv("SESSION_HTTPONLY", "True").lower() == "true"
     SESSION_SAMESITE: str = os.getenv("SESSION_SAMESITE", "lax")
@@ -31,7 +38,7 @@ class Settings:
         "DATABASE_URL",
         "postgresql+asyncpg://sms_user:sms_password@localhost:5432/sms_db"
     )
-    DATABASE_SSL: bool = os.getenv("DATABASE_SSL", "False").lower() == "true"  # ✅ جديد
+    DATABASE_SSL: bool = os.getenv("DATABASE_SSL", "False").lower() == "true"
     DATABASE_POOL_SIZE: int = int(os.getenv("DATABASE_POOL_SIZE", "10"))
     DATABASE_MAX_OVERFLOW: int = int(os.getenv("DATABASE_MAX_OVERFLOW", "20"))
     DATABASE_ECHO: bool = os.getenv("DATABASE_ECHO", "False").lower() == "true"
