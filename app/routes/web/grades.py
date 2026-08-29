@@ -96,36 +96,34 @@ async def grades_page(
     """عرض صفحة الدرجات الرئيسية"""
     from sqlalchemy import text
     
-    # ============================================================
-    # 🔍 DEBUG - طباعة المعلومات
-    # ============================================================
     print("=" * 60)
-    print("🔍 DEBUG - Grades Page")
+    print("🚀 Grades Page Called")
     print(f"📌 User ID: {user.id}")
     print(f"📌 School ID: {user.school_id}")
-    print(f"📌 Section ID: {section_id}")
+    print("=" * 60)
     
     # ============================================================
-    # ✅ الاستعلام الرئيسي
+    # ✅ استعلام لجلب جميع التقييمات (بدون فلتر school_id)
     # ============================================================
     query = """
         SELECT 
             a.id, a.title, a.description, a.assessment_type, 
             a.max_score, a.date, a.section_id, a.subject_id,
+            a.school_id,
             s.name as section_name,
             sub.name as subject_name
         FROM assessments a
         LEFT JOIN sections s ON s.id = a.section_id
         LEFT JOIN subjects sub ON sub.id = a.subject_id
-        WHERE a.school_id = :school_id
+        WHERE 1=1
     """
-    params = {"school_id": user.school_id}
+    params = {}
     
     if section_id:
         query += " AND a.section_id = :section_id"
         params["section_id"] = section_id
     
-    query += " ORDER BY a.date DESC NULLS LAST, a.created_at DESC"
+    query += " ORDER BY a.created_at DESC"
     query += f" LIMIT {page_size} OFFSET {(page - 1) * page_size}"
     
     print(f"📝 SQL: {query}")
@@ -135,8 +133,10 @@ async def grades_page(
         result = await db.execute(text(query), params)
         rows = result.fetchall()
         print(f"📊 عدد النتائج: {len(rows)}")
-        if rows:
-            print(f"📊 أول نتيجة: {dict(rows[0]._mapping)}")
+        
+        # طباعة كل النتائج للتحقق
+        for i, row in enumerate(rows):
+            print(f"   [{i+1}] ID: {row.id}, Title: {row.title}, School: {row.school_id}")
     except Exception as e:
         print(f"❌ خطأ في الاستعلام: {str(e)}")
         rows = []
@@ -164,25 +164,22 @@ async def grades_page(
     if not formatted_assessments:
         print("⚠️ لا توجد بيانات في قاعدة البيانات، استخدام بيانات تجريبية")
         
-        # جلب أول شعبة ومادة من قاعدة البيانات
+        # جلب أول شعبة ومادة
         section = None
         subject = None
-        
         try:
             section_result = await db.execute(text("SELECT id, name FROM sections LIMIT 1"))
             section = section_result.fetchone()
-            
             subject_result = await db.execute(text("SELECT id, name FROM subjects LIMIT 1"))
             subject = subject_result.fetchone()
         except Exception as e:
-            print(f"❌ خطأ في جلب العينات: {e}")
+            print(f"❌ خطأ: {e}")
         
-        # بيانات تجريبية
-        test_data = [
+        formatted_assessments = [
             {
                 "id": "test-1",
                 "title": "📝 اختبار تجريبي - الرياضيات",
-                "description": "هذا اختبار تجريبي للتحقق من عرض البيانات",
+                "description": "بيانات تجريبية للتحقق من عرض القالب",
                 "assessment_type": "exam",
                 "assessment_type_label": "اختبار",
                 "max_score": 100,
@@ -191,58 +188,13 @@ async def grades_page(
                 "subject_name": subject.name if subject else "الرياضيات",
                 "section_id": section.id if section else "section-1",
                 "subject_id": subject.id if subject else "subject-1",
-            },
-            {
-                "id": "test-2",
-                "title": "⚡ اختبار قصير - العلوم",
-                "description": "اختبار قصير للفصل الأول",
-                "assessment_type": "quiz",
-                "assessment_type_label": "قصير",
-                "max_score": 50,
-                "date": "2026-08-30",
-                "section_name": section.name if section else "الشعبة ب",
-                "subject_name": "العلوم",
-                "section_id": section.id if section else "section-2",
-                "subject_id": "subject-2",
-            },
-            {
-                "id": "test-3",
-                "title": "📄 واجب منزلي - اللغة العربية",
-                "description": "واجب منزلي للفصل الأول",
-                "assessment_type": "homework",
-                "assessment_type_label": "تكليف",
-                "max_score": 20,
-                "date": "2026-08-28",
-                "section_name": section.name if section else "الشعبة ج",
-                "subject_name": "اللغة العربية",
-                "section_id": section.id if section else "section-3",
-                "subject_id": "subject-3",
             }
         ]
-        
-        formatted_assessments = test_data
-        total = len(test_data)
-        print(f"📊 تم استخدام {total} بيانات تجريبية")
+        total = len(formatted_assessments)
     else:
-        # حساب العدد الإجمالي
-        count_query = """
-            SELECT COUNT(*) 
-            FROM assessments a
-            WHERE a.school_id = :school_id
-        """
-        count_params = {"school_id": user.school_id}
-        if section_id:
-            count_query += " AND a.section_id = :section_id"
-            count_params["section_id"] = section_id
-        
-        try:
-            count_result = await db.execute(text(count_query), count_params)
-            total = count_result.scalar() or 0
-        except Exception as e:
-            print(f"❌ خطأ في حساب العدد: {str(e)}")
-            total = len(formatted_assessments)
+        total = len(formatted_assessments)
     
-    print(f"📊 إجمالي التقييمات: {total}")
+    print(f"📊 إجمالي التقييمات المعروضة: {total}")
     print("=" * 60)
     
     # جلب الشعب والمواد
@@ -264,7 +216,9 @@ async def grades_page(
             "selected_section": section_id,
             "now": datetime.now(),
         },
-            )
+    )
+        
+
  
 
 @router.get("/list", name="grades.list")
