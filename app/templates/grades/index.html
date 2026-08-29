@@ -9,14 +9,17 @@
             <p class="text-slate-400 text-sm mt-1">إجمالي {{ total|default(assessments|length) }} تقييم</p>
         </div>
         {% if can('grades.create') %}
-        <a href="/grades/create" class="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors shadow-sm hover:shadow-md">
-            <i class="fas fa-plus ml-2"></i> تقييم جديد
+        <a href="/grades/create" class="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors shadow-sm hover:shadow-md flex items-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+            </svg>
+            تقييم جديد
         </a>
         {% endif %}
     </div>
 
-    <!-- Search Bar -->
-    <div class="flex items-center gap-4">
+    <!-- Filter & Search -->
+    <div class="flex flex-col sm:flex-row items-start sm:items-center gap-4">
         <form method="GET" class="flex-1 max-w-md">
             <div class="relative">
                 <input 
@@ -26,35 +29,55 @@
                     placeholder="بحث عن تقييم..."
                     class="w-full px-4 py-2 pr-10 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                 >
-                <button type="submit" class="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
+                <button type="submit" class="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
                     </svg>
                 </button>
             </div>
         </form>
-        {% if search %}
-        <a href="/grades" class="text-sm text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200">
-            <i class="fas fa-times ml-1"></i> مسح البحث
+
+        <!-- Filter by section -->
+        {% if sections %}
+        <form method="GET" class="flex items-center gap-2">
+            <select name="section_id" 
+                    onchange="this.form.submit()"
+                    class="px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500">
+                <option value="">جميع الشعب</option>
+                {% for section in sections %}
+                <option value="{{ section.id }}" {% if selected_section == section.id %}selected{% endif %}>
+                    {{ section.name }}
+                </option>
+                {% endfor %}
+            </select>
+        </form>
+        {% endif %}
+
+        {% if search or selected_section %}
+        <a href="/grades" class="text-sm text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 flex items-center gap-1">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+            مسح الفلترة
         </a>
         {% endif %}
     </div>
 
     <!-- Success/Error Messages -->
     {% if request.query_params.get('success') %}
-    <div class="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-700 dark:text-green-400 px-4 py-3 rounded-lg flex items-center gap-2">
-        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+    <div class="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-700 dark:text-green-400 px-4 py-3 rounded-lg flex items-center gap-2" id="successMessage">
+        <svg class="w-5 h-5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
             <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
         </svg>
         <span>
             {% if request.query_params.get('success') == 'created' %}
-                تم إنشاء التقييم بنجاح
+                ✅ تم إنشاء التقييم بنجاح
             {% elif request.query_params.get('success') == 'updated' %}
-                تم تحديث التقييم بنجاح
+                ✅ تم تحديث التقييم بنجاح
             {% elif request.query_params.get('success') == 'deleted' %}
-                تم حذف التقييم بنجاح
+                ✅ تم حذف التقييم بنجاح
             {% else %}
-                تمت العملية بنجاح
+                ✅ تمت العملية بنجاح
             {% endif %}
         </span>
     </div>
@@ -66,22 +89,24 @@
             <table class="w-full text-sm">
                 <thead class="bg-slate-50 dark:bg-slate-700/50 text-slate-500 dark:text-slate-300">
                     <tr>
-                        <th class="text-right p-3 font-medium">#</th>
-                        <th class="text-right p-3 font-medium">العنوان</th>
-                        <th class="text-right p-3 font-medium">الشعبة</th>
-                        <th class="text-right p-3 font-medium">المادة</th>
-                        <th class="text-right p-3 font-medium">النوع</th>
-                        <th class="text-right p-3 font-medium">الدرجة العظمى</th>
-                        <th class="text-right p-3 font-medium">التاريخ</th>
-                        <th class="text-right p-3 font-medium">الحالة</th>
-                        <th class="text-right p-3 font-medium">الإجراءات</th>
+                        <th class="text-right px-4 py-3 font-medium">#</th>
+                        <th class="text-right px-4 py-3 font-medium">العنوان</th>
+                        <th class="text-right px-4 py-3 font-medium">الشعبة</th>
+                        <th class="text-right px-4 py-3 font-medium">المادة</th>
+                        <th class="text-right px-4 py-3 font-medium">النوع</th>
+                        <th class="text-right px-4 py-3 font-medium text-center">الدرجة العظمى</th>
+                        <th class="text-right px-4 py-3 font-medium text-center">التاريخ</th>
+                        <th class="text-right px-4 py-3 font-medium text-center">الحالة</th>
+                        <th class="text-right px-4 py-3 font-medium text-center">الإجراءات</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
                     {% for assessment in assessments %}
                     <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">
-                        <td class="p-3 text-slate-400 text-xs">{{ loop.index + ((page|default(1) - 1) * (page_size|default(10))) }}</td>
-                        <td class="p-3">
+                        <td class="px-4 py-3 text-slate-400 text-xs text-center">
+                            {{ loop.index + ((page|default(1) - 1) * (page_size|default(10))) }}
+                        </td>
+                        <td class="px-4 py-3">
                             <a href="/grades/{{ assessment.id }}" class="text-primary-600 hover:text-primary-800 dark:text-primary-400 dark:hover:text-primary-300 font-medium hover:underline">
                                 {{ assessment.title }}
                             </a>
@@ -89,41 +114,59 @@
                             <div class="text-xs text-slate-400 dark:text-slate-500 truncate max-w-xs">{{ assessment.description }}</div>
                             {% endif %}
                         </td>
-                        <td class="p-3 text-slate-600 dark:text-slate-300">{{ assessment.section_name or assessment.section_id or '—' }}</td>
-                        <td class="p-3 text-slate-600 dark:text-slate-300">{{ assessment.subject_name or assessment.subject_id or '—' }}</td>
-                        <td class="p-3">
-                            <span class="px-2 py-0.5 text-xs rounded-full bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-400">
-                                {{ assessment.assessment_type_label or assessment.assessment_type }}
+                        <td class="px-4 py-3 text-slate-600 dark:text-slate-300">
+                            {{ assessment.section_name or assessment.section_id or '—' }}
+                        </td>
+                        <td class="px-4 py-3 text-slate-600 dark:text-slate-300">
+                            {{ assessment.subject_name or assessment.subject_id or '—' }}
+                        </td>
+                        <td class="px-4 py-3">
+                            <span class="inline-flex px-2 py-0.5 text-xs rounded-full 
+                                {% if assessment.assessment_type == 'exam' %}bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400
+                                {% elif assessment.assessment_type == 'quiz' %}bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400
+                                {% elif assessment.assessment_type == 'assignment' %}bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400
+                                {% elif assessment.assessment_type == 'homework' %}bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400
+                                {% elif assessment.assessment_type == 'activity' %}bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400
+                                {% elif assessment.assessment_type == 'participation' %}bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400
+                                {% else %}bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300{% endif %}">
+                                {{ assessment.assessment_type_label or assessment.assessment_type|capitalize }}
                             </span>
                         </td>
-                        <td class="p-3 text-center text-slate-700 dark:text-slate-300">{{ assessment.max_score or 0 }}</td>
-                        <td class="p-3 text-slate-600 dark:text-slate-300">
+                        <td class="px-4 py-3 text-center text-slate-700 dark:text-slate-300 font-medium">
+                            {% if assessment.max_score is not none and assessment.max_score > 0 %}
+                                {{ assessment.max_score }}
+                            {% else %}
+                                <span class="text-slate-400 dark:text-slate-500">—</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3 text-center text-slate-600 dark:text-slate-300">
                             {% if assessment.date %}
-                                {{ assessment.date.strftime('%Y-%m-%d') if assessment.date is string else assessment.date|string }}
+                                {% if assessment.date is string %}
+                                    {{ assessment.date[:10] if assessment.date|length > 10 else assessment.date }}
+                                {% else %}
+                                    {{ assessment.date }}
+                                {% endif %}
                             {% else %}
                                 —
                             {% endif %}
                         </td>
-                        <td class="p-3">
-                            {% if assessment.date %}
-                                {% if assessment.date < now.date() %}
-                                <span class="px-2 py-0.5 text-xs rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
-                                    <i class="fas fa-circle text-[6px] ml-1"></i> منتهي
-                                </span>
-                                {% else %}
-                                <span class="px-2 py-0.5 text-xs rounded-full bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
-                                    <i class="fas fa-circle text-[6px] ml-1"></i> قادم
-                                </span>
-                                {% endif %}
-                            {% else %}
-                                <span class="px-2 py-0.5 text-xs rounded-full bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-400">
-                                    <i class="fas fa-circle text-[6px] ml-1"></i> غير محدد
-                                </span>
-                            {% endif %}
+                        <td class="px-4 py-3 text-center">
+                            <span class="inline-flex px-2 py-0.5 text-xs rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+                                📅 منتهي
+                            </span>
                         </td>
-                        <td class="p-3">
-                            <div class="flex items-center gap-2">
-                                <!-- زر عرض التفاصيل -->
+                        <td class="px-4 py-3">
+                            <div class="flex items-center justify-center gap-1">
+                                <!-- إدخال الدرجات -->
+                                <a href="/grades/{{ assessment.id }}/grades" 
+                                   class="p-1.5 rounded-lg text-green-600 hover:text-green-800 hover:bg-green-50 dark:text-green-400 dark:hover:text-green-300 dark:hover:bg-green-900/30 transition-colors" 
+                                   title="إدخال الدرجات">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                                    </svg>
+                                </a>
+
+                                <!-- عرض التفاصيل -->
                                 <a href="/grades/{{ assessment.id }}" 
                                    class="p-1.5 rounded-lg text-primary-600 hover:text-primary-800 hover:bg-primary-50 dark:text-primary-400 dark:hover:text-primary-300 dark:hover:bg-primary-900/30 transition-colors" 
                                    title="عرض التفاصيل">
@@ -133,7 +176,7 @@
                                     </svg>
                                 </a>
 
-                                <!-- زر التعديل -->
+                                <!-- تعديل -->
                                 {% if can('grades.update') %}
                                 <a href="/grades/{{ assessment.id }}/update" 
                                    class="p-1.5 rounded-lg text-blue-600 hover:text-blue-800 hover:bg-blue-50 dark:text-blue-400 dark:hover:text-blue-300 dark:hover:bg-blue-900/30 transition-colors" 
@@ -144,9 +187,9 @@
                                 </a>
                                 {% endif %}
 
-                                <!-- زر الحذف -->
+                                <!-- حذف -->
                                 {% if can('grades.delete') %}
-                                <button onclick="confirmDelete('{{ assessment.id }}', '{{ assessment.title }}')" 
+                                <button onclick="confirmDelete('{{ assessment.id }}', '{{ assessment.title|escapejs }}')" 
                                         class="p-1.5 rounded-lg text-red-600 hover:text-red-800 hover:bg-red-50 dark:text-red-400 dark:hover:text-red-300 dark:hover:bg-red-900/30 transition-colors" 
                                         title="حذف">
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -159,13 +202,19 @@
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="9" class="p-8 text-center text-slate-400">
+                        <td colspan="9" class="px-4 py-8 text-center text-slate-400">
                             <div class="flex flex-col items-center gap-3">
                                 <svg class="w-16 h-16 text-slate-300 dark:text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
                                 </svg>
                                 <span class="text-lg font-medium">لا توجد تقييمات</span>
                                 <span class="text-sm">يمكنك إضافة تقييم جديد بالضغط على زر "تقييم جديد"</span>
+                                <a href="/grades/create" class="mt-2 text-primary-600 hover:text-primary-700 text-sm font-medium flex items-center gap-1">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                                    </svg>
+                                    إضافة تقييم جديد
+                                </a>
                             </div>
                         </td>
                     </tr>
@@ -183,15 +232,17 @@
     {% if total_items > items_per_page %}
     <div class="flex flex-col sm:flex-row items-center justify-between gap-4">
         <p class="text-sm text-slate-500 dark:text-slate-400">
-            عرض <span class="font-medium">{{ (current_page - 1) * items_per_page + 1 }}</span> - 
+            عرض <span class="font-medium">{{ ((current_page - 1) * items_per_page) + 1 }}</span> - 
             <span class="font-medium">{{ ((current_page - 1) * items_per_page + assessments|length) if assessments|length > 0 else 0 }}</span> 
             من <span class="font-medium">{{ total_items }}</span>
         </p>
         <div class="flex items-center gap-2">
             {% if current_page > 1 %}
-            <a href="?page={{ current_page - 1 }}{% if search %}&search={{ search }}{% endif %}" 
+            <a href="?page={{ current_page - 1 }}{% if search %}&search={{ search }}{% endif %}{% if selected_section %}&section_id={{ selected_section }}{% endif %}" 
                class="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors text-sm flex items-center gap-1">
-                <i class="fas fa-chevron-right text-xs"></i>
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+                </svg>
                 السابق
             </a>
             {% endif %}
@@ -201,14 +252,15 @@
             {% set end_page = [current_page + 2, total_pages]|min %}
             
             {% if start_page > 1 %}
-            <a href="?page=1{% if search %}&search={{ search }}{% endif %}" class="px-3 py-1.5 rounded-lg text-sm hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">1</a>
+            <a href="?page=1{% if search %}&search={{ search }}{% endif %}{% if selected_section %}&section_id={{ selected_section }}{% endif %}" 
+               class="px-3 py-1.5 rounded-lg text-sm hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">1</a>
             {% if start_page > 2 %}
             <span class="px-2 text-slate-400">...</span>
             {% endif %}
             {% endif %}
             
             {% for p in range(start_page, end_page + 1) %}
-            <a href="?page={{ p }}{% if search %}&search={{ search }}{% endif %}" 
+            <a href="?page={{ p }}{% if search %}&search={{ search }}{% endif %}{% if selected_section %}&section_id={{ selected_section }}{% endif %}" 
                class="px-3 py-1.5 rounded-lg text-sm transition-colors {% if p == current_page %}bg-primary-600 text-white{% else %}hover:bg-slate-50 dark:hover:bg-slate-700{% endif %}">
                 {{ p }}
             </a>
@@ -218,17 +270,19 @@
             {% if end_page < total_pages - 1 %}
             <span class="px-2 text-slate-400">...</span>
             {% endif %}
-            <a href="?page={{ total_pages }}{% if search %}&search={{ search }}{% endif %}" 
+            <a href="?page={{ total_pages }}{% if search %}&search={{ search }}{% endif %}{% if selected_section %}&section_id={{ selected_section }}{% endif %}" 
                class="px-3 py-1.5 rounded-lg text-sm hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
                 {{ total_pages }}
             </a>
             {% endif %}
             
             {% if current_page < total_pages %}
-            <a href="?page={{ current_page + 1 }}{% if search %}&search={{ search }}{% endif %}" 
+            <a href="?page={{ current_page + 1 }}{% if search %}&search={{ search }}{% endif %}{% if selected_section %}&section_id={{ selected_section }}{% endif %}" 
                class="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors text-sm flex items-center gap-1">
                 التالي
-                <i class="fas fa-chevron-left text-xs"></i>
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                </svg>
             </a>
             {% endif %}
         </div>
@@ -263,25 +317,32 @@
         
         <div class="flex items-center gap-3 justify-end">
             <button onclick="closeDeleteModal()" 
-                    class="px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors text-sm text-slate-600 dark:text-slate-400 font-medium">
-                <i class="fas fa-times ml-1"></i> إلغاء
+                    class="px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors text-sm text-slate-600 dark:text-slate-400 font-medium flex items-center gap-1">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+                إلغاء
             </button>
-            <form id="deleteForm" method="POST" onsubmit="return handleDeleteSubmit()">
+            <form id="deleteForm" method="POST" action="">
                 <button type="submit" 
                         class="px-4 py-2 bg-red-600 hover:bg-red-700 active:bg-red-800 text-white rounded-lg text-sm font-semibold transition-colors shadow-sm hover:shadow-md flex items-center gap-1">
-                    <i class="fas fa-trash ml-1"></i> حذف
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                    </svg>
+                    حذف
                 </button>
             </form>
         </div>
     </div>
 </div>
+{% endif %}
 
 <script>
-// Store assessment title for use in form submission
-let currentAssessmentTitle = '';
+// ============================================
+// 🗑️ Delete Modal Functions
+// ============================================
 
 function confirmDelete(id, title) {
-    currentAssessmentTitle = title;
     document.getElementById('deleteAssessmentTitle').textContent = title;
     document.getElementById('deleteForm').action = '/grades/' + id + '/delete';
     const modal = document.getElementById('deleteModal');
@@ -297,14 +358,15 @@ function closeDeleteModal() {
     document.body.style.overflow = '';
 }
 
-function handleDeleteSubmit() {
-    return true;
-}
-
 // Close modal on click outside
-document.getElementById('deleteModal').addEventListener('click', function(e) {
-    if (e.target === this) {
-        closeDeleteModal();
+document.addEventListener('DOMContentLoaded', function() {
+    const modal = document.getElementById('deleteModal');
+    if (modal) {
+        modal.addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeDeleteModal();
+            }
+        });
     }
 });
 
@@ -317,17 +379,16 @@ document.addEventListener('keydown', function(e) {
 
 // Auto-close success message after 5 seconds
 document.addEventListener('DOMContentLoaded', function() {
-    const successMsg = document.querySelector('.bg-green-50');
+    const successMsg = document.getElementById('successMessage');
     if (successMsg) {
         setTimeout(function() {
             successMsg.style.transition = 'opacity 0.5s ease';
             successMsg.style.opacity = '0';
             setTimeout(function() {
-                successMsg.remove();
+                successMsg.style.display = 'none';
             }, 500);
         }, 5000);
     }
 });
 </script>
-{% endif %}
 {% endblock %}
