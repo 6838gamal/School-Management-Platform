@@ -1,0 +1,418 @@
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-0">{{ assessment.title }}</h1>
+            <p class="text-muted small mb-0">إدخال درجات التقييم</p>
+        </div>
+        <div>
+            <a href="/grades" class="btn btn-outline-secondary btn-sm">
+                <i class="fas fa-arrow-right"></i> العودة للقائمة
+            </a>
+        </div>
+    </div>
+
+    <!-- معلومات التقييم -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <small class="text-muted d-block">الدرجة القصوى</small>
+                            <strong>{{ assessment.max_score }}</strong>
+                        </div>
+                        <div class="col-md-3">
+                            <small class="text-muted d-block">درجة النجاح</small>
+                            <strong>{{ assessment.passing_score or 'غير محدد' }}</strong>
+                        </div>
+                        <div class="col-md-3">
+                            <small class="text-muted d-block">الوزن</small>
+                            <strong>{{ assessment.weight }}</strong>
+                        </div>
+                        <div class="col-md-3">
+                            <small class="text-muted d-block">عدد الطلاب</small>
+                            <strong>{{ students|length }}</strong>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- رسائل -->
+    {% if success_message %}
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        {{ success_message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    {% if error_message %}
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        {{ error_message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    {% if warning_message %}
+    <div class="alert alert-warning alert-dismissible fade show" role="alert">
+        {{ warning_message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    <!-- نموذج إدخال الدرجات -->
+    <form method="POST" action="/grades/{{ assessment.id }}/grades/save" id="gradesForm">
+        <div class="card">
+            <div class="card-header">
+                <div class="d-flex justify-content-between align-items-center">
+                    <span><i class="fas fa-user-graduate"></i> قائمة الطلاب</span>
+                    <div>
+                        <button type="button" class="btn btn-sm btn-outline-primary" id="fillAllBtn">
+                            <i class="fas fa-edit"></i> تعبئة الكل
+                        </button>
+                        <button type="submit" class="btn btn-sm btn-primary" id="saveBtn">
+                            <i class="fas fa-save"></i> حفظ الدرجات
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover table-striped mb-0" id="gradesTable">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width: 50px;">#</th>
+                                <th>اسم الطالب</th>
+                                <th style="width: 150px;">الدرجة</th>
+                                <th>ملاحظة</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for student in students %}
+                            <tr>
+                                <td>{{ loop.index }}</td>
+                                <td>
+                                    <strong>{{ student.name }}</strong>
+                                    {% if student.grade is not none %}
+                                    <span class="badge bg-success ms-2">مسجل</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="input-group input-group-sm">
+                                        <input type="number"
+                                               name="score_{{ student.id }}"
+                                               id="score_{{ student.id }}"
+                                               class="form-control form-control-sm score-input"
+                                               placeholder="الدرجة"
+                                               min="0"
+                                               max="{{ assessment.max_score }}"
+                                               step="0.5"
+                                               value="{{ student.grade if student.grade is not none else '' }}"
+                                               {% if student.grade is not none %}data-existing="{{ student.grade }}"{% endif %}
+                                               oninput="validateScore(this)"
+                                        >
+                                        <span class="input-group-text">/ {{ assessment.max_score }}</span>
+                                    </div>
+                                    <small class="text-danger d-none" id="error_{{ student.id }}">الرجاء إدخال قيمة صحيحة</small>
+                                </td>
+                                <td>
+                                    <input type="text"
+                                           name="note_{{ student.id }}"
+                                           class="form-control form-control-sm"
+                                           placeholder="ملاحظة (اختياري)"
+                                           value="{{ student.note or '' }}"
+                                    >
+                                    {% if student.grade_id %}
+                                    <input type="hidden" name="grade_id_{{ student.id }}" value="{{ student.grade_id }}">
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="4" class="text-center py-5 text-muted">
+                                    <i class="fas fa-user-graduate fa-2x mb-3 d-block"></i>
+                                    لا يوجد طلاب مسجلين في هذه الشعبة
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="card-footer">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <span class="text-muted small">
+                            <i class="fas fa-info-circle"></i>
+                            تم إدخال <span id="enteredCount">0</span> درجة
+                        </span>
+                    </div>
+                    <div>
+                        <button type="reset" class="btn btn-sm btn-outline-secondary">
+                            <i class="fas fa-undo"></i> إعادة تعيين
+                        </button>
+                        <button type="submit" class="btn btn-sm btn-primary" id="saveBtn2">
+                            <i class="fas fa-save"></i> حفظ الدرجات
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+
+{% block extra_js %}
+<script>
+// ============================================================
+// إدخال الدرجات - JavaScript
+// ============================================================
+
+document.addEventListener('DOMContentLoaded', function() {
+    const maxScore = {{ assessment.max_score }};
+    const form = document.getElementById('gradesForm');
+    const scoreInputs = document.querySelectorAll('.score-input');
+    const enteredCountSpan = document.getElementById('enteredCount');
+
+    // ============================================================
+    // 1. تحديث عدد الدرجات المدخلة
+    // ============================================================
+    function updateEnteredCount() {
+        let count = 0;
+        scoreInputs.forEach(input => {
+            const val = input.value.trim();
+            if (val !== '' && !isNaN(val) && parseFloat(val) >= 0) {
+                count++;
+            }
+        });
+        enteredCountSpan.textContent = count;
+    }
+
+    // تحديث عند تغيير أي حقل
+    scoreInputs.forEach(input => {
+        input.addEventListener('input', updateEnteredCount);
+    });
+
+    // تحديث أولي
+    updateEnteredCount();
+
+    // ============================================================
+    // 2. التحقق من صحة الدرجة
+    // ============================================================
+    window.validateScore = function(input) {
+        const val = parseFloat(input.value);
+        const errorEl = document.getElementById('error_' + input.id.replace('score_', ''));
+        
+        if (input.value !== '' && (isNaN(val) || val < 0 || val > maxScore)) {
+            input.classList.add('is-invalid');
+            if (errorEl) errorEl.classList.remove('d-none');
+            return false;
+        } else {
+            input.classList.remove('is-invalid');
+            if (errorEl) errorEl.classList.add('d-none');
+            return true;
+        }
+    };
+
+    // ============================================================
+    // 3. تعبئة جميع الدرجات بقيمة واحدة
+    // ============================================================
+    document.getElementById('fillAllBtn').addEventListener('click', function() {
+        const fillValue = prompt('أدخل الدرجة لتعبئة جميع الطلاب (0 - ' + maxScore + '):');
+        if (fillValue === null) return;
+        
+        const val = parseFloat(fillValue);
+        if (isNaN(val) || val < 0 || val > maxScore) {
+            alert('الرجاء إدخال قيمة صحيحة بين 0 و ' + maxScore);
+            return;
+        }
+        
+        if (!confirm('هل أنت متأكد من تعبئة جميع الطلاب بالدرجة ' + val + '؟')) return;
+        
+        scoreInputs.forEach(input => {
+            input.value = val;
+            input.dispatchEvent(new Event('input'));
+            input.dispatchEvent(new Event('change'));
+            validateScore(input);
+        });
+        
+        updateEnteredCount();
+    });
+
+    // ============================================================
+    // 4. حفظ النموذج مع التحقق
+    // ============================================================
+    function handleSubmit(e) {
+        // التحقق من وجود درجات
+        let hasScores = false;
+        let allValid = true;
+        
+        scoreInputs.forEach(input => {
+            // التحقق من الصحة
+            if (!validateScore(input)) {
+                allValid = false;
+            }
+            
+            const val = input.value.trim();
+            if (val !== '' && !isNaN(val) && parseFloat(val) >= 0) {
+                hasScores = true;
+            }
+        });
+        
+        if (!allValid) {
+            e.preventDefault();
+            alert('⚠️ الرجاء تصحيح الأخطاء في الدرجات المدخلة');
+            return;
+        }
+        
+        if (!hasScores) {
+            e.preventDefault();
+            if (!confirm('⚠️ لم يتم إدخال أي درجات. هل تريد المتابعة؟')) {
+                return;
+            }
+        }
+        
+        // تعطيل الأزرار لتجنب النقر المزدوج
+        document.getElementById('saveBtn').disabled = true;
+        document.getElementById('saveBtn2').disabled = true;
+        document.getElementById('saveBtn').innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> جاري الحفظ...';
+        document.getElementById('saveBtn2').innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> جاري الحفظ...';
+    }
+
+    form.addEventListener('submit', handleSubmit);
+
+    // ============================================================
+    // 5. اختصارات لوحة المفاتيح
+    // ============================================================
+    // Ctrl+Enter للحفظ
+    document.addEventListener('keydown', function(e) {
+        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+            e.preventDefault();
+            form.dispatchEvent(new Event('submit'));
+        }
+    });
+
+    // ============================================================
+    // 6. التنقل بين الحقول باستخدام Enter
+    // ============================================================
+    const allInputs = document.querySelectorAll('input[type="number"], input[type="text"]');
+    allInputs.forEach((input, index) => {
+        input.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                const nextInput = allInputs[index + 1];
+                if (nextInput) {
+                    nextInput.focus();
+                    nextInput.select();
+                } else {
+                    // إذا كان آخر حقل، احفظ النموذج
+                    form.dispatchEvent(new Event('submit'));
+                }
+            }
+        });
+    });
+
+    // ============================================================
+    // 7. تحذير عند المغادرة مع تغييرات غير محفوظة
+    // ============================================================
+    let formChanged = false;
+    
+    form.addEventListener('change', function() {
+        formChanged = true;
+    });
+    
+    window.addEventListener('beforeunload', function(e) {
+        if (formChanged) {
+            e.preventDefault();
+            e.returnValue = 'لديك تغييرات غير محفوظة. هل أنت متأكد من المغادرة؟';
+        }
+    });
+    
+    // إعادة تعيين الحالة عند حفظ النموذج
+    form.addEventListener('submit', function() {
+        formChanged = false;
+    });
+});
+
+// ============================================================
+// 8. دالة مساعدة: تعبئة كل الدرجات بنفس القيمة (استدعاء من Console)
+// ============================================================
+function fillAllGrades(value) {
+    const inputs = document.querySelectorAll('.score-input');
+    const maxScore = {{ assessment.max_score }};
+    
+    if (value < 0 || value > maxScore) {
+        console.error('⚠️ القيمة يجب أن تكون بين 0 و ' + maxScore);
+        return;
+    }
+    
+    inputs.forEach(input => {
+        input.value = value;
+        input.dispatchEvent(new Event('input'));
+        input.dispatchEvent(new Event('change'));
+        window.validateScore(input);
+    });
+    
+    document.getElementById('enteredCount').textContent = inputs.length;
+    console.log('✅ تم تعبئة ' + inputs.length + ' طالب بالدرجة ' + value);
+}
+</script>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+/* تحسينات إضافية */
+.table th {
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+
+.score-input {
+    text-align: center;
+    font-weight: 600;
+    width: 100%;
+}
+
+.score-input:focus {
+    border-color: #4f46e5;
+    box-shadow: 0 0 0 0.2rem rgba(79, 70, 229, 0.25);
+}
+
+.score-input.is-invalid {
+    border-color: #dc3545;
+}
+
+.score-input.is-valid {
+    border-color: #198754;
+}
+
+.input-group-text {
+    font-size: 0.8rem;
+    background-color: #f8f9fa;
+}
+
+.badge.bg-success {
+    font-size: 0.65rem;
+}
+
+/* تأثير التمرير على الصفوف */
+.table-hover tbody tr:hover {
+    background-color: rgba(79, 70, 229, 0.05);
+}
+
+/* تحسين عرض الجدول على الشاشات الصغيرة */
+@media (max-width: 768px) {
+    .table-responsive {
+        font-size: 0.85rem;
+    }
+    .input-group-text {
+        font-size: 0.7rem;
+        padding: 0.2rem 0.4rem;
+    }
+}
+</style>
+{% endblock %}
+{% endblock %}
