@@ -6,17 +6,10 @@
     <div class="flex items-center justify-between">
         <div>
             <h1 class="text-2xl font-bold text-slate-800 dark:text-white">تعديل التقييم</h1>
-            <p class="text-slate-400 text-sm mt-1">تحديث بيانات التقييم: <span class="text-primary-600 font-medium">{{ item.title }}</span></p>
+            <p class="text-slate-400 text-sm mt-1">تعديل بيانات التقييم</p>
         </div>
         <div class="flex gap-3">
-            <a href="{{ url_for('grades.show', assessment_id=item.id) }}" class="bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-300 px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
-                </svg>
-                عرض التقييم
-            </a>
-            <a href="{{ url_for('grades.index') }}" class="bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2">
+            <a href="/grades" class="bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
                 </svg>
@@ -37,12 +30,7 @@
 
     <!-- Form -->
     <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-6 max-w-4xl">
-        <form id="assessment-update-form" class="space-y-6" method="POST" action="{{ url_for('grades.update', assessment_id=item.id) }}">
-            <!-- CSRF Token - فقط إذا كان موجوداً -->
-            {% if csrf_token %}
-            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-            {% endif %}
-            
+        <form id="assessment-update-form" class="space-y-6" method="POST" action="/grades/{{ item.id }}/update">
             <!-- قسم: المعلومات الأساسية -->
             <div class="border-b border-slate-200 dark:border-slate-700 pb-4">
                 <h3 class="font-semibold text-lg text-slate-800 dark:text-white mb-4">المعلومات الأساسية</h3>
@@ -92,7 +80,7 @@
                     </label>
                     <input type="text" name="title" id="title" 
                            value="{{ item.title }}"
-                           placeholder="أدخل عنوان التقييم" 
+                           placeholder="أدخل عنوان التقييم (مثال: اختبار الفصل الأول)" 
                            required
                            class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500 transition-colors">
                     <p class="text-xs text-slate-400 mt-1">عنوان واضح يعبر عن محتوى التقييم</p>
@@ -177,7 +165,7 @@
                                    class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500 transition-colors">
                             <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">نقطة</span>
                         </div>
-                        <p class="text-xs text-slate-400 mt-1">الدرجة الدنيا للنجاح</p>
+                        <p class="text-xs text-slate-400 mt-1">الدرجة الدنيا للنجاح (افتراضي: 50)</p>
                     </div>
 
                     <!-- الوزن -->
@@ -192,22 +180,7 @@
                                    class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500 transition-colors">
                             <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">×</span>
                         </div>
-                        <p class="text-xs text-slate-400 mt-1">وزن التقييم في المعدل النهائي</p>
-                    </div>
-                </div>
-
-                <!-- مؤشر مرئي للدرجات -->
-                <div class="mt-4 p-4 bg-slate-50 dark:bg-slate-700/30 rounded-lg">
-                    <div class="flex items-center justify-between text-sm">
-                        <span class="text-slate-600 dark:text-slate-300">معاينة الدرجات:</span>
-                        <div class="flex items-center gap-4">
-                            <span class="text-green-600 dark:text-green-400">ناجح: <span id="preview-passing">{{ item.passing_score or 50 }}</span></span>
-                            <span class="text-red-600 dark:text-red-400">راسب: <span id="preview-failing">أقل من {{ item.passing_score or 50 }}</span></span>
-                            <span class="text-blue-600 dark:text-blue-400">العظمى: <span id="preview-max">{{ item.max_score }}</span></span>
-                        </div>
-                    </div>
-                    <div class="mt-2 h-2 bg-slate-200 dark:bg-slate-600 rounded-full overflow-hidden">
-                        <div id="preview-progress" class="h-full bg-gradient-to-r from-red-500 via-yellow-500 to-green-500 transition-all duration-300" style="width: {{ ((item.passing_score or 50) / (item.max_score or 100)) * 100 }}%"></div>
+                        <p class="text-xs text-slate-400 mt-1">وزن التقييم في المعدل النهائي (افتراضي: 1.0)</p>
                     </div>
                 </div>
             </div>
@@ -226,7 +199,7 @@
                                 class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500 transition-colors">
                             <option value="">اختر المعلم (اختياري)</option>
                             {% for teacher in teachers %}
-                            <option value="{{ teacher.id }}" {% if item.teacher_id == teacher.id %}selected{% endif %}>
+                            <option value="{{ teacher.id }}" {% if item.teacher_id == teacher.id or current_user.id == teacher.id %}selected{% endif %}>
                                 {{ teacher.name }} 
                                 {% if teacher.specialization %}({{ teacher.specialization }}){% endif %}
                             </option>
@@ -234,36 +207,6 @@
                         </select>
                         <p class="text-xs text-slate-400 mt-1">المعلم المسؤول عن تصحيح التقييم</p>
                     </div>
-
-                    <!-- حالة التقييم -->
-                    <div>
-                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
-                            حالة التقييم
-                        </label>
-                        <select name="status" id="status" 
-                                class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500 transition-colors">
-                            <option value="draft" {% if item.status == 'draft' %}selected{% endif %}>📄 مسودة</option>
-                            <option value="published" {% if item.status == 'published' %}selected{% endif %}>📢 منشور</option>
-                            <option value="archived" {% if item.status == 'archived' %}selected{% endif %}>🗄️ مؤرشف</option>
-                        </select>
-                        <p class="text-xs text-slate-400 mt-1">حالة التقييم (مسودة، منشور، مؤرشف)</p>
-                    </div>
-                </div>
-
-                <!-- خيارات إضافية -->
-                <div class="mt-4 space-y-2">
-                    <label class="flex items-center gap-3 cursor-pointer">
-                        <input type="checkbox" name="allow_late_submission" id="allow-late" 
-                               {% if item.allow_late_submission %}checked{% endif %}
-                               class="w-4 h-4 text-primary-600 border-slate-300 rounded focus:ring-primary-500">
-                        <span class="text-sm text-slate-700 dark:text-slate-300">السماح بالتسليم المتأخر</span>
-                    </label>
-                    <label class="flex items-center gap-3 cursor-pointer">
-                        <input type="checkbox" name="show_results" id="show-results" 
-                               {% if item.show_results %}checked{% endif %}
-                               class="w-4 h-4 text-primary-600 border-slate-300 rounded focus:ring-primary-500">
-                        <span class="text-sm text-slate-700 dark:text-slate-300">عرض النتائج للطلاب</span>
-                    </label>
                 </div>
             </div>
 
@@ -272,84 +215,20 @@
                 <button type="submit" 
                         class="flex-1 bg-primary-600 hover:bg-primary-700 text-white px-6 py-3 rounded-lg text-sm font-semibold transition-colors flex items-center justify-center gap-2">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
                     </svg>
                     تحديث التقييم
                 </button>
-                <a href="{{ url_for('grades.index') }}" 
+                <a href="/grades" 
                    class="flex-1 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 px-6 py-3 rounded-lg text-sm font-medium transition-colors text-center">
                     إلغاء
                 </a>
-            </div>
-
-            <!-- زر الحذف السريع -->
-            <div class="border-t border-slate-200 dark:border-slate-700 pt-4">
-                <button type="button" onclick="confirmDelete('{{ item.id }}')" 
-                        class="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 text-sm font-medium transition-colors flex items-center gap-2">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-                    </svg>
-                    حذف التقييم
-                </button>
             </div>
         </form>
     </div>
 </div>
 
 <script>
-// ============================================
-// 📊 Preview Update - تحديث المعاينة
-// ============================================
-
-document.addEventListener('DOMContentLoaded', function() {
-    const maxScoreInput = document.getElementById('max-score');
-    const passingScoreInput = document.getElementById('passing-score');
-    const previewMax = document.getElementById('preview-max');
-    const previewPassing = document.getElementById('preview-passing');
-    const previewFailing = document.getElementById('preview-failing');
-    const previewProgress = document.getElementById('preview-progress');
-
-    function updatePreview() {
-        const max = parseFloat(maxScoreInput.value) || 100;
-        const passing = parseFloat(passingScoreInput.value) || 50;
-        
-        if (previewMax) previewMax.textContent = max;
-        if (previewPassing) previewPassing.textContent = passing;
-        if (previewFailing) previewFailing.textContent = passing > 0 ? `أقل من ${passing}` : 'لا يوجد';
-        
-        if (previewProgress) {
-            const passingPercentage = (passing / max) * 100;
-            previewProgress.style.width = `${Math.min(passingPercentage, 100)}%`;
-        }
-    }
-
-    if (maxScoreInput) maxScoreInput.addEventListener('input', updatePreview);
-    if (passingScoreInput) passingScoreInput.addEventListener('input', updatePreview);
-    updatePreview();
-
-    // ============================================
-    // 🗑️ Delete Confirmation - تأكيد الحذف
-    // ============================================
-    window.confirmDelete = function(id) {
-        if (confirm('⚠️ هل أنت متأكد من حذف هذا التقييم؟\nهذا الإجراء لا يمكن التراجع عنه.')) {
-            const form = document.createElement('form');
-            form.method = 'POST';
-            form.action = "{{ url_for('grades.delete', assessment_id='') }}" + id;
-            
-            {% if csrf_token %}
-            const csrfInput = document.createElement('input');
-            csrfInput.type = 'hidden';
-            csrfInput.name = 'csrf_token';
-            csrfInput.value = '{{ csrf_token }}';
-            form.appendChild(csrfInput);
-            {% endif %}
-            
-            document.body.appendChild(form);
-            form.submit();
-        }
-    };
-});
-
 // ============================================
 // 📝 Form Validation - التحقق من صحة النموذج
 // ============================================
@@ -375,6 +254,7 @@ document.getElementById('assessment-update-form').addEventListener('submit', fun
 </script>
 
 <style>
+/* تنسيقات إضافية */
 input:focus, select:focus, textarea:focus {
     box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
 }
@@ -385,21 +265,6 @@ input:required, select:required {
 
 input:required:focus, select:required:focus {
     border-color: #818cf8;
-}
-
-#preview-progress {
-    background: linear-gradient(to right, #ef4444, #eab308, #22c55e);
-}
-
-/* تنسيق حقول الإدخال عند وجود خطأ */
-.input-error {
-    border-color: #ef4444 !important;
-    background-color: #fef2f2 !important;
-}
-
-.input-error:focus {
-    border-color: #ef4444 !important;
-    box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1) !important;
 }
 </style>
 {% endblock %}
