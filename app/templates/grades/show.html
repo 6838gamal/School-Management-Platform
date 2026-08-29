@@ -9,13 +9,13 @@
             <p class="text-slate-400 text-sm mt-1">عرض تفاصيل التقييم {{ item.title }}</p>
         </div>
         <div class="flex gap-3">
-            <a href="{{ url_for('grades.index') }}" class="bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2">
+            <a href="/grades" class="bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
                 </svg>
                 العودة للقائمة
             </a>
-            <a href="{{ url_for('grades.edit', assessment_id=item.id) }}" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center gap-2">
+            <a href="/grades/{{ item.id }}/update" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center gap-2">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
                 </svg>
@@ -26,7 +26,7 @@
 
     <!-- Success Messages -->
     {% if request.query_params.get('success') %}
-    <div class="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-700 dark:text-green-400 px-4 py-3 rounded-lg flex items-center gap-2">
+    <div class="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-700 dark:text-green-400 px-4 py-3 rounded-lg flex items-center gap-2" id="successMessage">
         <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
             <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
         </svg>
@@ -121,7 +121,7 @@
                 </svg>
                 <p class="text-lg font-medium">لا توجد درجات مسجلة</p>
                 <p class="text-sm mt-1">لم يتم إدخال درجات لهذا التقييم بعد</p>
-                <a href="{{ url_for('grades.entry', assessment_id=item.id) }}" class="mt-4 inline-block bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors">
+                <a href="/grades/{{ item.id }}/grades" class="mt-4 inline-block bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors">
                     إدخال الدرجات
                 </a>
             </div>
@@ -133,13 +133,13 @@
 <script>
 // Auto-close success message after 5 seconds
 document.addEventListener('DOMContentLoaded', function() {
-    const successMsg = document.querySelector('.bg-green-50');
+    const successMsg = document.getElementById('successMessage');
     if (successMsg) {
         setTimeout(function() {
             successMsg.style.transition = 'opacity 0.5s ease';
             successMsg.style.opacity = '0';
             setTimeout(function() {
-                successMsg.remove();
+                successMsg.style.display = 'none';
             }, 500);
         }, 5000);
     }
