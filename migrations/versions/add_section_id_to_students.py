@@ -1,6 +1,6 @@
 """add_section_id_to_students
 
-Revision ID: xxxxxxx
+Revision ID: 006
 Revises: yyyyyyy
 Create Date: 2026-08-29 04:37:35.284564
 
