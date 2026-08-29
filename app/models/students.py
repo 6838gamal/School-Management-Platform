@@ -31,8 +31,13 @@ class Student(UUIDPkMixin, TimestampMixin, Base):
     address: Mapped[str | None] = mapped_column(String(500))
     photo_url: Mapped[str | None] = mapped_column(String(500))
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    
+    # ✅ إضافة العمود الجديد
+    section_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("sections.id", ondelete="SET NULL"), index=True
+    )
     #created_by: Mapped[str | None] = mapped_column(String(36))
-  #  updated_by: Mapped[str | None] = mapped_column(String(36))
+    #updated_by: Mapped[str | None] = mapped_column(String(36))
 
     enrollments: Mapped[list["StudentEnrollment"]] = relationship(
         "StudentEnrollment", back_populates="student", cascade="all, delete-orphan"
@@ -81,10 +86,8 @@ class StudentEnrollment(UUIDPkMixin, TimestampMixin, Base):
         String(36), ForeignKey("sections.id", ondelete="SET NULL"), index=True
     )
     status: Mapped[str] = mapped_column(String(20), default="active")  # active/transferred/graduated/left
-    enrolled_at: Mapped[str] = mapped_column(String(50))  # ✅ زيادة الطول
-    ended_at: Mapped[str | None] = mapped_column(String(50))  # ✅ زيادة الطول
-  #  created_by: Mapped[str | None] = mapped_column(String(36))
-  #  updated_by: Mapped[str | None] = mapped_column(String(36))
+    enrolled_at: Mapped[str] = mapped_column(String(50))
+    ended_at: Mapped[str | None] = mapped_column(String(50))
 
     student: Mapped["Student"] = relationship("Student", back_populates="enrollments")
 
