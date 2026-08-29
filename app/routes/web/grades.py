@@ -49,6 +49,34 @@ async def get_assessment_with_details(db: AsyncSession, assessment_id: str):
     if not assessment:
         return None
     
+    # جلب اسم الشعبة والمادة
+    section_name = None
+    subject_name = None
+    
+    try:
+        if assessment.section_id:
+            section_result = await db.execute(
+                text("SELECT name FROM sections WHERE id = :id"),
+                {"id": assessment.section_id}
+            )
+            section_row = section_result.fetchone()
+            if section_row:
+                section_name = section_row[0]
+    except Exception:
+        pass
+    
+    try:
+        if assessment.subject_id:
+            subject_result = await db.execute(
+                text("SELECT name FROM subjects WHERE id = :id"),
+                {"id": assessment.subject_id}
+            )
+            subject_row = subject_result.fetchone()
+            if subject_row:
+                subject_name = subject_row[0]
+    except Exception:
+        pass
+    
     return {
         "id": assessment.id,
         "title": assessment.title,
@@ -65,6 +93,8 @@ async def get_assessment_with_details(db: AsyncSession, assessment_id: str):
         "year_id": getattr(assessment, 'year_id', None),
         "created_at": assessment.created_at,
         "updated_at": assessment.updated_at,
+        "section_name": section_name,
+        "subject_name": subject_name,
     }
 
 
@@ -100,10 +130,12 @@ async def grades_page(
     print("🚀 Grades Page Called")
     print(f"📌 User ID: {user.id}")
     print(f"📌 School ID: {user.school_id}")
+    print(f"📌 Section ID: {section_id}")
+    print(f"📌 Search: {search}")
     print("=" * 60)
     
     # ============================================================
-    # ✅ استعلام لجلب جميع التقييمات (بدون فلتر school_id)
+    # ✅ استعلام لجلب التقييمات مع فلتر school_id
     # ============================================================
     query = """
         SELECT 
@@ -115,13 +147,17 @@ async def grades_page(
         FROM assessments a
         LEFT JOIN sections s ON s.id = a.section_id
         LEFT JOIN subjects sub ON sub.id = a.subject_id
-        WHERE 1=1
+        WHERE a.school_id = :school_id
     """
-    params = {}
+    params = {"school_id": user.school_id}
     
     if section_id:
         query += " AND a.section_id = :section_id"
         params["section_id"] = section_id
+    
+    if search:
+        query += " AND (a.title ILIKE :search OR a.description ILIKE :search)"
+        params["search"] = f"%{search}%"
     
     query += " ORDER BY a.created_at DESC"
     query += f" LIMIT {page_size} OFFSET {(page - 1) * page_size}"
@@ -134,7 +170,6 @@ async def grades_page(
         rows = result.fetchall()
         print(f"📊 عدد النتائج: {len(rows)}")
         
-        # طباعة كل النتائج للتحقق
         for i, row in enumerate(rows):
             print(f"   [{i+1}] ID: {row.id}, Title: {row.title}, School: {row.school_id}")
     except Exception as e:
@@ -162,9 +197,8 @@ async def grades_page(
     # 🧪 إذا كانت البيانات فارغة، استخدم بيانات تجريبية
     # ============================================================
     if not formatted_assessments:
-        print("⚠️ لا توجد بيانات في قاعدة البيانات، استخدام بيانات تجريبية")
+        print("⚠️ لا توجد بيانات في قاعدة البيانات لهذه المدرسة، استخدام بيانات تجريبية")
         
-        # جلب أول شعبة ومادة
         section = None
         subject = None
         try:
@@ -173,7 +207,7 @@ async def grades_page(
             subject_result = await db.execute(text("SELECT id, name FROM subjects LIMIT 1"))
             subject = subject_result.fetchone()
         except Exception as e:
-            print(f"❌ خطأ: {e}")
+            print(f"❌ خطأ في جلب العينات: {e}")
         
         formatted_assessments = [
             {
@@ -188,6 +222,19 @@ async def grades_page(
                 "subject_name": subject.name if subject else "الرياضيات",
                 "section_id": section.id if section else "section-1",
                 "subject_id": subject.id if subject else "subject-1",
+            },
+            {
+                "id": "test-2",
+                "title": "⚡ اختبار قصير - العلوم",
+                "description": "اختبار قصير للفصل الأول",
+                "assessment_type": "quiz",
+                "assessment_type_label": "قصير",
+                "max_score": 50,
+                "date": "2026-08-30",
+                "section_name": section.name if section else "الشعبة ب",
+                "subject_name": "العلوم",
+                "section_id": section.id if section else "section-2",
+                "subject_id": "subject-2",
             }
         ]
         total = len(formatted_assessments)
@@ -217,9 +264,7 @@ async def grades_page(
             "now": datetime.now(),
         },
     )
-        
 
- 
 
 @router.get("/list", name="grades.list")
 async def list_assessments(
@@ -311,13 +356,21 @@ async def store_assessment(
         "year_id": year_id,
     }
     
+    print(f"📝 إنشاء تقييم جديد:")
+    print(f"   School ID: {user.school_id}")
+    print(f"   Section ID: {data['section_id']}")
+    print(f"   Subject ID: {data['subject_id']}")
+    print(f"   Title: {data['title']}")
+    
     try:
         assessment = await service.assessments.create(**data)
+        print(f"✅ تم إنشاء التقييم: {assessment.id}")
         return RedirectResponse(
             url=f"/grades/{assessment.id}?success=created",
             status_code=303
         )
     except Exception as e:
+        print(f"❌ خطأ في إنشاء التقييم: {str(e)}")
         return RedirectResponse(
             url="/grades/create?error=" + str(e),
             status_code=303
@@ -557,19 +610,16 @@ async def save_grades(
             )
             result = await service.batch_record(user.id, batch_data)
             
-            # إعادة التوجيه مع رسالة نجاح
             return RedirectResponse(
                 url=f"/grades/{assessment_id}/grades?success=grades_saved&count={result.get('recorded', 0)}",
                 status_code=303
             )
         except Exception as e:
-            # في حالة الخطأ، إعادة التوجيه مع رسالة خطأ
             return RedirectResponse(
                 url=f"/grades/{assessment_id}/grades?error={str(e)}",
                 status_code=303
             )
     
-    # إذا لم توجد درجات للحفظ
     return RedirectResponse(
         url=f"/grades/{assessment_id}/grades?warning=no_grades",
         status_code=303
@@ -614,7 +664,6 @@ async def student_grades(
     
     student = await service.students.get(student_id)
     
-    # حساب الإحصائيات
     total_weighted = 0
     total_weight = 0
     for g in grades:
@@ -650,7 +699,6 @@ async def create_assessment_api(
     service = GradeService(db)
     academic_service = AcademicService(db)
     
-    # جلب العام الدراسي الحالي
     try:
         current_year = await academic_service.get_current_year(user.school_id)
         year_id = current_year.id
@@ -660,7 +708,6 @@ async def create_assessment_api(
             raise HTTPException(status_code=400, detail="لا يوجد عام دراسي")
         year_id = years[0].id
     
-    # إضافة year_id و school_id إلى الطلب
     req_data = req.model_dump()
     req_data["year_id"] = year_id
     req_data["school_id"] = user.school_id
