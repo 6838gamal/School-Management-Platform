@@ -125,43 +125,6 @@ class Period(UUIDPkMixin, TimestampMixin, Base):
     is_break: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
-# ✅ ============================================
-# ✅ نموذج التقييمات (Assessment)
-# ✅ ============================================
-class Assessment(UUIDPkMixin, TimestampMixin, Base):
-    """نموذج التقييمات والاختبارات"""
-    __tablename__ = "assessments"
-
-    school_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("schools.id", ondelete="CASCADE"), index=True
-    )
-    section_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("sections.id", ondelete="CASCADE"), index=True
-    )
-    subject_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("subjects.id", ondelete="CASCADE"), index=True
-    )
-    teacher_id: Mapped[str | None] = mapped_column(
-        String(36), ForeignKey("users.id", ondelete="SET NULL"), index=True
-    )
-    year_id: Mapped[str | None] = mapped_column(
-        String(36), ForeignKey("academic_years.id", ondelete="SET NULL"), index=True
-    )
-    title: Mapped[str] = mapped_column(String(255), nullable=False)
-    description: Mapped[str | None] = mapped_column(Text)
-    assessment_type: Mapped[str] = mapped_column(
-        String(50), nullable=False
-    )  # exam, quiz, assignment, homework, activity, participation
-    max_score: Mapped[float] = mapped_column(Float, default=100.0)
-    passing_score: Mapped[float | None] = mapped_column(Float, default=50.0)
-    weight: Mapped[float] = mapped_column(Float, default=1.0)
-    date: Mapped[str | None] = mapped_column(String(20))
-
-    # العلاقات (اختيارية - يمكن إضافتها عند الحاجة)
-    # section: Mapped["Section"] = relationship("Section", back_populates="assessments")
-    # subject: Mapped["Subject"] = relationship("Subject", back_populates="assessments")
-    # teacher: Mapped["User"] = relationship("User", back_populates="assessments")
-
 
 # ✅ تحديث __all__
 __all__ = [
@@ -172,5 +135,5 @@ __all__ = [
     "Subject",
     "Room",
     "Period",
-    "Assessment",  # ✅ أضف هذا
+    
 ]
