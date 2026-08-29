@@ -1,5 +1,5 @@
 """Grades schemas."""
-from pydantic import BaseModel,Field
+from pydantic import BaseModel, Field
 
 from app.schemas.common import ORMBase
 
@@ -15,15 +15,23 @@ class AssessmentCreate(BaseModel):
     weight: float = 1.0
     date: str | None = None
     description: str | None = None
+    # ✅ إضافة الحقول المطلوبة
+    school_id: str | None = None
+    year_id: str | None = None
 
 
 class AssessmentUpdate(BaseModel):
     title: str | None = None
+    section_id: str | None = None
+    subject_id: str | None = None
+    teacher_id: str | None = None
+    assessment_type: str | None = Field(None, pattern="^(exam|quiz|assignment|homework|activity|participation)$")
     max_score: float | None = None
     passing_score: float | None = None
     weight: float | None = None
     date: str | None = None
     description: str | None = None
+    year_id: str | None = None
 
 
 class AssessmentOut(ORMBase):
@@ -38,6 +46,8 @@ class AssessmentOut(ORMBase):
     weight: float
     date: str | None = None
     description: str | None = None
+    school_id: str | None = None
+    year_id: str | None = None
 
 
 class GradeRecordCreate(BaseModel):
