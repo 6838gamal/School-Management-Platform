@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, Request, HTTPException
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, or_
+from sqlalchemy import select, func, or_, text
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 
@@ -68,6 +68,19 @@ async def get_assessment_with_details(db: AsyncSession, assessment_id: str):
     }
 
 
+def get_assessment_type_label(assessment_type: str) -> str:
+    """الحصول على التسمية العربية لنوع التقييم"""
+    labels = {
+        "exam": "اختبار",
+        "quiz": "قصير",
+        "assignment": "واجب",
+        "homework": "تكليف",
+        "activity": "نشاط",
+        "participation": "مشاركة",
+    }
+    return labels.get(assessment_type, assessment_type)
+
+
 # ============= الصفحة الرئيسية =============
 @router.get("", name="grades.index")
 async def grades_page(
@@ -81,89 +94,138 @@ async def grades_page(
     page_size: int = 10,
 ):
     """عرض صفحة الدرجات الرئيسية"""
-    service = GradeService(db)
     
-    # ✅ بناء الاستعلام لجلب التقييمات
-    query = select(Assessment).where(Assessment.school_id == user.school_id)
+    # ============================================================
+    # 🔍 DEBUG - طباعة المعلومات
+    # ============================================================
+    print("=" * 60)
+    print("🔍 DEBUG - Grades Page")
+    print(f"📌 User ID: {user.id}")
+    print(f"📌 School ID: {user.school_id}")
+    print(f"📌 Section ID: {section_id}")
+    print(f"📌 Search: {search}")
+    print(f"📌 Page: {page}, Page Size: {page_size}")
+    
+    # التحقق من وجود جدول assessments
+    table_check = """
+        SELECT EXISTS (
+            SELECT 1 FROM information_schema.tables 
+            WHERE table_name = 'assessments'
+        )
+    """
+    table_result = await db.execute(text(table_check))
+    table_exists = table_result.scalar()
+    print(f"📋 هل جدول assessments موجود؟ {table_exists}")
+    
+    # التحقق من عدد التقييمات في الجدول
+    count_all_check = "SELECT COUNT(*) FROM assessments"
+    count_all_result = await db.execute(text(count_all_check))
+    total_all = count_all_result.scalar()
+    print(f"📊 إجمالي التقييمات في الجدول: {total_all}")
+    
+    # التحقق من عدد التقييمات للمدرسة
+    count_school_check = "SELECT COUNT(*) FROM assessments WHERE school_id = :school_id"
+    count_school_result = await db.execute(text(count_school_check), {"school_id": user.school_id})
+    total_school = count_school_result.scalar()
+    print(f"📊 التقييمات للمدرسة {user.school_id}: {total_school}")
+    
+    # جلب أول 5 تقييمات لعرضها
+    sample_query = """
+        SELECT id, title, school_id, section_id, subject_id, max_score, created_at
+        FROM assessments 
+        LIMIT 5
+    """
+    sample_result = await db.execute(text(sample_query))
+    samples = sample_result.fetchall()
+    print(f"📊 عينة من التقييمات (أول 5):")
+    for s in samples:
+        print(f"   - ID: {s.id}, Title: {s.title}, School: {s.school_id}, Max Score: {s.max_score}")
+    print("=" * 60)
+    
+    # ============================================================
+    # ✅ الاستعلام الرئيسي
+    # ============================================================
+    query = """
+        SELECT 
+            a.id, a.title, a.description, a.assessment_type, 
+            a.max_score, a.date, a.section_id, a.subject_id,
+            s.name as section_name,
+            sub.name as subject_name
+        FROM assessments a
+        LEFT JOIN sections s ON s.id = a.section_id
+        LEFT JOIN subjects sub ON sub.id = a.subject_id
+        WHERE a.school_id = :school_id
+    """
+    params = {"school_id": user.school_id}
     
     if section_id:
-        query = query.where(Assessment.section_id == section_id)
+        query += " AND a.section_id = :section_id"
+        params["section_id"] = section_id
     
     if search:
-        query = query.where(
-            or_(
-                Assessment.title.ilike(f"%{search}%"),
-                Assessment.description.ilike(f"%{search}%")
-            )
-        )
+        query += " AND (a.title ILIKE :search OR a.description ILIKE :search)"
+        params["search"] = f"%{search}%"
     
-    # ترتيب حسب التاريخ (الأحدث أولاً)
-    query = query.order_by(Assessment.date.desc().nullslast(), Assessment.created_at.desc())
+    query += " ORDER BY a.date DESC NULLS LAST, a.created_at DESC"
+    query += f" LIMIT {page_size} OFFSET {(page - 1) * page_size}"
+    
+    print(f"📝 SQL: {query}")
+    print(f"📝 PARAMS: {params}")
+    
+    try:
+        result = await db.execute(text(query), params)
+        rows = result.fetchall()
+        print(f"📊 عدد النتائج: {len(rows)}")
+        if rows:
+            print(f"📊 أول نتيجة: {dict(rows[0]._mapping)}")
+    except Exception as e:
+        print(f"❌ خطأ في الاستعلام: {str(e)}")
+        rows = []
+    
+    # تنسيق النتائج
+    formatted_assessments = []
+    for row in rows:
+        formatted_assessments.append({
+            "id": row.id,
+            "title": row.title,
+            "description": row.description,
+            "assessment_type": row.assessment_type,
+            "assessment_type_label": get_assessment_type_label(row.assessment_type),
+            "max_score": float(row.max_score) if row.max_score is not None else 0,
+            "date": row.date,
+            "section_name": row.section_name or row.section_id or '—',
+            "subject_name": row.subject_name or row.subject_id or '—',
+            "section_id": row.section_id,
+            "subject_id": row.subject_id,
+        })
     
     # حساب العدد الإجمالي
-    count_query = select(func.count()).select_from(Assessment).where(Assessment.school_id == user.school_id)
+    count_query = """
+        SELECT COUNT(*) 
+        FROM assessments a
+        WHERE a.school_id = :school_id
+    """
+    count_params = {"school_id": user.school_id}
     if section_id:
-        count_query = count_query.where(Assessment.section_id == section_id)
+        count_query += " AND a.section_id = :section_id"
+        count_params["section_id"] = section_id
     if search:
-        count_query = count_query.where(
-            or_(
-                Assessment.title.ilike(f"%{search}%"),
-                Assessment.description.ilike(f"%{search}%")
-            )
-        )
-    count_result = await db.execute(count_query)
-    total = count_result.scalar() or 0
+        count_query += " AND (a.title ILIKE :search OR a.description ILIKE :search)"
+        count_params["search"] = f"%{search}%"
     
-    # تطبيق الترحيل
-    offset = (page - 1) * page_size
-    query = query.offset(offset).limit(page_size)
+    try:
+        count_result = await db.execute(text(count_query), count_params)
+        total = count_result.scalar() or 0
+    except Exception as e:
+        print(f"❌ خطأ في حساب العدد: {str(e)}")
+        total = 0
     
-    result = await db.execute(query)
-    assessments = result.scalars().all()
+    print(f"📊 إجمالي التقييمات بعد التصفية: {total}")
+    print("=" * 60)
     
     # جلب الشعب والمواد
     sections = await get_sections(db, user.school_id)
     subjects = await get_subjects(db, user.school_id)
-    
-    # تنسيق البيانات للعرض في القالب
-    formatted_assessments = []
-    for a in assessments:
-        # جلب اسم الشعبة والمادة
-        section_name = None
-        subject_name = None
-        
-        # محاولة جلب الأسماء من العلاقات
-        if hasattr(a, 'section') and a.section:
-            section_name = a.section.name
-        elif hasattr(a, 'section_id'):
-            # البحث عن الشعبة في قائمة sections
-            for sec in sections:
-                if sec.id == a.section_id:
-                    section_name = sec.name
-                    break
-        
-        if hasattr(a, 'subject') and a.subject:
-            subject_name = a.subject.name
-        elif hasattr(a, 'subject_id'):
-            for sub in subjects:
-                if sub.id == a.subject_id:
-                    subject_name = sub.name
-                    break
-        
-        formatted_assessments.append({
-            "id": a.id,
-            "title": a.title,
-            "description": a.description,
-            "section_name": section_name or a.section_id,
-            "subject_name": subject_name or a.subject_id,
-            "assessment_type": a.assessment_type,
-            "assessment_type_label": get_assessment_type_label(a.assessment_type),
-            "max_score": float(a.max_score),
-            "date": a.date,
-            "created_at": a.created_at,
-            "section_id": a.section_id,
-            "subject_id": a.subject_id,
-        })
     
     return templates.TemplateResponse(
         "grades/index.html",
@@ -181,19 +243,6 @@ async def grades_page(
             "now": datetime.now(),
         },
     )
-
-
-def get_assessment_type_label(assessment_type: str) -> str:
-    """الحصول على التسمية العربية لنوع التقييم"""
-    labels = {
-        "exam": "اختبار",
-        "quiz": "قصير",
-        "assignment": "واجب",
-        "homework": "تكليف",
-        "activity": "نشاط",
-        "participation": "مشاركة",
-    }
-    return labels.get(assessment_type, assessment_type)
 
 
 @router.get("/list", name="grades.list")
