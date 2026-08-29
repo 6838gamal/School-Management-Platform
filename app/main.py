@@ -165,6 +165,62 @@ async def ensure_database_schema():
                     END IF;
                 END $$;
             """))
+            
+            # 2. التحقق من وجود عمود section_id في جدول students
+            await db.execute(text("""
+                DO $$
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.columns 
+                        WHERE table_name = 'students' AND column_name = 'section_id'
+                    ) THEN
+                        ALTER TABLE students ADD COLUMN section_id VARCHAR(36) NULL;
+                        CREATE INDEX IF NOT EXISTS ix_students_section_id ON students (section_id);
+                        RAISE NOTICE '✅ تم إضافة العمود section_id إلى جدول students';
+                    ELSE
+                        RAISE NOTICE 'ℹ️ العمود section_id موجود بالفعل في جدول students';
+                    END IF;
+                END $$;
+            """))
+            
+            # 3. إضافة المفتاح الخارجي للـ section_id
+            await db.execute(text("""
+                DO $$
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.table_constraints 
+                        WHERE table_name = 'students' 
+                        AND constraint_name = 'fk_students_section_id_sections'
+                    ) THEN
+                        ALTER TABLE students 
+                        ADD CONSTRAINT fk_students_section_id_sections 
+                        FOREIGN KEY (section_id) 
+                        REFERENCES sections(id) 
+                        ON DELETE SET NULL;
+                        RAISE NOTICE '✅ تم إضافة المفتاح الخارجي fk_students_section_id_sections';
+                    ELSE
+                        RAISE NOTICE 'ℹ️ المفتاح الخارجي fk_students_section_id_sections موجود بالفعل';
+                    END IF;
+                END $$;
+            """))
+            
+            # 4. التحقق من وجود عمود school_id في جدول students (إذا لم يكن موجوداً)
+            await db.execute(text("""
+                DO $$
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.columns 
+                        WHERE table_name = 'students' AND column_name = 'school_id'
+                    ) THEN
+                        ALTER TABLE students ADD COLUMN school_id VARCHAR(36) NULL;
+                        CREATE INDEX IF NOT EXISTS ix_students_school_id ON students (school_id);
+                        RAISE NOTICE '✅ تم إضافة العمود school_id إلى جدول students';
+                    ELSE
+                        RAISE NOTICE 'ℹ️ العمود school_id موجود بالفعل في جدول students';
+                    END IF;
+                END $$;
+            """))
+            
             await db.commit()
             print("✅ تم التحقق من هيكل قاعدة البيانات بنجاح")
             break
