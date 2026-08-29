@@ -118,7 +118,32 @@ async def fetch_assessments(
 ) -> tuple[List[Dict], int]:
     """Fetch assessments with filtering and pagination."""
     
-    # ✅ استعلام مبسط بدون JOIN للتأكد من جلب البيانات
+    # ✅ طباعة معلومات التصحيح
+    print("=" * 60)
+    print("🔍 fetch_assessments called")
+    print(f"   School ID: {school_id}")
+    print(f"   Section ID: {section_id}")
+    print(f"   Search: {search}")
+    print(f"   Page: {page}, Page Size: {page_size}")
+    print("=" * 60)
+    
+    # ✅ استعلام مباشر للتحقق من وجود البيانات
+    try:
+        check_query = "SELECT COUNT(*) FROM assessments WHERE school_id = :school_id"
+        check_result = await db.execute(text(check_query), {"school_id": school_id})
+        total_count = check_result.scalar()
+        print(f"📊 Total assessments in DB: {total_count}")
+        
+        # جلب جميع التقييمات للتحقق
+        all_query = "SELECT id, title, school_id FROM assessments WHERE school_id = :school_id LIMIT 10"
+        all_result = await db.execute(text(all_query), {"school_id": school_id})
+        all_rows = all_result.fetchall()
+        for row in all_rows:
+            print(f"   - ID: {row.id}, Title: {row.title}, School: {row.school_id}")
+    except Exception as e:
+        print(f"❌ Error checking DB: {str(e)}")
+    
+    # ✅ استعلام مبسط بدون JOIN
     query = """
         SELECT 
             a.id, 
@@ -149,75 +174,89 @@ async def fetch_assessments(
         query += " AND (a.title ILIKE :search OR a.description ILIKE :search)"
         params["search"] = f"%{search}%"
     
-    # Get total count
-    count_query = f"SELECT COUNT(*) FROM ({query}) as subquery"
-    count_result = await db.execute(text(count_query), params)
-    total = count_result.scalar()
+    print(f"📝 Query: {query}")
+    print(f"📝 Params: {params}")
     
-    # Get paginated results
-    query += " ORDER BY a.created_at DESC"
-    query += f" LIMIT {page_size} OFFSET {(page - 1) * page_size}"
-    
-    result = await db.execute(text(query), params)
-    rows = result.fetchall()
-    
-    # ✅ طباعة للتصحيح
-    print(f"🔍 عدد التقييمات الموجودة: {len(rows)}")
-    for row in rows:
-        print(f"   - ID: {row.id}, Title: {row.title}, School: {row.school_id}")
-    
-    assessments = []
-    for row in rows:
-        # ✅ جلب اسم الشعبة والمادة بشكل منفصل (إذا وجدت)
-        section_name = None
-        subject_name = None
+    try:
+        # Get total count
+        count_query = f"SELECT COUNT(*) FROM ({query}) as subquery"
+        count_result = await db.execute(text(count_query), params)
+        total = count_result.scalar()
+        print(f"📊 Total after filters: {total}")
         
-        if row.section_id:
-            try:
-                sec_result = await db.execute(
-                    text("SELECT name FROM sections WHERE id = :id"),
-                    {"id": row.section_id}
-                )
-                sec_row = sec_result.fetchone()
-                if sec_row:
-                    section_name = sec_row[0]
-            except Exception:
-                pass
+        # Get paginated results
+        query += " ORDER BY a.created_at DESC"
+        query += f" LIMIT {page_size} OFFSET {(page - 1) * page_size}"
         
-        if row.subject_id:
-            try:
-                sub_result = await db.execute(
-                    text("SELECT name FROM subjects WHERE id = :id"),
-                    {"id": row.subject_id}
-                )
-                sub_row = sub_result.fetchone()
-                if sub_row:
-                    subject_name = sub_row[0]
-            except Exception:
-                pass
+        result = await db.execute(text(query), params)
+        rows = result.fetchall()
         
-        assessments.append({
-            "id": row.id,
-            "title": row.title,
-            "description": row.description,
-            "assessment_type": row.assessment_type,
-            "assessment_type_label": get_assessment_type_label(row.assessment_type),
-            "max_score": float(row.max_score) if row.max_score else 0,
-            "passing_score": float(row.passing_score) if row.passing_score else None,
-            "weight": float(row.weight) if row.weight else 1.0,
-            "date": row.date,
-            "section_id": row.section_id,
-            "section_name": section_name or '—',
-            "subject_id": row.subject_id,
-            "subject_name": subject_name or '—',
-            "teacher_id": row.teacher_id,
-            "school_id": row.school_id,
-            "year_id": row.year_id,
-            "created_at": row.created_at,
-            "updated_at": row.updated_at,
-        })
-    
-    return assessments, total
+        print(f"📊 Rows fetched: {len(rows)}")
+        
+        assessments = []
+        for row in rows:
+            print(f"   Processing: {row.id} - {row.title}")
+            
+            # جلب اسم الشعبة والمادة
+            section_name = None
+            subject_name = None
+            
+            if row.section_id:
+                try:
+                    sec_result = await db.execute(
+                        text("SELECT name FROM sections WHERE id = :id"),
+                        {"id": row.section_id}
+                    )
+                    sec_row = sec_result.fetchone()
+                    if sec_row:
+                        section_name = sec_row[0]
+                        print(f"      Section: {section_name}")
+                except Exception as e:
+                    print(f"      Error fetching section: {str(e)}")
+            
+            if row.subject_id:
+                try:
+                    sub_result = await db.execute(
+                        text("SELECT name FROM subjects WHERE id = :id"),
+                        {"id": row.subject_id}
+                    )
+                    sub_row = sub_result.fetchone()
+                    if sub_row:
+                        subject_name = sub_row[0]
+                        print(f"      Subject: {subject_name}")
+                except Exception as e:
+                    print(f"      Error fetching subject: {str(e)}")
+            
+            assessments.append({
+                "id": row.id,
+                "title": row.title,
+                "description": row.description,
+                "assessment_type": row.assessment_type,
+                "assessment_type_label": get_assessment_type_label(row.assessment_type),
+                "max_score": float(row.max_score) if row.max_score else 0,
+                "passing_score": float(row.passing_score) if row.passing_score else None,
+                "weight": float(row.weight) if row.weight else 1.0,
+                "date": row.date,
+                "section_id": row.section_id,
+                "section_name": section_name or '—',
+                "subject_id": row.subject_id,
+                "subject_name": subject_name or '—',
+                "teacher_id": row.teacher_id,
+                "school_id": row.school_id,
+                "year_id": row.year_id,
+                "created_at": row.created_at,
+                "updated_at": row.updated_at,
+            })
+        
+        print(f"✅ Returning {len(assessments)} assessments")
+        print("=" * 60)
+        return assessments, total
+        
+    except Exception as e:
+        print(f"❌ Error in fetch_assessments: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return [], 0
 
 
 async def fetch_students_with_grades(
@@ -332,14 +371,27 @@ async def grades_page(
     """Display main grades page (index)."""
     
     # ✅ طباعة معلومات التصحيح
+    print("=" * 60)
+    print("🏠 grades_page called")
     print(f"👤 User: {user.email}")
     print(f"🏫 School ID: {user.school_id}")
+    print("=" * 60)
     
     # ✅ التحقق المباشر من وجود تقييمات
-    check_query = "SELECT COUNT(*) FROM assessments WHERE school_id = :school_id"
-    check_result = await db.execute(text(check_query), {"school_id": user.school_id})
-    count = check_result.scalar()
-    print(f"📊 عدد التقييمات في قاعدة البيانات: {count}")
+    try:
+        check_query = "SELECT COUNT(*) FROM assessments WHERE school_id = :school_id"
+        check_result = await db.execute(text(check_query), {"school_id": user.school_id})
+        count = check_result.scalar()
+        print(f"📊 عدد التقييمات في قاعدة البيانات: {count}")
+        
+        # جلب عينة من التقييمات
+        sample_query = "SELECT id, title FROM assessments WHERE school_id = :school_id LIMIT 5"
+        sample_result = await db.execute(text(sample_query), {"school_id": user.school_id})
+        sample_rows = sample_result.fetchall()
+        for row in sample_rows:
+            print(f"   - {row.id}: {row.title}")
+    except Exception as e:
+        print(f"❌ خطأ في التحقق: {str(e)}")
     
     # ✅ جلب التقييمات
     assessments, total = await fetch_assessments(
@@ -347,6 +399,7 @@ async def grades_page(
     )
     
     print(f"📊 عدد التقييمات المعروضة: {len(assessments)}")
+    print("=" * 60)
     
     helper = GradeDataHelper(db, user.school_id)
     sections = await helper.get_sections()
@@ -432,22 +485,36 @@ async def store_assessment(
     }
     
     # ✅ طباعة بيانات التقييم
-    print(f"📝 إنشاء تقييم جديد:")
+    print("=" * 60)
+    print("📝 إنشاء تقييم جديد:")
     print(f"   Title: {data['title']}")
     print(f"   School ID: {data['school_id']}")
     print(f"   Year ID: {data['year_id']}")
     print(f"   Section ID: {data['section_id']}")
     print(f"   Subject ID: {data['subject_id']}")
+    print("=" * 60)
     
     try:
         assessment = await service.assessments.create(**data)
         print(f"✅ تم إنشاء التقييم: {assessment.id}")
+        
+        # ✅ التحقق من وجود التقييم في قاعدة البيانات
+        verify_query = "SELECT id, title, school_id FROM assessments WHERE id = :id"
+        verify_result = await db.execute(text(verify_query), {"id": assessment.id})
+        verify_row = verify_result.fetchone()
+        if verify_row:
+            print(f"✅ التقييم موجود في قاعدة البيانات: {verify_row.id} - {verify_row.title} - School: {verify_row.school_id}")
+        else:
+            print(f"❌ التقييم غير موجود في قاعدة البيانات!")
+        
         return RedirectResponse(
             url="/grades?success=created",
             status_code=303
         )
     except Exception as e:
         print(f"❌ خطأ في الإنشاء: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return RedirectResponse(
             url=f"/grades/create?error={str(e)}",
             status_code=303
