@@ -13,7 +13,7 @@ from app.core.exceptions import NotFoundException
 from app.services.grade_service import GradeService
 from app.services.academic_service import AcademicService
 from app.models.students import Student
-from app.models.academics import Assessment
+from app.models.grades import Assessment
 from app.schemas.grades import (
     AssessmentCreate, AssessmentUpdate, GradeRecordCreate, GradeRecordBatch
 )
