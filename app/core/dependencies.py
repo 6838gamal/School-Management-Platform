@@ -10,15 +10,17 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Annotated, Any, Optional
+from datetime import datetime, timedelta
 
-from fastapi import Depends, Request
+from fastapi import Depends, Request, Response
 from fastapi.responses import RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.exceptions import ForbiddenException, UnauthorizedException
-from app.core.security import decode_session
+from app.core.security import decode_session, encode_session
+from app.core.config import settings
 from app.models.schools import School
 from app.models.users import User
 from app.models.users import UserRole, Role, Permission, RolePermission
@@ -66,10 +68,30 @@ class CurrentUser:
 
 
 def _read_session_cookie(request: Request) -> dict[str, Any] | None:
-    token = request.cookies.get("sms_session")
+    token = request.cookies.get(settings.SESSION_COOKIE_NAME)
     if not token:
         return None
     return decode_session(token)
+
+
+def _refresh_session_cookie(response: Response, payload: dict[str, Any]) -> None:
+    """Refresh session cookie with new expiry."""
+    # تحديث وقت الإنشاء
+    payload["_created"] = datetime.now().isoformat()
+    
+    # إعادة ترميز الجلسة
+    token = encode_session(payload)
+    
+    # تعيين الكوكي مع مدة صلاحية جديدة
+    response.set_cookie(
+        key=settings.SESSION_COOKIE_NAME,
+        value=token,
+        max_age=settings.SESSION_MAX_AGE,
+        httponly=settings.SESSION_HTTPONLY,
+        secure=settings.SESSION_SECURE,
+        samesite=settings.SESSION_SAMESITE,
+        path="/",
+    )
 
 
 # ------------------------------------------------------------------
@@ -79,6 +101,7 @@ def _read_session_cookie(request: Request) -> dict[str, Any] | None:
 
 async def get_current_user(
     request: Request,
+    response: Response,
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> CurrentUser | None:
     """Resolve the current user from the session cookie. Returns None if no session."""
@@ -90,6 +113,18 @@ async def get_current_user(
     user_id = payload.get("user_id")
     if not user_id:
         return None
+
+    # ✅ التحقق من انتهاء الجلسة
+    created_at = payload.get("_created")
+    if created_at:
+        try:
+            created_time = datetime.fromisoformat(created_at)
+            max_age = payload.get("_max_age", settings.SESSION_MAX_AGE)
+            if datetime.now() - created_time > timedelta(seconds=max_age):
+                # الجلسة منتهية
+                return None
+        except (ValueError, TypeError):
+            pass
 
     result = await db.execute(
         select(User).where(User.id == user_id)
@@ -122,6 +157,10 @@ async def get_current_user(
 
     if not roles:
         roles = ["guest"]
+
+    # ✅ تجديد الجلسة إذا كان مفعلاً
+    if settings.SESSION_REFRESH_EACH_REQUEST:
+        _refresh_session_cookie(response, payload)
 
     # تخزين المستخدم والصلاحيات في request.state للاستخدام في القوالب
     request.state.user = user
@@ -228,7 +267,9 @@ async def template_context(request: Request) -> dict[str, Any]:
         # محاولة جلب المستخدم من قاعدة البيانات
         async for db in get_db():
             try:
-                user = await get_current_user(request, db)
+                # ✅ تمرير Response فارغ (لن يتم استخدامه في التحديث)
+                from fastapi import Response
+                user = await get_current_user(request, Response(), db)
             finally:
                 await db.close()
             break
