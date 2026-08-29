@@ -9,7 +9,7 @@
             <p class="text-slate-400 text-sm mt-1">إضافة تقييم جديد للطلاب</p>
         </div>
         <div class="flex gap-3">
-            <a href="{{ url_for('grades.index') }}" class="bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2">
+            <a href="/grades" class="bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
                 </svg>
@@ -30,7 +30,8 @@
 
     <!-- Form -->
     <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-6 max-w-4xl">
-        <form id="assessment-create-form" class="space-y-6" method="POST" action="{{ url_for('grades.store') }}">
+        <!-- ✅ تم التعديل هنا - استخدام المسار المباشر -->
+        <form id="assessment-create-form" class="space-y-6" method="POST" action="/grades/create">
             <!-- قسم: المعلومات الأساسية -->
             <div class="border-b border-slate-200 dark:border-slate-700 pb-4">
                 <h3 class="font-semibold text-lg text-slate-800 dark:text-white mb-4">المعلومات الأساسية</h3>
@@ -265,7 +266,7 @@
                     </svg>
                     إنشاء التقييم
                 </button>
-                <a href="{{ url_for('grades.index') }}" 
+                <a href="/grades" 
                    class="flex-1 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 px-6 py-3 rounded-lg text-sm font-medium transition-colors text-center">
                     إلغاء
                 </a>
