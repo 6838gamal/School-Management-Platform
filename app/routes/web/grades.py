@@ -1,6 +1,5 @@
 """Grades web routes - Refactored with 3 templates only."""
 
-import logging
 from fastapi import APIRouter, Depends, Request, HTTPException
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
@@ -19,9 +18,6 @@ from app.models.grades import Assessment
 from app.schemas.grades import (
     AssessmentCreate, AssessmentUpdate, GradeRecordCreate, GradeRecordBatch
 )
-
-# ✅ إعداد logging
-logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/grades", tags=["grades"])
 templates = Jinja2Templates(directory="app/templates")
@@ -122,29 +118,29 @@ async def fetch_assessments(
 ) -> tuple[List[Dict], int]:
     """Fetch assessments with filtering and pagination."""
     
-    logger.info("=" * 60)
-    logger.info("🔍 fetch_assessments called")
-    logger.info(f"   School ID: {school_id}")
-    logger.info(f"   Section ID: {section_id}")
-    logger.info(f"   Search: {search}")
-    logger.info(f"   Page: {page}, Page Size: {page_size}")
-    logger.info("=" * 60)
+    print("=" * 60, flush=True)
+    print("🔍 fetch_assessments called", flush=True)
+    print(f"   School ID: {school_id}", flush=True)
+    print(f"   Section ID: {section_id}", flush=True)
+    print(f"   Search: {search}", flush=True)
+    print(f"   Page: {page}, Page Size: {page_size}", flush=True)
+    print("=" * 60, flush=True)
     
     # استعلام مباشر للتحقق من وجود البيانات
     try:
         check_query = "SELECT COUNT(*) FROM assessments WHERE school_id = :school_id"
         check_result = await db.execute(text(check_query), {"school_id": school_id})
         total_count = check_result.scalar()
-        logger.info(f"📊 Total assessments in DB: {total_count}")
+        print(f"📊 Total assessments in DB: {total_count}", flush=True)
         
         # جلب جميع التقييمات للتحقق
         all_query = "SELECT id, title, school_id FROM assessments WHERE school_id = :school_id LIMIT 10"
         all_result = await db.execute(text(all_query), {"school_id": school_id})
         all_rows = all_result.fetchall()
         for row in all_rows:
-            logger.info(f"   - ID: {row.id}, Title: {row.title}, School: {row.school_id}")
+            print(f"   - ID: {row.id}, Title: {row.title}, School: {row.school_id}", flush=True)
     except Exception as e:
-        logger.error(f"❌ Error checking DB: {str(e)}")
+        print(f"❌ Error checking DB: {str(e)}", flush=True)
     
     # استعلام مبسط بدون JOIN
     query = """
@@ -177,15 +173,15 @@ async def fetch_assessments(
         query += " AND (a.title ILIKE :search OR a.description ILIKE :search)"
         params["search"] = f"%{search}%"
     
-    logger.info(f"📝 Query: {query}")
-    logger.info(f"📝 Params: {params}")
+    print(f"📝 Query: {query}", flush=True)
+    print(f"📝 Params: {params}", flush=True)
     
     try:
         # Get total count
         count_query = f"SELECT COUNT(*) FROM ({query}) as subquery"
         count_result = await db.execute(text(count_query), params)
         total = count_result.scalar()
-        logger.info(f"📊 Total after filters: {total}")
+        print(f"📊 Total after filters: {total}", flush=True)
         
         # Get paginated results
         query += " ORDER BY a.created_at DESC"
@@ -194,11 +190,11 @@ async def fetch_assessments(
         result = await db.execute(text(query), params)
         rows = result.fetchall()
         
-        logger.info(f"📊 Rows fetched: {len(rows)}")
+        print(f"📊 Rows fetched: {len(rows)}", flush=True)
         
         assessments = []
         for row in rows:
-            logger.info(f"   Processing: {row.id} - {row.title}")
+            print(f"   Processing: {row.id} - {row.title}", flush=True)
             
             # جلب اسم الشعبة والمادة
             section_name = None
@@ -213,9 +209,9 @@ async def fetch_assessments(
                     sec_row = sec_result.fetchone()
                     if sec_row:
                         section_name = sec_row[0]
-                        logger.info(f"      Section: {section_name}")
+                        print(f"      Section: {section_name}", flush=True)
                 except Exception as e:
-                    logger.error(f"      Error fetching section: {str(e)}")
+                    print(f"      Error fetching section: {str(e)}", flush=True)
             
             if row.subject_id:
                 try:
@@ -226,9 +222,9 @@ async def fetch_assessments(
                     sub_row = sub_result.fetchone()
                     if sub_row:
                         subject_name = sub_row[0]
-                        logger.info(f"      Subject: {subject_name}")
+                        print(f"      Subject: {subject_name}", flush=True)
                 except Exception as e:
-                    logger.error(f"      Error fetching subject: {str(e)}")
+                    print(f"      Error fetching subject: {str(e)}", flush=True)
             
             assessments.append({
                 "id": row.id,
@@ -251,12 +247,12 @@ async def fetch_assessments(
                 "updated_at": row.updated_at,
             })
         
-        logger.info(f"✅ Returning {len(assessments)} assessments")
-        logger.info("=" * 60)
+        print(f"✅ Returning {len(assessments)} assessments", flush=True)
+        print("=" * 60, flush=True)
         return assessments, total
         
     except Exception as e:
-        logger.error(f"❌ Error in fetch_assessments: {str(e)}")
+        print(f"❌ Error in fetch_assessments: {str(e)}", flush=True)
         import traceback
         traceback.print_exc()
         return [], 0
@@ -373,35 +369,35 @@ async def grades_page(
 ):
     """Display main grades page (index)."""
     
-    logger.info("=" * 60)
-    logger.info("🏠 grades_page called")
-    logger.info(f"👤 User: {user.email}")
-    logger.info(f"🏫 School ID: {user.school_id}")
-    logger.info("=" * 60)
+    print("=" * 60, flush=True)
+    print("🏠 grades_page called", flush=True)
+    print(f"👤 User: {user.email}", flush=True)
+    print(f"🏫 School ID: {user.school_id}", flush=True)
+    print("=" * 60, flush=True)
     
     # التحقق المباشر من وجود تقييمات
     try:
         check_query = "SELECT COUNT(*) FROM assessments WHERE school_id = :school_id"
         check_result = await db.execute(text(check_query), {"school_id": user.school_id})
         count = check_result.scalar()
-        logger.info(f"📊 عدد التقييمات في قاعدة البيانات: {count}")
+        print(f"📊 عدد التقييمات في قاعدة البيانات: {count}", flush=True)
         
         # جلب عينة من التقييمات
         sample_query = "SELECT id, title FROM assessments WHERE school_id = :school_id LIMIT 5"
         sample_result = await db.execute(text(sample_query), {"school_id": user.school_id})
         sample_rows = sample_result.fetchall()
         for row in sample_rows:
-            logger.info(f"   - {row.id}: {row.title}")
+            print(f"   - {row.id}: {row.title}", flush=True)
     except Exception as e:
-        logger.error(f"❌ خطأ في التحقق: {str(e)}")
+        print(f"❌ خطأ في التحقق: {str(e)}", flush=True)
     
     # جلب التقييمات
     assessments, total = await fetch_assessments(
         db, user.school_id, section_id, search, page, page_size
     )
     
-    logger.info(f"📊 عدد التقييمات المعروضة: {len(assessments)}")
-    logger.info("=" * 60)
+    print(f"📊 عدد التقييمات المعروضة: {len(assessments)}", flush=True)
+    print("=" * 60, flush=True)
     
     helper = GradeDataHelper(db, user.school_id)
     sections = await helper.get_sections()
@@ -486,34 +482,34 @@ async def store_assessment(
         "year_id": current_year.id,
     }
     
-    logger.info("=" * 60)
-    logger.info("📝 إنشاء تقييم جديد:")
-    logger.info(f"   Title: {data['title']}")
-    logger.info(f"   School ID: {data['school_id']}")
-    logger.info(f"   Year ID: {data['year_id']}")
-    logger.info(f"   Section ID: {data['section_id']}")
-    logger.info(f"   Subject ID: {data['subject_id']}")
-    logger.info("=" * 60)
+    print("=" * 60, flush=True)
+    print("📝 إنشاء تقييم جديد:", flush=True)
+    print(f"   Title: {data['title']}", flush=True)
+    print(f"   School ID: {data['school_id']}", flush=True)
+    print(f"   Year ID: {data['year_id']}", flush=True)
+    print(f"   Section ID: {data['section_id']}", flush=True)
+    print(f"   Subject ID: {data['subject_id']}", flush=True)
+    print("=" * 60, flush=True)
     
     try:
         assessment = await service.assessments.create(**data)
-        logger.info(f"✅ تم إنشاء التقييم: {assessment.id}")
+        print(f"✅ تم إنشاء التقييم: {assessment.id}", flush=True)
         
         # التحقق من وجود التقييم في قاعدة البيانات
         verify_query = "SELECT id, title, school_id FROM assessments WHERE id = :id"
         verify_result = await db.execute(text(verify_query), {"id": assessment.id})
         verify_row = verify_result.fetchone()
         if verify_row:
-            logger.info(f"✅ التقييم موجود في قاعدة البيانات: {verify_row.id} - {verify_row.title} - School: {verify_row.school_id}")
+            print(f"✅ التقييم موجود في قاعدة البيانات: {verify_row.id} - {verify_row.title} - School: {verify_row.school_id}", flush=True)
         else:
-            logger.error(f"❌ التقييم غير موجود في قاعدة البيانات!")
+            print(f"❌ التقييم غير موجود في قاعدة البيانات!", flush=True)
         
         return RedirectResponse(
             url="/grades?success=created",
             status_code=303
         )
     except Exception as e:
-        logger.error(f"❌ خطأ في الإنشاء: {str(e)}")
+        print(f"❌ خطأ في الإنشاء: {str(e)}", flush=True)
         import traceback
         traceback.print_exc()
         return RedirectResponse(
