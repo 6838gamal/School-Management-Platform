@@ -209,3 +209,67 @@ class PeriodOut(ORMBase):
 class AcademicTree(ORMBase):
     year: AcademicYearOut
     stages: list[dict] = []
+
+
+# ============================================================
+# ✅ Assessment (التقييمات) - تمت الإضافة
+# ============================================================
+
+class AssessmentCreate(BaseModel):
+    """نموذج إنشاء تقييم جديد"""
+    section_id: str
+    subject_id: str
+    teacher_id: str | None = None
+    title: str
+    assessment_type: str = Field(..., pattern="^(exam|quiz|assignment|homework|activity|participation)$")
+    max_score: float = 100.0
+    passing_score: float | None = 50.0
+    weight: float = 1.0
+    date: str | None = None
+    description: str | None = None
+    school_id: str | None = None
+    year_id: str | None = None
+
+
+class AssessmentUpdate(BaseModel):
+    """نموذج تحديث تقييم"""
+    section_id: str | None = None
+    subject_id: str | None = None
+    teacher_id: str | None = None
+    title: str | None = None
+    assessment_type: str | None = Field(None, pattern="^(exam|quiz|assignment|homework|activity|participation)$")
+    max_score: float | None = None
+    passing_score: float | None = None
+    weight: float | None = None
+    date: str | None = None
+    description: str | None = None
+    year_id: str | None = None
+
+
+class AssessmentOut(ORMBase):
+    """نموذج عرض التقييم"""
+    id: str
+    school_id: str
+    section_id: str
+    subject_id: str
+    teacher_id: str | None = None
+    year_id: str | None = None
+    title: str
+    description: str | None = None
+    assessment_type: str
+    max_score: float
+    passing_score: float | None = None
+    weight: float
+    date: str | None = None
+    # حقول إضافية للعرض (من JOIN)
+    section_name: str | None = None
+    subject_name: str | None = None
+    teacher_name: str | None = None
+
+
+class AssessmentListResponse(BaseModel):
+    """رد قائمة التقييمات"""
+    items: list[AssessmentOut]
+    total: int
+    page: int = 1
+    page_size: int = 10
