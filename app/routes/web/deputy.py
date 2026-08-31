@@ -9,7 +9,7 @@ from typing import Optional, Dict, Any, List
 
 from app.core.database import get_db
 from app.core.dependencies import CurrentUser, require_permission, template_context
-from app.models import Section, ScheduleEntry, Attendance, Student, User, Subject, Teacher
+from app.models.attendance import Section, ScheduleEntry, StudentAttendance, Student, User, Subject, TeacherAttendance
 from app.models.schools import School
 
 router = APIRouter(prefix="/deputy", tags=["deputy-dashboard"])
