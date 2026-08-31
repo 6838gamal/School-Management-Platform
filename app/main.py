@@ -5,6 +5,9 @@ Assembles the FastAPI app, mounts static files, configures Jinja2,
 registers all web and API routers, and wires exception handlers.
 """
 import logging
+import subprocess
+import sys
+import os
 
 # إعداد logging
 logging.basicConfig(
@@ -109,6 +112,67 @@ def can(permission: str, request: Request = None) -> bool:
 templates.env.globals['can'] = lambda permission: can(permission)
 
 
+# ============================================================
+# دوال تهيئة قاعدة البيانات
+# ============================================================
+
+async def run_migrations():
+    """
+    تشغيل ترحيلات Alembic تلقائياً عند بدء التطبيق
+    
+    هذه الدالة تقوم بتشغيل جميع الترحيلات المعلقة لتحديث هيكل قاعدة البيانات
+    إلى أحدث إصدار. يتم تشغيلها مرة واحدة عند بدء التطبيق.
+    """
+    print("🔄 جاري تشغيل ترحيلات قاعدة البيانات...")
+    
+    try:
+        # الحصول على مسار المشروع (الدليل الذي يحتوي على ملف alembic.ini)
+        # نستخدم os.getcwd() للحصول على الدليل الحالي
+        project_dir = os.getcwd()
+        
+        # التأكد من وجود ملف alembic.ini
+        alembic_ini_path = os.path.join(project_dir, "alembic.ini")
+        if not os.path.exists(alembic_ini_path):
+            print("⚠️ ملف alembic.ini غير موجود. تخطي تشغيل الترحيلات.")
+            return False
+        
+        # تشغيل alembic upgrade head
+        # نستخدم sys.executable للحصول على مسار Python الحالي
+        result = subprocess.run(
+            [sys.executable, "-m", "alembic", "upgrade", "head"],
+            capture_output=True,
+            text=True,
+            cwd=project_dir,
+            env=os.environ.copy()
+        )
+        
+        if result.returncode == 0:
+            print("✅ تم تشغيل الترحيلات بنجاح")
+            if result.stdout:
+                # عرض مخرجات الترحيلات (مختصرة)
+                lines = result.stdout.strip().split('\n')
+                for line in lines[-5:]:  # عرض آخر 5 أسطر فقط
+                    if line.strip():
+                        print(f"   {line}")
+            return True
+        else:
+            # قد يكون الخطأ بسبب عدم وجود ترحيلات جديدة
+            error_msg = result.stderr.strip() if result.stderr else "خطأ غير معروف"
+            if "No such revision" in error_msg or "target database is not up to date" in error_msg:
+                print("ℹ️ قاعدة البيانات محدثة بالفعل (لا توجد ترحيلات جديدة)")
+                return True
+            else:
+                print(f"⚠️ فشل تشغيل الترحيلات: {error_msg}")
+                return False
+            
+    except subprocess.CalledProcessError as e:
+        print(f"⚠️ خطأ في تشغيل الترحيلات (قد تكون الترحيلات مطبقة بالفعل): {e.stderr if e.stderr else str(e)}")
+        return False
+    except Exception as e:
+        print(f"⚠️ خطأ غير متوقع في تشغيل الترحيلات: {str(e)}")
+        return False
+
+
 async def ensure_user_exists(db, email: str, password: str, full_name: str, school_id: int, role_name: str):
     """التأكد من وجود المستخدم، وإنشائه إذا لم يكن موجوداً"""
     from app.services.auth_service import AuthService
@@ -144,7 +208,12 @@ async def ensure_user_exists(db, email: str, password: str, full_name: str, scho
 
 
 async def ensure_database_schema():
-    """التأكد من وجود جميع الأعمدة المطلوبة في قاعدة البيانات"""
+    """
+    التأكد من وجود جميع الأعمدة المطلوبة في قاعدة البيانات
+    
+    هذه الدالة تضيف الأعمدة المفقودة في الجداول الموجودة
+    لتجنب أخطاء SQLAlchemy عند تشغيل التطبيق.
+    """
     print("🔧 جاري التحقق من هيكل قاعدة البيانات...")
     
     async for db in get_db():
@@ -204,7 +273,7 @@ async def ensure_database_schema():
                 END $$;
             """))
             
-            # 4. التحقق من وجود عمود school_id في جدول students (إذا لم يكن موجوداً)
+            # 4. التحقق من وجود عمود school_id في جدول students
             await db.execute(text("""
                 DO $$
                 BEGIN
@@ -217,6 +286,39 @@ async def ensure_database_schema():
                         RAISE NOTICE '✅ تم إضافة العمود school_id إلى جدول students';
                     ELSE
                         RAISE NOTICE 'ℹ️ العمود school_id موجود بالفعل في جدول students';
+                    END IF;
+                END $$;
+            """))
+            
+            # 5. التحقق من وجود عمود is_active في جدول students
+            await db.execute(text("""
+                DO $$
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.columns 
+                        WHERE table_name = 'students' AND column_name = 'is_active'
+                    ) THEN
+                        ALTER TABLE students ADD COLUMN is_active BOOLEAN DEFAULT TRUE;
+                        RAISE NOTICE '✅ تم إضافة العمود is_active إلى جدول students';
+                    ELSE
+                        RAISE NOTICE 'ℹ️ العمود is_active موجود بالفعل في جدول students';
+                    END IF;
+                END $$;
+            """))
+            
+            # 6. التحقق من وجود عمود code في جدول students
+            await db.execute(text("""
+                DO $$
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.columns 
+                        WHERE table_name = 'students' AND column_name = 'code'
+                    ) THEN
+                        ALTER TABLE students ADD COLUMN code VARCHAR(50) NULL;
+                        CREATE INDEX IF NOT EXISTS ix_students_code ON students (code);
+                        RAISE NOTICE '✅ تم إضافة العمود code إلى جدول students';
+                    ELSE
+                        RAISE NOTICE 'ℹ️ العمود code موجود بالفعل في جدول students';
                     END IF;
                 END $$;
             """))
@@ -384,9 +486,22 @@ async def init_database():
         break
 
 
+# ============================================================
+# Lifespan
+# ============================================================
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Lifespan context manager for startup and shutdown events."""
+    """
+    Lifespan context manager for startup and shutdown events.
+    
+    يتم تشغيل هذا الكود عند بدء التطبيق وإيقافه.
+    الترتيب:
+    1. تشغيل ترحيلات Alembic (تحديث هيكل قاعدة البيانات)
+    2. التحقق من هيكل قاعدة البيانات (إضافة الأعمدة المفقودة)
+    3. تهيئة البيانات الأساسية (المستخدمين والصلاحيات)
+    4. إغلاق اتصال قاعدة البيانات عند الإيقاف
+    """
     print("🚀 Starting application...")
     print(f"📊 Database: {settings.DATABASE_URL}")
     
@@ -400,18 +515,37 @@ async def lifespan(app: FastAPI):
     else:
         print(f"✅ تم تأكيد تعيين templates: {get_templates() is not None}")
     
-    # 1. التحقق من هيكل قاعدة البيانات (إضافة الأعمدة المفقودة)
+    # ============================================================
+    # الخطوة 1: تشغيل ترحيلات Alembic
+    # ============================================================
+    await run_migrations()
+    
+    # ============================================================
+    # الخطوة 2: التحقق من هيكل قاعدة البيانات (إضافة الأعمدة المفقودة)
+    # ============================================================
     await ensure_database_schema()
     
-    # 2. تهيئة قاعدة البيانات (المستخدمين والصلاحيات)
+    # ============================================================
+    # الخطوة 3: تهيئة قاعدة البيانات (المستخدمين والصلاحيات)
+    # ============================================================
     await init_database()
     
+    print("✅ التطبيق جاهز للاستخدام!")
     yield
+    
+    # ============================================================
+    # إيقاف التطبيق
+    # ============================================================
+    print("🛑 Shutting down application...")
     
     # إغلاق اتصال قاعدة البيانات عند الإيقاف
     await engine.dispose()
     print("✅ Database connection closed.")
 
+
+# ============================================================
+# إنشاء التطبيق
+# ============================================================
 
 app = FastAPI(
     title=settings.APP_NAME,
@@ -465,11 +599,13 @@ app.include_router(api_router)
 
 @app.get("/")
 async def root(request: Request):
+    """إعادة توجيه الصفحة الرئيسية إلى صفحة تسجيل الدخول"""
     return RedirectResponse("/login", status_code=302)
 
 
 @app.get("/health")
 async def health():
+    """فحص صحة التطبيق"""
     return {"status": "ok", "app": settings.APP_NAME}
 
 
@@ -496,8 +632,22 @@ try:
     app.include_router(api_attendance_v2, prefix="/api/v1")
     app.include_router(api_lifecycle, prefix="/api/v1")
     app.include_router(api_substitutes_v2, prefix="/api/v1")
-except Exception as e:  # noqa
+except Exception as e:
     import logging
     logging.getLogger("app.main").warning(
         "spec routes not all loaded: %s", e
+    )
+
+
+# ============================================================
+# تشغيل التطبيق (للتطوير المحلي)
+# ============================================================
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(
+        "app.main:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=True,
+        log_level="info"
     )
