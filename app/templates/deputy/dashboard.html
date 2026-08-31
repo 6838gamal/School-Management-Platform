@@ -10,60 +10,105 @@
     
     {# ============ الفصول مرتبة من اليمين لليسار حسب السنة/الصف ============ #}
     {% for sec in dashboard.sections %}
-      <div class="bg-white shadow rounded p-4 mb-4">
-        <div class="flex justify-between items-center mb-2">
-          <h2 class="text-lg font-semibold">
-            🏫 {{ sec.stage_name }} — {{ sec.grade_name }} — {{ sec.section_name }}
-          </h2>
-          <span class="text-xs bg-gray-100 rounded px-2 py-1">{{ sec.enrolled_count }} طالب</span>
+      <div class="bg-white shadow rounded p-4 mb-4 border border-gray-200">
+        {# ============ رأس الفصل ============ #}
+        <div class="flex justify-between items-center mb-3 pb-2 border-b border-gray-200">
+          <div class="flex items-center gap-3">
+            <h2 class="text-lg font-semibold">
+              🏫 {{ sec.stage_name }} — {{ sec.grade_name }} — {{ sec.section_name }}
+            </h2>
+            <span class="text-xs bg-gray-100 rounded px-2 py-1 border border-gray-300">
+              {{ sec.enrolled_count }} طالب
+            </span>
+          </div>
+          <div class="flex gap-2">
+            {# ============ زر استعراض الطلاب ============ #}
+            {% if can('attendance.view') %}
+            <a href="/attendance/students?section_id={{ sec.section_id }}&date={{ selected_date }}" 
+               class="text-xs bg-blue-50 border border-blue-300 rounded px-3 py-1 text-blue-700 hover:bg-blue-100 transition">
+              👥 استعراض الطلاب
+            </a>
+            {% endif %}
+            {% if can('attendance.create') %}
+            <a href="/attendance/record?section_id={{ sec.section_id }}&date={{ selected_date }}" 
+               class="text-xs bg-green-50 border border-green-300 rounded px-3 py-1 text-green-700 hover:bg-green-100 transition">
+              ✏️ تسجيل حضور
+            </a>
+            {% endif %}
+          </div>
         </div>
 
+        {# ============ جدول الحصص ============ #}
         {% if sec.periods_today and sec.periods_today|length > 0 %}
-          <table class="w-full text-sm">
-            <thead class="bg-gray-50">
-              <tr>
-                <th class="p-2">الحصة</th>
-                <th class="p-2">المادة</th>
-                <th class="p-2">المعلم</th>
-                <th class="p-2">الحالة</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for p in sec.periods_today %}
-                <tr class="border-t">
-                  <td class="p-2">{{ loop.index }}</td>
-                  <td class="p-2">{{ p.subject_id[:8] if p.subject_id else '—' }}</td>
-                  <td class="p-2">{{ p.teacher_name if p.teacher_name else 'غير محدد' }}</td>
-                  <td class="p-2">
-                    <span class="ml-1">{{ p.indicator if p.indicator else '' }}</span>
-                    {{ p.status_label if p.status_label else '—' }}
-                    {% if p.status in ("teacher_absent","substitute_required") %}
-                      {% if can('substitutes.create') %}
-                      <form method="get" action="/substitutes/alternatives" class="inline">
-                        <input type="hidden" name="schedule_entry_id" value="{{ p.schedule_entry_id }}">
-                        <input type="hidden" name="date" value="{{ selected_date }}">
-                        <button class="text-xs text-red-600 underline">🔴 تكليف بديل</button>
-                      </form>
-                      {% endif %}
-                    {% endif %}
-                  </td>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm border border-gray-200 rounded">
+              <thead class="bg-gray-50 border-b border-gray-200">
+                <tr>
+                  <th class="p-2 text-right border-l border-gray-200">الحصة</th>
+                  <th class="p-2 text-right border-l border-gray-200">المادة</th>
+                  <th class="p-2 text-right border-l border-gray-200">المعلم</th>
+                  <th class="p-2 text-right">الحالة</th>
                 </tr>
-              {% endfor %}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {% for p in sec.periods_today %}
+                  <tr class="border-t border-gray-200 hover:bg-gray-50">
+                    <td class="p-2 border-l border-gray-200">{{ loop.index }}</td>
+                    <td class="p-2 border-l border-gray-200">
+                      {{ p.subject_name if p.subject_name else p.subject_id[:8] if p.subject_id else '—' }}
+                    </td>
+                    <td class="p-2 border-l border-gray-200">
+                      {{ p.teacher_name if p.teacher_name else 'غير محدد' }}
+                    </td>
+                    <td class="p-2">
+                      <span class="ml-1">{{ p.indicator if p.indicator else '' }}</span>
+                      {{ p.status_label if p.status_label else '—' }}
+                      {% if p.status in ("teacher_absent","substitute_required") %}
+                        {% if can('substitutes.create') %}
+                        <form method="get" action="/substitutes/alternatives" class="inline">
+                          <input type="hidden" name="schedule_entry_id" value="{{ p.schedule_entry_id }}">
+                          <input type="hidden" name="date" value="{{ selected_date }}">
+                          <button class="text-xs text-red-600 underline hover:text-red-800">🔴 تكليف بديل</button>
+                        </form>
+                        {% endif %}
+                      {% endif %}
+                      {% if can('attendance.view') %}
+                      <a href="/attendance/students?schedule_id={{ p.schedule_entry_id }}&date={{ selected_date }}" 
+                         class="text-xs text-blue-600 underline hover:text-blue-800 mr-2">
+                         📋 تفاصيل
+                      </a>
+                      {% endif %}
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
         {% else %}
           {# ============ رسالة عند عدم وجود حصص ============ #}
-          <div class="bg-yellow-50 border-r-4 border-yellow-400 p-3 rounded">
+          <div class="bg-yellow-50 border-r-4 border-yellow-400 p-3 rounded border border-yellow-200">
             <p class="text-sm text-yellow-700">⚠️ لا توجد حصص مجدولة لهذا الفصل اليوم.</p>
             <p class="text-xs text-gray-500 mt-1">يمكنك التحقق من الجدول الأسبوعي أو التواصل مع منسق الجدول.</p>
           </div>
+        {% endif %}
+
+        {# ============ إحصائيات سريعة للفصل ============ #}
+        {% if sec.attendance_stats %}
+        <div class="mt-3 pt-3 border-t border-gray-200">
+          <div class="flex gap-4 text-xs">
+            <span class="text-green-600">✅ حضور: {{ sec.attendance_stats.present|default(0) }}</span>
+            <span class="text-red-600">❌ غياب: {{ sec.attendance_stats.absent|default(0) }}</span>
+            <span class="text-orange-600">🟠 تأخير: {{ sec.attendance_stats.late|default(0) }}</span>
+            <span class="text-blue-600">🔵 استئذان: {{ sec.attendance_stats.excused|default(0) }}</span>
+          </div>
+        </div>
         {% endif %}
       </div>
     {% endfor %}
 
   {% else %}
     {# ============ رسالة عند عدم وجود فصول نهائياً ============ #}
-    <div class="bg-blue-50 border-r-4 border-blue-400 rounded p-6 text-center">
+    <div class="bg-blue-50 border-r-4 border-blue-400 rounded p-6 text-center border border-blue-200">
       <div class="text-6xl mb-3">📋</div>
       <h3 class="text-xl font-semibold text-blue-700">لا توجد فصول متاحة</h3>
       <p class="text-gray-600 mt-2">لم يتم العثور على أي فصول مسجلة لك اليوم.</p>
@@ -78,46 +123,98 @@
 
   {# ============ Attendance Analytics ============ #}
   {% if dashboard.analytics %}
-    <div class="bg-white shadow rounded p-4 mt-6">
+    <div class="bg-white shadow rounded p-4 mt-6 border border-gray-200">
       <h2 class="text-lg font-bold mb-3">📊 Attendance Analytics — {{ selected_date }}</h2>
       
       {% if dashboard.analytics.total_records and dashboard.analytics.total_records > 0 %}
         <div class="grid grid-cols-2 md:grid-cols-6 gap-2 text-center">
-          <div class="bg-green-100 p-3 rounded">
+          <div class="bg-green-100 p-3 rounded border border-green-300">
             <div class="text-2xl font-bold">🟢</div>
             <div>{{ dashboard.analytics.present|default(0) }}</div>
             <small>حضور</small>
           </div>
-          <div class="bg-red-100 p-3 rounded">
+          <div class="bg-red-100 p-3 rounded border border-red-300">
             <div class="text-2xl font-bold">🔴</div>
             <div>{{ dashboard.analytics.absent|default(0) }}</div>
             <small>غياب</small>
           </div>
-          <div class="bg-orange-100 p-3 rounded">
+          <div class="bg-orange-100 p-3 rounded border border-orange-300">
             <div class="text-2xl font-bold">🟠</div>
             <div>{{ dashboard.analytics.late|default(0) }}</div>
             <small>تأخير</small>
           </div>
-          <div class="bg-yellow-100 p-3 rounded">
+          <div class="bg-yellow-100 p-3 rounded border border-yellow-300">
             <div class="text-2xl font-bold">⏰</div>
             <div>{{ dashboard.analytics.late_arrivals|default(0) }}</div>
             <small>تأخير صباحي</small>
           </div>
-          <div class="bg-blue-100 p-3 rounded">
+          <div class="bg-blue-100 p-3 rounded border border-blue-300">
             <div class="text-2xl font-bold">🔵</div>
             <div>{{ dashboard.analytics.excused|default(0) }}</div>
             <small>استئذان</small>
           </div>
-          <div class="bg-gray-100 p-3 rounded">
+          <div class="bg-gray-100 p-3 rounded border border-gray-300">
             <div class="text-2xl font-bold">…</div>
             <div>{{ dashboard.analytics.other|default(0) }}</div>
             <small>حالات أخرى</small>
           </div>
         </div>
         <p class="text-xs text-gray-500 mt-2">إجمالي السجلات: {{ dashboard.analytics.total_records }}</p>
+        
+        {# ============ تفاصيل الطلاب ============ #}
+        {% if dashboard.analytics.students_details %}
+        <div class="mt-4 pt-3 border-t border-gray-200">
+          <details>
+            <summary class="text-sm font-semibold text-gray-700 cursor-pointer hover:text-blue-600">
+              👥 تفاصيل الطلاب
+            </summary>
+            <div class="mt-2 max-h-60 overflow-y-auto">
+              <table class="w-full text-sm border border-gray-200 rounded">
+                <thead class="bg-gray-50 sticky top-0">
+                  <tr>
+                    <th class="p-2 text-right border-b border-gray-200">#</th>
+                    <th class="p-2 text-right border-b border-gray-200">الطالب</th>
+                    <th class="p-2 text-right border-b border-gray-200">الفصل</th>
+                    <th class="p-2 text-right border-b border-gray-200">الحالة</th>
+                    <th class="p-2 text-right border-b border-gray-200">الإجراء</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for student in dashboard.analytics.students_details %}
+                  <tr class="border-t border-gray-200 hover:bg-gray-50">
+                    <td class="p-2 border-l border-gray-200">{{ loop.index }}</td>
+                    <td class="p-2 border-l border-gray-200">{{ student.name }}</td>
+                    <td class="p-2 border-l border-gray-200">{{ student.section }}</td>
+                    <td class="p-2 border-l border-gray-200">
+                      <span class="px-2 py-1 rounded text-xs 
+                        {% if student.status == 'present' %}bg-green-100 text-green-700
+                        {% elif student.status == 'absent' %}bg-red-100 text-red-700
+                        {% elif student.status == 'late' %}bg-orange-100 text-orange-700
+                        {% elif student.status == 'excused' %}bg-blue-100 text-blue-700
+                        {% else %}bg-gray-100 text-gray-700{% endif %}">
+                        {{ student.status_label }}
+                      </span>
+                    </td>
+                    <td class="p-2">
+                      {% if can('attendance.edit') %}
+                      <a href="/attendance/edit?student_id={{ student.id }}&date={{ selected_date }}" 
+                         class="text-xs text-blue-600 underline hover:text-blue-800">
+                         تعديل
+                      </a>
+                      {% endif %}
+                    </td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </details>
+        </div>
+        {% endif %}
+        
       {% else %}
         {# ============ رسالة عند عدم وجود إحصائيات ============ #}
-        <div class="bg-gray-50 p-4 rounded text-center">
+        <div class="bg-gray-50 p-4 rounded text-center border border-gray-200">
           <p class="text-gray-500">📭 لا توجد سجلات حضور لهذا اليوم</p>
           <p class="text-xs text-gray-400 mt-1">سيتم عرض الإحصائيات عند تسجيل الحضور</p>
         </div>
@@ -125,8 +222,8 @@
     </div>
   {% else %}
     {# ============ رسالة عند عدم وجود كائن التحليلات ============ #}
-    <div class="bg-gray-50 border rounded p-4 mt-6 text-center">
-      <p class="text-gray-500">📊 لا ت بيانات إحصائية متاحة</p>
+    <div class="bg-gray-50 border border-gray-200 rounded p-4 mt-6 text-center">
+      <p class="text-gray-500">📊 لا توجد بيانات إحصائية متاحة</p>
     </div>
   {% endif %}
 </div>
