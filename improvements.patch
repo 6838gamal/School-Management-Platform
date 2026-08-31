@@ -1,0 +1,583 @@
+diff --git a/.env.example b/.env.example
+index 38fd7ec..1376509 100644
+--- a/.env.example
++++ b/.env.example
+@@ -16,7 +16,7 @@ APP_DEFAULT_TIMEZONE=Asia/Riyadh
+ # ---- Security ----
+ SECRET_KEY=change-me-to-a-long-random-string-in-production
+ SESSION_COOKIE_NAME=sms_session
+-SESSION_MAX_AGE=86400
++SESSION_MAX_AGE=604800  # 7 أيام
+ SESSION_SECURE=false
+ SESSION_HTTPONLY=true
+ SESSION_SAMESITE=lax
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+new file mode 100644
+index 0000000..01fd582
+--- /dev/null
++++ b/.github/workflows/ci.yml
+@@ -0,0 +1,59 @@
++name: CI
++
++on:
++  push:
++    branches: [main, master]
++  pull_request:
++
++jobs:
++  lint-and-test:
++    name: Lint & Test (Python ${{ matrix.python-version }})
++    runs-on: ubuntu-latest
++    strategy:
++      fail-fast: false
++      matrix:
++        python-version: ["3.12"]
++
++    services:
++      postgres:
++        image: postgres:16-alpine
++        env:
++          POSTGRES_DB: sms_db
++          POSTGRES_USER: sms_user
++          POSTGRES_PASSWORD: sms_password
++        ports:
++          - 5432:5432
++        options: >-
++          --health-cmd "pg_isready -U sms_user -d sms_db"
++          --health-interval 5s
++          --health-timeout 5s
++          --health-retries 5
++
++    steps:
++      - uses: actions/checkout@v4
++
++      - uses: actions/setup-python@v5
++        with:
++          python-version: ${{ matrix.python-version }}
++          cache: pip
++
++      - name: Install system deps (WeasyPrint)
++        run: |
++          sudo apt-get update
++          sudo apt-get install -y --no-install-recommends \
++            libpango-1.0-0 libpangocairo-1.0-0 libcairo2 libgdk-pixbuf-2.0-0
++          sudo rm -rf /var/lib/apt/lists/*
++
++      - name: Install Python deps
++        run: |
++          python -m pip install --upgrade pip
++          pip install -r requirements.txt -r requirements-dev.txt
++
++      - name: Lint with Ruff
++        run: ruff check app tests
++
++      - name: Run unit tests
++        env:
++          DATABASE_URL: postgresql+asyncpg://sms_user:sms_password@localhost:5432/sms_db
++          SECRET_KEY: ci-test-secret-key-not-for-production
++        run: python -m pytest tests -v
+diff --git a/.gitignore b/.gitignore
+index a534bbc..b19cbb2 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -11,6 +11,19 @@ dist
+ dist-ssr
+ *.local
+ 
++# Python
++__pycache__/
++*.py[cod]
++.pytest_cache/
++.ruff_cache/
++.venv/
++venv/
++.coverage
++htmlcov/
++
++# App runtime
++uploads/
++
+ .vscode/*
+ !.vscode/extensions.json
+ .idea
+diff --git a/Dockerfile b/Dockerfile
+index 50d5466..35731cc 100644
+--- a/Dockerfile
++++ b/Dockerfile
+@@ -33,6 +33,14 @@ WORKDIR /app
+ 
+ RUN apt-get update && apt-get install -y --no-install-recommends \
+     libpq5 \
++    # WeasyPrint runtime libraries (PDF reports)
++    libpango-1.0-0 \
++    libpangoft2-1.0-0 \
++    libpangocairo-1.0-0 \
++    libharfbuzz0b \
++    libcairo2 \
++    libgdk-pixbuf-2.0-0 \
++    fonts-liberation \
+     && rm -rf /var/lib/apt/lists/*
+ 
+ COPY --from=builder /root/.local /root/.local
+diff --git a/Makefile b/Makefile
+new file mode 100644
+index 0000000..13d1559
+--- /dev/null
++++ b/Makefile
+@@ -0,0 +1,26 @@
++# ============================================================
++# School Management Platform — Developer shortcuts
++# ============================================================
++
++.PHONY: install dev test lint migrate up down patch
++
++install:            ## Install all dependencies
++	pip install -r requirements.txt -r requirements-dev.txt
++
++dev:                ## Run the dev server with auto-reload
++	uvicorn app.main:app --reload --port 8000
++
++test:               ## Run unit tests
++	python -m pytest tests -v
++
++lint:               ## Lint with Ruff
++	ruff check app tests
++
++migrate:            ## Apply database migrations
++	alembic upgrade head
++
++up:                 ## Start full stack via Docker Compose
++	docker compose up -d --build
++
++down:               ## Stop Docker Compose stack
++	docker compose down
+diff --git a/README.md b/README.md
+index ffcd6b4..4e224fe 100644
+--- a/README.md
++++ b/README.md
+@@ -1,3 +1,138 @@
+-# School-Management-Platform
+-# School-Management-Platform
+-# School-Management-Platform
++# 🏫 School Management Platform
++
++نظام متكامل لإدارة المدارس مبني على **FastAPI** — يشمل إدارة الطلاب والمعلمين والجداول الدراسية والحضور والدرجات والسلوك والأنشطة والواجبات والتقارير، مع نظام صلاحيات (RBAC) متعدد الأدوار وواجهة ويب عربية.
++
++> An integrated school management platform built with FastAPI, featuring students, teachers, schedules, attendance, grades, behavior, activities, homework, reports, and a full RBAC permission system with an Arabic web UI.
++
++---
++
++## ✨ المزايا الرئيسية
++
++| الوحدة | الوصف |
++|---|---|
++| 🏫 إدارة المدرسة | هيكل أكاديمي: سنوات، فصول، مراحل، مواد، قاعات، شعب (sections) |
++| 👨‍🏫 الطلاب والمعلمون | ملفات كاملة، تعيين شعب وفصول، بحث وتصفية |
++| 📅 الجداول الدراسية | إنشاء وعرض جداول مرتبطة بالسنة الأكاديمية |
++| ✅ الحضور والغياب | تسجيل يومي للطلاب والمعلمين + تقارير |
++| 📊 الدرجات | إدخال وعرض وتقارير الدرجات |
++| 🎯 الأنشطة | وحدات نشاط وأدوار لمسؤول الأنشطة |
++| 🧠 السلوك | متابعة السلوكيات والملاحظات |
++| 📝 الواجبات | إدارة الواجبات المنزلية |
++| 🔔 الإشعارات | نظام إشعارات داخلي |
++| 📄 التقارير | تقارير PDF تُولَّد عبر WeasyPrint بروابط تنتهي صلاحيتها |
++| 🔐 الصلاحيات | RBAC كامل: مدير، وكيل، مسؤول أنشطة، معلم |
++
++## 🛠️ البنية التقنية
++
++- **Backend:** FastAPI 0.115 + Pydantic v2 + SQLAlchemy 2 (async) + Alembic
++- **قاعدة البيانات:** PostgreSQL 16 (asyncpg)
++- **الواجهة:** قوالب Jinja2 + React/Vite (دليل `src/`)
++- **الأمان:** bcrypt + جلسات موقّعة (itsdangerous) + صلاحيات لكل دور
++- **البنية التحتية:** Docker Compose + Nginx
++
++## 📁 هيكل المشروع
++
++```
++├── app/
++│   ├── core/          # الإعدادات، قاعدة البيانات، الأمان، الصلاحيات، الاستثناءات
++│   ├── models/        # نماذج ORM (users, students, teachers, schedules, ...)
++│   ├── schemas/       # مخططات Pydantic
++│   ├── repositories/  # طبقة الوصول للبيانات
++│   ├── services/      # منطق الأعمال (auth_service, ...)
++│   ├── routes/
++│   │   ├── web/       # مسارات الواجهة (HTML)
++│   │   └── api/v1/    # واجهة REST API
++│   ├── templates/     # قوالب Jinja2 (عربية RTL)
++│   └── static/        # ملفات ثابتة
++├── migrations/        # هجرات Alembic
++├── src/               # واجهة React (اختيارية)
++├── nginx/             # إعدادات Nginx
++├── tests/             # اختبارات الوحدات
++└── .github/workflows/ # CI
++```
++
++## 🚀 البدء السريع (Docker)
++
++```bash
++# 1. انسخ ملف البيئة واضبط القيم
++cp .env.example .env
++
++# 2. شغّل المنظومة كاملة (PostgreSQL + التطبيق + Nginx)
++docker compose up -d --build
++```
++
++ثم افتح المتصفح على: **http://localhost** — سيتم تلقائيًا تطبيق الهجرات وتهيئة قاعدة البيانات وإنشاء المستخدمين التجريبيين.
++
++## 👨‍💻 التشغيل اليدوي (تطوير)
++
++```bash
++# 1. متطلبات النظام: Python 3.12 + PostgreSQL قيد التشغيل
++python -m venv .venv && source .venv/bin/activate
++pip install -r requirements.txt -r requirements-dev.txt
++
++# 2. أنشئ قاعدة البيانات وعدّل .env
++cp .env.example .env
++
++# 3. طبّق الهجرات وشغّل الخادم
++alembic upgrade head
++uvicorn app.main:app --reload --port 8000
++```
++
++## 🔑 بيانات الدخول الافتراضية
++
++| الدور | البريد | كلمة المرور |
++|---|---|---|
++| 👨‍💼 مدير | `admin@school.edu` | `admin123` |
++| 👨‍🏫 وكيل | `deputy@school.edu` | `deputy123` |
++| 🎯 مسؤول أنشطة | `activities@school.edu` | `activities123` |
++| 📚 معلم | `teacher@school.edu` | `teacher123` |
++
++> ⚠️ **غيّر هذه البيانات فورًا في بيئة الإنتاج.**
++
++## ⚙️ متغيرات البيئة الرئيسية
++
++| المتغير | الافتراضي | الوصف |
++|---|---|---|
++| `APP_ENV` | `development` | بيئة التشغيل (`production` في الإنتاج) |
++| `SECRET_KEY` | `change-me-...` | **مفتاح توقيع الجلسات — غيّره في الإنتاج** |
++| `DATABASE_URL` | `postgresql+asyncpg://...` | اتصال قاعدة البيانات |
++| `SESSION_MAX_AGE` | `604800` | مدة صلاحية الجلسة (7 أيام) |
++| `SESSION_SECURE` | `false` | اجعلها `true` في الإنتاج (HTTPS) |
++| `SMTP_*` | — | إعدادات البريد للإشعارات (اختياري) |
++
++## 🔌 واجهة برمجة التطبيقات (API)
++
++المسارات متاحة تحت `/api/v1` (مصادقة عبر كوكي الجلسة):
++
++- `POST /api/v1/auth/login` — تسجيل الدخول
++- `POST /api/v1/auth/logout` — تسجيل الخروج
++- `POST /api/v1/auth/register` — تسجيل مدرسة
++- الموارد: `students`, `teachers`, `academics`, `attendance`, `grades`, `schedules`, `homework`, `activities`, `behavior`, `notifications`, `reports`
++
++وثائق Swagger التفاعلية: `http://localhost:8000/docs`
++
++## 🧪 الاختبارات
++
++```bash
++# تشغيل اختبارات الوحدات (لا تتطلب قاعدة بيانات)
++python -m pytest tests -v
++
++# فحص الجودة بأداة Ruff
++ruff check app tests
++```
++
++## 🤖 CI/CD
++
++يوجد workflow جاهز في `.github/workflows/ci.yml` يعمل على كل push/PR:
++فحص الجودة (Ruff) + تشغيل الاختبارات ضد قاعدة PostgreSQL حقيقية داخل GitHub Actions.
++
++## 🤝 المساهمة
++
++1. Fork المشروع وأنشئ فرعًا: `git checkout -b feature/your-feature`
++2. نفّذ تغييراتك وأضف اختبارات
++3. تأكد من نجاح `ruff check` و `pytest`
++4. افتح Pull Request
++
++## 📄 الترخيص
++
++راجع ملف الترخيص الخاص بالمشروع.
+diff --git a/app/core/config.py b/app/core/config.py
+index fbbae14..7f9f7c4 100644
+--- a/app/core/config.py
++++ b/app/core/config.py
+@@ -1,70 +1,77 @@
+-"""Application configuration loaded from environment variables."""
+-import os
++"""Application configuration loaded from environment variables.
++
++Uses ``pydantic-settings`` so every setting is read from the environment
++(and from a local ``.env`` file if present) **at instantiation time**,
++then cached via ``get_settings()``.
++"""
+ from functools import lru_cache
+ from typing import Literal
+ 
++from pydantic_settings import BaseSettings, SettingsConfigDict
++
+ 
+-class Settings:
++class Settings(BaseSettings):
+     """Application settings from environment variables."""
+-    
++
++    model_config = SettingsConfigDict(
++        env_file=".env",
++        env_file_encoding="utf-8",
++        case_sensitive=False,
++        extra="ignore",
++    )
++
+     # Application
+-    APP_NAME: str = os.getenv("APP_NAME", "School Management System")
+-    APP_ENV: Literal["development", "staging", "production"] = os.getenv("APP_ENV", "development")  # type: ignore
+-    APP_DEBUG: bool = os.getenv("APP_DEBUG", "True").lower() == "true"
+-    APP_HOST: str = os.getenv("APP_HOST", "0.0.0.0")
+-    APP_PORT: int = int(os.getenv("APP_PORT", "8000"))
+-    APP_URL: str = os.getenv("APP_URL", "http://localhost:8000")
+-    APP_LANGUAGE: Literal["ar", "en"] = os.getenv("APP_LANGUAGE", "ar")  # type: ignore
+-    APP_DEFAULT_TIMEZONE: str = os.getenv("APP_DEFAULT_TIMEZONE", "Asia/Riyadh")
++    APP_NAME: str = "School Management System"
++    APP_ENV: Literal["development", "staging", "production"] = "development"
++    APP_DEBUG: bool = True
++    APP_HOST: str = "0.0.0.0"
++    APP_PORT: int = 8000
++    APP_URL: str = "http://localhost:8000"
++    APP_LANGUAGE: Literal["ar", "en"] = "ar"
++    APP_DEFAULT_TIMEZONE: str = "Asia/Riyadh"
+ 
+     # Security
+-    SECRET_KEY: str = os.getenv("SECRET_KEY", "change-me-to-a-long-random-string-in-production")
+-    SESSION_COOKIE_NAME: str = os.getenv("SESSION_COOKIE_NAME", "sms_session")
+-    
+-    # ✅ زيادة مدة صلاحية الجلسة إلى 7 أيام (604800 ثانية)
+-    SESSION_MAX_AGE: int = int(os.getenv("SESSION_MAX_AGE", "604800"))  # 7 أيام
+-    
+-    # ✅ تفعيل تجديد الجلسة مع كل طلب
+-    SESSION_REFRESH_EACH_REQUEST: bool = os.getenv("SESSION_REFRESH_EACH_REQUEST", "True").lower() == "true"
+-    
+-    # ✅ جعل الكوكيز آمنة في الإنتاج
+-    SESSION_SECURE: bool = os.getenv("SESSION_SECURE", "False").lower() == "true"
+-    SESSION_HTTPONLY: bool = os.getenv("SESSION_HTTPONLY", "True").lower() == "true"
+-    SESSION_SAMESITE: str = os.getenv("SESSION_SAMESITE", "lax")
+-    PASSWORD_HASH_SCHEME: str = os.getenv("PASSWORD_HASH_SCHEME", "bcrypt")
++    SECRET_KEY: str = "change-me-to-a-long-random-string-in-production"
++    SESSION_COOKIE_NAME: str = "sms_session"
++    # مدة صلاحية الجلسة: 7 أيام (604800 ثانية)
++    SESSION_MAX_AGE: int = 604800
++    SESSION_REFRESH_EACH_REQUEST: bool = True
++    SESSION_SECURE: bool = False
++    SESSION_HTTPONLY: bool = True
++    SESSION_SAMESITE: str = "lax"
++    PASSWORD_HASH_SCHEME: str = "bcrypt"
+ 
+     # Database
+-    DATABASE_URL: str = os.getenv(
+-        "DATABASE_URL",
++    DATABASE_URL: str = (
+         "postgresql+asyncpg://sms_user:sms_password@localhost:5432/sms_db"
+     )
+-    DATABASE_SSL: bool = os.getenv("DATABASE_SSL", "False").lower() == "true"
+-    DATABASE_POOL_SIZE: int = int(os.getenv("DATABASE_POOL_SIZE", "10"))
+-    DATABASE_MAX_OVERFLOW: int = int(os.getenv("DATABASE_MAX_OVERFLOW", "20"))
+-    DATABASE_ECHO: bool = os.getenv("DATABASE_ECHO", "False").lower() == "true"
++    DATABASE_SSL: bool = False
++    DATABASE_POOL_SIZE: int = 10
++    DATABASE_MAX_OVERFLOW: int = 20
++    DATABASE_ECHO: bool = False
+ 
+     # Redis
+-    REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+-    REDIS_ENABLED: bool = os.getenv("REDIS_ENABLED", "False").lower() == "true"
++    REDIS_URL: str = "redis://localhost:6379/0"
++    REDIS_ENABLED: bool = False
+ 
+     # Email
+-    SMTP_HOST: str = os.getenv("SMTP_HOST", "")
+-    SMTP_PORT: int = int(os.getenv("SMTP_PORT", "587"))
+-    SMTP_USERNAME: str = os.getenv("SMTP_USERNAME", "")
+-    SMTP_PASSWORD: str = os.getenv("SMTP_PASSWORD", "")
+-    SMTP_FROM_EMAIL: str = os.getenv("SMTP_FROM_EMAIL", "noreply@school.edu")
++    SMTP_HOST: str = ""
++    SMTP_PORT: int = 587
++    SMTP_USERNAME: str = ""
++    SMTP_PASSWORD: str = ""
++    SMTP_FROM_EMAIL: str = "noreply@school.edu"
+ 
+     # Uploads
+-    UPLOAD_DIR: str = os.getenv("UPLOAD_DIR", "./uploads")
+-    MAX_UPLOAD_SIZE_MB: int = int(os.getenv("MAX_UPLOAD_SIZE_MB", "10"))
++    UPLOAD_DIR: str = "./uploads"
++    MAX_UPLOAD_SIZE_MB: int = 10
+ 
+     # Pagination
+-    DEFAULT_PAGE_SIZE: int = int(os.getenv("DEFAULT_PAGE_SIZE", "20"))
+-    MAX_PAGE_SIZE: int = int(os.getenv("MAX_PAGE_SIZE", "100"))
++    DEFAULT_PAGE_SIZE: int = 20
++    MAX_PAGE_SIZE: int = 100
+ 
+     # Reports
+-    REPORT_LINK_EXPIRY_DAYS: int = int(os.getenv("REPORT_LINK_EXPIRY_DAYS", "7"))
+-    REPORT_LINK_SECRET: str = os.getenv("REPORT_LINK_SECRET", "change-me-report-secret")
++    REPORT_LINK_EXPIRY_DAYS: int = 7
++    REPORT_LINK_SECRET: str = "change-me-report-secret"
+ 
+     @property
+     def is_production(self) -> bool:
+diff --git a/app/core/security.py b/app/core/security.py
+index 71ff52a..77a6350 100644
+--- a/app/core/security.py
++++ b/app/core/security.py
+@@ -22,11 +22,18 @@ def _get_serializer() -> URLSafeTimedSerializer:
+     return _serializer_instance
+ 
+ 
++def _truncate_to_72_bytes(raw: str) -> str:
++    """Truncate a password to bcrypt's 72-byte limit on a UTF-8 boundary."""
++    encoded = raw.encode("utf-8")
++    if len(encoded) <= 72:
++        return raw
++    return encoded[:72].decode("utf-8", errors="ignore")
++
++
+ def hash_password(raw: str) -> str:
+     """Hash a password using bcrypt with automatic truncation to 72 bytes."""
+-    # bcrypt limit is 72 bytes
+-    if len(raw.encode('utf-8')) > 72:
+-        raw = raw[:72]
++    # bcrypt limit is 72 bytes — truncate on a UTF-8 byte boundary
++    raw = _truncate_to_72_bytes(raw)
+     
+     # Hash the password using bcrypt
+     salt = bcrypt.gensalt()
+@@ -36,9 +43,8 @@ def hash_password(raw: str) -> str:
+ 
+ def verify_password(raw: str, hashed: str) -> bool:
+     """Verify a password against its hash with automatic truncation to 72 bytes."""
+-    # bcrypt limit is 72 bytes
+-    if len(raw.encode('utf-8')) > 72:
+-        raw = raw[:72]
++    # bcrypt limit is 72 bytes — truncate on a UTF-8 byte boundary
++    raw = _truncate_to_72_bytes(raw)
+     
+     # Verify the password
+     return bcrypt.checkpw(raw.encode('utf-8'), hashed.encode('utf-8'))
+diff --git a/pyproject.toml b/pyproject.toml
+new file mode 100644
+index 0000000..80b6889
+--- /dev/null
++++ b/pyproject.toml
+@@ -0,0 +1,9 @@
++[tool.ruff]
++line-length = 100
++target-version = "py312"
++exclude = ["migrations", "src", "node_modules", "dist"]
++
++[tool.pytest.ini_options]
++pythonpath = ["."]
++testpaths = ["tests"]
++addopts = "-q"
+diff --git a/requirements-dev.txt b/requirements-dev.txt
+new file mode 100644
+index 0000000..0f0b6eb
+--- /dev/null
++++ b/requirements-dev.txt
+@@ -0,0 +1,9 @@
++# ------------------------------------------------------------------
++# Development & testing dependencies
++# Install with: pip install -r requirements-dev.txt
++# ------------------------------------------------------------------
++-r requirements.txt
++
++pytest==8.3.4
++pytest-asyncio==0.25.2
++ruff==0.9.4
+diff --git a/tests/test_config.py b/tests/test_config.py
+new file mode 100644
+index 0000000..a7cacea
+--- /dev/null
++++ b/tests/test_config.py
+@@ -0,0 +1,27 @@
++"""Unit tests for application settings defaults and env parsing."""
++
++from app.core.config import Settings, settings
++
++
++def test_default_app_name():
++    assert settings.APP_NAME == "School Management System"
++
++
++def test_settings_read_env_at_instantiation(monkeypatch):
++    monkeypatch.setenv("APP_NAME", "Test School")
++    s = Settings()
++    assert s.APP_NAME == "Test School"
++
++
++def test_max_upload_bytes():
++    s = Settings()
++    assert s.max_upload_bytes == s.MAX_UPLOAD_SIZE_MB * 1024 * 1024
++
++
++def test_default_session_max_age_is_seven_days():
++    assert settings.SESSION_MAX_AGE == 604800
++
++
++def test_session_cookie_defaults_are_safe():
++    assert settings.SESSION_HTTPONLY is True
++    assert settings.SESSION_SAMESITE == "lax"
+diff --git a/tests/test_security.py b/tests/test_security.py
+new file mode 100644
+index 0000000..e52af89
+--- /dev/null
++++ b/tests/test_security.py
+@@ -0,0 +1,50 @@
++"""Unit tests for password hashing and session tokens (no DB required)."""
++
++from app.core.security import (
++    decode_session,
++    encode_session,
++    hash_password,
++    verify_password,
++)
++
++
++class TestPasswordHashing:
++    def test_hash_and_verify_roundtrip(self):
++        hashed = hash_password("StrongPass!2026")
++        assert hashed != "StrongPass!2026"
++        assert verify_password("StrongPass!2026", hashed)
++
++    def test_wrong_password_rejected(self):
++        hashed = hash_password("correct-password")
++        assert not verify_password("wrong-password", hashed)
++
++    def test_multibyte_password_beyond_72_bytes(self):
++        # كلمة مرور عربية تتجاوز حد bcrypt (72 بايت) — يجب ألا ترفع خطأً
++        long_arabic = "كلمة_مرور_سرية_طويلة_جداً_" * 20
++        hashed = hash_password(long_arabic)
++        assert verify_password(long_arabic, hashed)
++
++    def test_empty_password(self):
++        hashed = hash_password("")
++        assert verify_password("", hashed)
++
++    def test_hashes_are_salted(self):
++        assert hash_password("same-pass") != hash_password("same-pass")
++
++
++class TestSessionTokens:
++    def test_encode_decode_roundtrip(self):
++        token = encode_session({"user_id": "123", "permissions": ["a", "b"]})
++        payload = decode_session(token)
++        assert payload is not None
++        assert payload["user_id"] == "123"
++
++    def test_tampered_token_rejected(self):
++        token = encode_session({"user_id": "1"})
++        forged = token[:-4] + ("AAAA" if token[-4:] != "AAAA" else "BBBB")
++        assert decode_session(forged) is None
++
++    def test_decode_respects_max_age(self):
++        token = encode_session({"user_id": "1"})
++        # أقصى عمر سالب لا يمكن تحقيقه أبدًا → يجب رفض التوكن
++        assert decode_session(token, max_age=-1) is None
