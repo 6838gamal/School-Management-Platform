@@ -4,6 +4,32 @@
 <div dir="rtl" class="p-4">
   <h1 class="text-2xl font-bold mb-2">🏫 لوحة تحكم الوكيل</h1>
   
+  {# ============ عرض الأخطاء ============ #}
+  {% if dashboard.error %}
+  <div class="bg-red-50 border-r-4 border-red-400 rounded p-4 mb-4 border border-red-200">
+    <div class="flex items-center">
+      <span class="text-2xl ml-2">❌</span>
+      <div>
+        <h3 class="font-bold text-red-700">حدث خطأ</h3>
+        <p class="text-red-600">{{ dashboard.error }}</p>
+      </div>
+    </div>
+    <div class="mt-2">
+      <a href="/deputy/debug/simple" class="bg-blue-500 text-white px-3 py-1 rounded text-sm hover:bg-blue-600">
+        🔍 عرض بيانات التصحيح
+      </a>
+    </div>
+  </div>
+  {% endif %}
+
+  {# ============ DEBUG: عرض البيانات الخام ============ #}
+  {% if debug_mode or request.query_params.get('debug') == 'true' %}
+  <details class="bg-yellow-50 border border-yellow-300 rounded p-4 mb-4">
+    <summary class="font-bold text-yellow-800 cursor-pointer">🐛 DEBUG: عرض البيانات الخام</summary>
+    <pre class="text-xs overflow-auto max-h-96 bg-white p-2 rounded mt-2 border border-gray-300">{{ dashboard|tojson|safe }}</pre>
+  </details>
+  {% endif %}
+
   {# ============ شريط التاريخ والفلتر ============ #}
   <div class="bg-white shadow rounded p-4 mb-4 border border-gray-200">
     <div class="flex flex-wrap items-center justify-between gap-4">
@@ -47,6 +73,8 @@
 
   {# ============ إحصائيات سريعة ============ #}
   {% set analytics = dashboard.analytics|default({}) %}
+  {% set has_data = analytics.present|default(0) > 0 or analytics.absent|default(0) > 0 or analytics.late|default(0) > 0 %}
+  
   <div class="grid grid-cols-2 md:grid-cols-7 gap-3 mb-4">
     <div class="bg-green-50 border border-green-200 rounded p-3 text-center">
       <div class="text-2xl">✅</div>
@@ -85,12 +113,26 @@
     </div>
   </div>
 
+  {# ============ عرض حالة البيانات ============ #}
+  {% if not has_data and not dashboard.error %}
+  <div class="bg-blue-50 border-r-4 border-blue-400 rounded p-4 mb-4 border border-blue-200">
+    <div class="flex items-center">
+      <span class="text-2xl ml-2">ℹ️</span>
+      <div>
+        <h3 class="font-bold text-blue-700">لا توجد بيانات حضور مسجلة</h3>
+        <p class="text-blue-600">لم يتم تسجيل أي حضور أو غياب للطلاب حتى الآن.</p>
+        <p class="text-blue-600 text-sm mt-1">يمكنك البدء بتسجيل الحضور من خلال رابط "تسجيل حضور" في كل فصل.</p>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
   {# ============ الفصول مرتبة حسب السنة ============ #}
   {% if dashboard.sections and dashboard.sections|length > 0 %}
     {# تجميع الفصول حسب السنة (الصف) #}
     {% set sections_by_grade = {} %}
     {% for sec in dashboard.sections %}
-      {% set grade_key = sec.grade_name %}
+      {% set grade_key = sec.grade_name or 'غير مصنف' %}
       {% if grade_key not in sections_by_grade %}
         {% set _ = sections_by_grade.update({grade_key: []}) %}
       {% endif %}
@@ -106,7 +148,7 @@
             📚 {{ grade_name }}
           </h2>
           <span class="text-sm bg-white px-3 py-1 rounded border border-gray-300">
-            {{ grade_sections|sum(attribute='enrolled_count') }} طالب
+            {{ grade_sections|sum(attribute='enrolled_count')|default(0) }} طالب
           </span>
         </div>
 
@@ -124,11 +166,11 @@
                 </span>
                 {% if sec.periods_today and sec.periods_today|length > 0 %}
                   <span class="text-xs bg-green-100 text-green-700 rounded px-2 py-1 border border-green-300">
-                    ✅ يوجد بيانات
+                    ✅ {{ sec.periods_today|length }} حصص
                   </span>
                 {% else %}
-                  <span class="text-xs bg-red-100 text-red-700 rounded px-2 py-1 border border-red-300">
-                    ❌ لا توجد بيانات
+                  <span class="text-xs bg-yellow-100 text-yellow-700 rounded px-2 py-1 border border-yellow-300">
+                    ⚠️ لا توجد حصص
                   </span>
                 {% endif %}
               </div>
@@ -161,24 +203,26 @@
                       <th class="p-2 text-right border-l border-gray-200">الحصة</th>
                       <th class="p-2 text-right border-l border-gray-200">المادة</th>
                       <th class="p-2 text-right border-l border-gray-200">المعلم</th>
-                      <th class="p-2 text-right border-l border-gray-200">الحضور</th>
-                      <th class="p-2 text-right border-l border-gray-200">الغياب</th>
-                      <th class="p-2 text-right border-l border-gray-200">تأخير</th>
-                      <th class="p-2 text-right border-l border-gray-200">استئذان</th>
-                      <th class="p-2 text-right">حالة صحية</th>
+                      <th class="p-2 text-right border-l border-gray-200">الحالة</th>
                     </tr>
                   </thead>
                   <tbody>
                     {% for p in sec.periods_today %}
                       <tr class="border-t border-gray-200 hover:bg-gray-50">
-                        <td class="p-2 border-l border-gray-200">{{ loop.index }}</td>
+                        <td class="p-2 border-l border-gray-200">{{ p.period_number or loop.index }}</td>
                         <td class="p-2 border-l border-gray-200">{{ p.subject_name }}</td>
                         <td class="p-2 border-l border-gray-200">{{ p.teacher_name }}</td>
-                        <td class="p-2 border-l border-gray-200 text-center">{{ p.attendance_stats.present|default(0) }}</td>
-                        <td class="p-2 border-l border-gray-200 text-center">{{ p.attendance_stats.absent|default(0) }}</td>
-                        <td class="p-2 border-l border-gray-200 text-center">{{ p.attendance_stats.late|default(0) }}</td>
-                        <td class="p-2 border-l border-gray-200 text-center">{{ p.attendance_stats.excused|default(0) }}</td>
-                        <td class="p-2 text-center">{{ p.attendance_stats.sick|default(0) }}</td>
+                        <td class="p-2 border-l border-gray-200">
+                          <span class="px-2 py-1 rounded text-xs 
+                            {% if p.status == 'present' %}bg-green-100 text-green-700
+                            {% elif p.status == 'absent' %}bg-red-100 text-red-700
+                            {% elif p.status == 'late' %}bg-orange-100 text-orange-700
+                            {% elif p.status == 'excused' %}bg-blue-100 text-blue-700
+                            {% elif p.status == 'sick' %}bg-purple-100 text-purple-700
+                            {% else %}bg-gray-100 text-gray-700{% endif %}">
+                            {{ p.status_label }}
+                          </span>
+                        </td>
                       </tr>
                     {% endfor %}
                   </tbody>
@@ -221,6 +265,7 @@
                           <th class="p-2 text-right border-b border-gray-200">تأخير</th>
                           <th class="p-2 text-right border-b border-gray-200">استئذان</th>
                           <th class="p-2 text-right border-b border-gray-200">حالة صحية</th>
+                          <th class="p-2 text-right">تأخير صباحي</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -244,7 +289,8 @@
                           <td class="p-2 border-l border-gray-200 text-center">{{ student.attendance.absent|default(0) }}</td>
                           <td class="p-2 border-l border-gray-200 text-center">{{ student.attendance.late|default(0) }}</td>
                           <td class="p-2 border-l border-gray-200 text-center">{{ student.attendance.excused|default(0) }}</td>
-                          <td class="p-2 text-center">{{ student.attendance.sick|default(0) }}</td>
+                          <td class="p-2 border-l border-gray-200 text-center">{{ student.attendance.sick|default(0) }}</td>
+                          <td class="p-2 text-center">{{ student.attendance.late_arrival|default(0) }}</td>
                         </tr>
                         {% endfor %}
                       </tbody>
@@ -262,10 +308,21 @@
       </div>
     {% endfor %}
   {% else %}
-    <div class="bg-blue-50 border-r-4 border-blue-400 rounded p-6 text-center border border-blue-200">
+    <div class="bg-yellow-50 border-r-4 border-yellow-400 rounded p-6 text-center border border-yellow-200">
       <div class="text-6xl mb-3">📋</div>
-      <h3 class="text-xl font-semibold text-blue-700">لا توجد فصول متاحة</h3>
-      <p class="text-gray-600 mt-2">لم يتم العثور على أي فصول مسجلة لك اليوم.</p>
+      <h3 class="text-xl font-semibold text-yellow-700">لا توجد فصول متاحة</h3>
+      <p class="text-gray-600 mt-2">
+        {% if dashboard.error %}
+          ❌ {{ dashboard.error }}
+        {% else %}
+          لم يتم العثور على أي فصول مسجلة لك اليوم.
+        {% endif %}
+      </p>
+      <div class="mt-4">
+        <a href="/deputy/debug/simple" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+          🔍 عرض بيانات التصحيح
+        </a>
+      </div>
     </div>
   {% endif %}
 
@@ -295,7 +352,7 @@
   {# ============ كافة الطلاب مع الرسوم البيانية ============ #}
   {% if dashboard.all_students and dashboard.all_students|length > 0 %}
   <div class="bg-white shadow rounded p-4 mt-4 border border-gray-200">
-    <h3 class="text-lg font-bold mb-3">👥 كافة الطلاب</h3>
+    <h3 class="text-lg font-bold mb-3">👥 كافة الطلاب ({{ dashboard.all_students|length }})</h3>
     
     {# ============ الرسوم البيانية ============ #}
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
@@ -323,7 +380,8 @@
             <th class="p-2 text-right border-l border-gray-200">الغياب</th>
             <th class="p-2 text-right border-l border-gray-200">تأخير</th>
             <th class="p-2 text-right border-l border-gray-200">استئذان</th>
-            <th class="p-2 text-right">حالة صحية</th>
+            <th class="p-2 text-right border-l border-gray-200">حالة صحية</th>
+            <th class="p-2 text-right">تأخير صباحي</th>
           </tr>
         </thead>
         <tbody>
@@ -349,7 +407,8 @@
             <td class="p-2 border-l border-gray-200 text-center">{{ student.attendance.absent|default(0) }}</td>
             <td class="p-2 border-l border-gray-200 text-center">{{ student.attendance.late|default(0) }}</td>
             <td class="p-2 border-l border-gray-200 text-center">{{ student.attendance.excused|default(0) }}</td>
-            <td class="p-2 text-center">{{ student.attendance.sick|default(0) }}</td>
+            <td class="p-2 border-l border-gray-200 text-center">{{ student.attendance.sick|default(0) }}</td>
+            <td class="p-2 text-center">{{ student.attendance.late_arrival|default(0) }}</td>
           </tr>
           {% endfor %}
         </tbody>
@@ -359,7 +418,7 @@
   {% endif %}
 </div>
 
-{# ============ Chart.js ============ #}
+{# ============ JavaScript ============ #}
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
 // تحديث التاريخ
@@ -399,9 +458,9 @@ function printReport() {
 
 // ============ الرسوم البيانية ============
 document.addEventListener('DOMContentLoaded', function() {
-  // استخدام البيانات من analytics بدلاً من chart_data
+  // استخدام البيانات من analytics
   {% set analytics = dashboard.analytics|default({}) %}
-  const statusData = {
+  const analyticsData = {
     present: {{ analytics.present|default(0) }},
     absent: {{ analytics.absent|default(0) }},
     late: {{ analytics.late|default(0) }},
@@ -419,12 +478,12 @@ document.addEventListener('DOMContentLoaded', function() {
         labels: ['✅ حضور', '❌ غياب', '🟠 تأخير', '📋 استئذان', '🏥 حالة صحية', '⏰ تأخير صباحي'],
         datasets: [{
           data: [
-            statusData.present || 0,
-            statusData.absent || 0,
-            statusData.late || 0,
-            statusData.excused || 0,
-            statusData.sick || 0,
-            statusData.late_arrival || 0
+            analyticsData.present || 0,
+            analyticsData.absent || 0,
+            analyticsData.late || 0,
+            analyticsData.excused || 0,
+            analyticsData.sick || 0,
+            analyticsData.late_arrival || 0
           ],
           backgroundColor: [
             '#22c55e',
@@ -463,12 +522,12 @@ document.addEventListener('DOMContentLoaded', function() {
         datasets: [{
           label: 'عدد الطلاب',
           data: [
-            statusData.present || 0,
-            statusData.absent || 0,
-            statusData.late || 0,
-            statusData.excused || 0,
-            statusData.sick || 0,
-            statusData.late_arrival || 0
+            analyticsData.present || 0,
+            analyticsData.absent || 0,
+            analyticsData.late || 0,
+            analyticsData.excused || 0,
+            analyticsData.sick || 0,
+            analyticsData.late_arrival || 0
           ],
           backgroundColor: [
             '#22c55e',
@@ -516,6 +575,10 @@ document.addEventListener('DOMContentLoaded', function() {
   .bg-white { background: white !important; }
   .shadow { box-shadow: none !important; }
   .border { border: 1px solid #ddd !important; }
+  .bg-blue-100 { background: #f0f8ff !important; }
+  .bg-yellow-50 { background: #fffef0 !important; }
+  .bg-red-50 { background: #fff0f0 !important; }
+  .bg-green-50 { background: #f0fff0 !important; }
 }
 </style>
 {% endblock %}
