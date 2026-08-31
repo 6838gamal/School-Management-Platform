@@ -14,6 +14,7 @@ from app.core.database import get_db
 from app.core.dependencies import CurrentUser, require_any_permission, template_context
 from app.services.schedule_service import ScheduleService
 from app.core.exceptions import NotFoundException, AppException
+from app.core.security import hash_password
 
 # النماذج
 from app.models.schedules import Schedule, ScheduleEntry
@@ -123,39 +124,36 @@ async def get_subjects(db: AsyncSession, school_id: str) -> List[Dict]:
 
 async def get_teachers(db: AsyncSession, school_id: str) -> List[Dict]:
     """
-    جلب المعلمين
+    جلب المعلمين - نفس الطريقة المستخدمة في TeacherService
     """
     try:
-        # جلب دور المعلم
-        role_result = await db.execute(
-            select(Role).where(Role.key == "teacher", Role.school_id == school_id)
-        )
-        teacher_role = role_result.scalar_one_or_none()
-        
-        if not teacher_role:
-            print("⚠️ لا يوجد دور معلم في المدرسة")
-            return []
-        
+        # جلب جميع المعلمين من جدول Teacher مباشرة
         result = await db.execute(
-            select(User)
-            .join(UserRole, UserRole.user_id == User.id)
-            .where(UserRole.role_id == teacher_role.id)
-            .where(User.school_id == school_id)
-            .where(User.is_active == True)
-            .order_by(User.full_name)
+            select(Teacher)
+            .where(Teacher.school_id == school_id)
+            .where(Teacher.is_active == True)
+            .order_by(Teacher.first_name, Teacher.last_name)
         )
         teachers = result.scalars().all()
+        
+        if not teachers:
+            print("⚠️ لا يوجد معلمين في جدول Teacher")
+            return []
         
         return [
             {
                 "id": str(teacher.id),
-                "name": teacher.full_name or teacher.name,
-                "email": teacher.email if hasattr(teacher, 'email') else None
+                "name": f"{teacher.first_name} {teacher.last_name}".strip() or teacher.full_name,
+                "employee_number": teacher.employee_number,
+                "email": teacher.email,
+                "specialization": teacher.specialization
             }
             for teacher in teachers
         ]
     except Exception as e:
         print(f"⚠️ Error in get_teachers: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return []
 
 
@@ -192,6 +190,102 @@ async def get_periods(db: AsyncSession, school_id: str) -> List[Dict]:
             {"id": "5", "order": 5, "name": "الحصة الخامسة"},
             {"id": "6", "order": 6, "name": "الحصة السادسة"},
         ]
+
+
+# ============================================================
+# دوال إصلاح البيانات
+# ============================================================
+
+@router.get("/debug/fix-teachers")
+async def fix_teachers(
+    request: Request,
+    user: CurrentUser = Depends(require_any_permission("schedules.create")),
+    db: AsyncSession = Depends(get_db),
+):
+    """إصلاح بيانات المعلمين وإنشاء معلمين افتراضيين إذا لم يوجد"""
+    try:
+        from app.models.teachers import Teacher
+        
+        print("=" * 50)
+        print("🔧 إصلاح بيانات المعلمين")
+        print(f"   school_id: {user.school_id}")
+        print("=" * 50)
+        
+        # 1. جلب المعلمين الموجودين
+        teachers_result = await db.execute(
+            select(Teacher).where(Teacher.school_id == user.school_id)
+        )
+        existing_teachers = list(teachers_result.scalars().all())
+        
+        if existing_teachers:
+            print(f"📊 يوجد {len(existing_teachers)} معلمين بالفعل")
+            return JSONResponse({
+                "status": "success",
+                "message": f"يوجد {len(existing_teachers)} معلمين بالفعل",
+                "teachers": [
+                    {
+                        "id": str(t.id),
+                        "name": f"{t.first_name} {t.last_name}".strip() or t.full_name,
+                        "employee_number": t.employee_number
+                    }
+                    for t in existing_teachers
+                ]
+            })
+        
+        # 2. إنشاء معلمين افتراضيين
+        print("⚠️ لا يوجد معلمون، جاري الإنشاء...")
+        
+        default_teachers = [
+            {"first_name": "أحمد", "last_name": "المعلم", "email": "ahmed@school.edu", "employee_number": "T001"},
+            {"first_name": "سارة", "last_name": "المعلمة", "email": "sara@school.edu", "employee_number": "T002"},
+            {"first_name": "محمد", "last_name": "المعلم", "email": "mohamed@school.edu", "employee_number": "T003"},
+            {"first_name": "نورة", "last_name": "المعلمة", "email": "noura@school.edu", "employee_number": "T004"},
+        ]
+        
+        created_teachers = []
+        for teacher_data in default_teachers:
+            teacher = Teacher(
+                id=str(uuid.uuid4()),
+                school_id=user.school_id,
+                first_name=teacher_data["first_name"],
+                last_name=teacher_data["last_name"],
+                full_name=f"{teacher_data['first_name']} {teacher_data['last_name']}",
+                employee_number=teacher_data["employee_number"],
+                email=teacher_data["email"],
+                is_active=True,
+                created_by=user.id,
+                updated_by=user.id,
+                created_at=datetime.now(),
+                updated_at=datetime.now()
+            )
+            db.add(teacher)
+            created_teachers.append(teacher)
+            print(f"✅ تم إنشاء المعلم: {teacher.full_name}")
+        
+        await db.commit()
+        
+        return JSONResponse({
+            "status": "success",
+            "message": f"تم إنشاء {len(created_teachers)} معلم بنجاح",
+            "teachers": [
+                {
+                    "id": str(t.id),
+                    "name": t.full_name,
+                    "employee_number": t.employee_number,
+                    "email": t.email
+                }
+                for t in created_teachers
+            ]
+        })
+        
+    except Exception as e:
+        print(f"❌ Error: {str(e)}")
+        traceback.print_exc()
+        await db.rollback()
+        return JSONResponse(
+            {"error": str(e), "traceback": traceback.format_exc()},
+            status_code=500
+        )
 
 
 # ============================================================
@@ -289,7 +383,7 @@ async def create_schedule_page(
         print(f"   school_id: {user.school_id}")
         print("=" * 50)
         
-        # جلب البيانات المطلوبة باستخدام الدوال المحسنة
+        # جلب البيانات المطلوبة
         sections = await get_sections_with_details(db, user.school_id)
         academic_years = await get_academic_years(db, user.school_id)
         subjects = await get_subjects(db, user.school_id)
@@ -305,6 +399,10 @@ async def create_schedule_page(
         # عرض تفاصيل الشعب للتأكد
         for section in sections[:5]:
             print(f"   📚 {section.get('display_name', section.get('name'))}")
+        
+        # عرض تفاصيل المعلمين
+        for teacher in teachers[:5]:
+            print(f"   👨‍🏫 {teacher.get('name')} ({teacher.get('employee_number')})")
         
         return templates.TemplateResponse(
             "schedules/create.html",
@@ -498,6 +596,36 @@ async def debug_sections(
         )
 
 
+@router.get("/debug/teachers")
+async def debug_teachers(
+    request: Request,
+    user: CurrentUser = Depends(require_any_permission("schedules.view")),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    عرض بيانات المعلمين للتصحيح
+    """
+    try:
+        teachers = await get_teachers(db, user.school_id)
+        
+        return JSONResponse({
+            "total": len(teachers),
+            "teachers": teachers,
+            "school_id": str(user.school_id)
+        })
+        
+    except Exception as e:
+        print(f"❌ Error in debug_teachers: {str(e)}")
+        traceback.print_exc()
+        return JSONResponse(
+            {
+                "error": str(e),
+                "traceback": traceback.format_exc()
+            },
+            status_code=500
+        )
+
+
 @router.get("/debug/create-default")
 async def create_default_schedule(
     request: Request,
@@ -519,6 +647,7 @@ async def create_default_schedule(
             select(Section)
             .options(selectinload(Section.grade).selectinload(Grade.stage))
             .where(Section.school_id == user.school_id)
+            .where(Section.is_active == True)
             .limit(1)
         )
         section = section_result.scalar_one_or_none()
@@ -720,3 +849,241 @@ async def create_default_schedule(
             },
             status_code=500
         )
+
+
+# ============================================================
+# مسارات API للجداول
+# ============================================================
+
+@router.post("/api/create")
+async def create_schedule_api(
+    req: ScheduleCreate,
+    user: CurrentUser = Depends(require_any_permission("schedules.create")),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    إنشاء جدول جديد عبر API
+    """
+    try:
+        service = ScheduleService(db)
+        
+        # إنشاء الجدول
+        schedule = await service.create_schedule(user.school_id, req)
+        
+        # إضافة الحصص (entries) إذا وجدت
+        if req.entries:
+            for entry_data in req.entries:
+                await service.add_entry(schedule.id, entry_data)
+        
+        await db.commit()
+        
+        return {
+            "success": True,
+            "message": "تم إنشاء الجدول بنجاح",
+            "id": str(schedule.id),
+            "name": schedule.name
+        }
+        
+    except ValueError as e:
+        return JSONResponse(
+            {"detail": str(e)},
+            status_code=422
+        )
+    except Exception as e:
+        print(f"❌ Error creating schedule: {str(e)}")
+        traceback.print_exc()
+        await db.rollback()
+        return JSONResponse(
+            {"detail": str(e)},
+            status_code=500
+        )
+
+
+@router.put("/api/{schedule_id}")
+async def update_schedule_api(
+    schedule_id: str,
+    req: ScheduleUpdate,
+    user: CurrentUser = Depends(require_any_permission("schedules.update")),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    تحديث جدول عبر API
+    """
+    try:
+        service = ScheduleService(db)
+        schedule = await service.update_schedule(schedule_id, req)
+        await db.commit()
+        
+        return {
+            "success": True,
+            "message": "تم تحديث الجدول بنجاح",
+            "id": str(schedule.id)
+        }
+        
+    except NotFoundException as e:
+        return JSONResponse(
+            {"detail": str(e)},
+            status_code=404
+        )
+    except Exception as e:
+        print(f"❌ Error updating schedule: {str(e)}")
+        traceback.print_exc()
+        await db.rollback()
+        return JSONResponse(
+            {"detail": str(e)},
+            status_code=500
+        )
+
+
+@router.delete("/api/{schedule_id}")
+async def delete_schedule_api(
+    schedule_id: str,
+    user: CurrentUser = Depends(require_any_permission("schedules.delete")),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    حذف جدول عبر API
+    """
+    try:
+        service = ScheduleService(db)
+        await service.delete_schedule(schedule_id)
+        await db.commit()
+        
+        return {
+            "success": True,
+            "message": "تم حذف الجدول بنجاح"
+        }
+        
+    except NotFoundException as e:
+        return JSONResponse(
+            {"detail": str(e)},
+            status_code=404
+        )
+    except Exception as e:
+        print(f"❌ Error deleting schedule: {str(e)}")
+        traceback.print_exc()
+        await db.rollback()
+        return JSONResponse(
+            {"detail": str(e)},
+            status_code=500
+        )
+
+
+@router.post("/api/{schedule_id}/entries")
+async def add_entry_api(
+    schedule_id: str,
+    req: ScheduleEntryCreate,
+    user: CurrentUser = Depends(require_any_permission("schedules.update")),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    إضافة حصة جديدة إلى الجدول عبر API
+    """
+    try:
+        service = ScheduleService(db)
+        entry = await service.add_entry(schedule_id, req)
+        await db.commit()
+        
+        return {
+            "success": True,
+            "message": "تم إضافة الحصة بنجاح",
+            "id": str(entry.id)
+        }
+        
+    except NotFoundException as e:
+        return JSONResponse(
+            {"detail": str(e)},
+            status_code=404
+        )
+    except ValueError as e:
+        return JSONResponse(
+            {"detail": str(e)},
+            status_code=422
+        )
+    except Exception as e:
+        print(f"❌ Error adding entry: {str(e)}")
+        traceback.print_exc()
+        await db.rollback()
+        return JSONResponse(
+            {"detail": str(e)},
+            status_code=500
+        )
+
+
+@router.put("/api/entries/{entry_id}")
+async def update_entry_api(
+    entry_id: str,
+    req: ScheduleEntryUpdate,
+    user: CurrentUser = Depends(require_any_permission("schedules.update")),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    تحديث حصة في الجدول عبر API
+    """
+    try:
+        service = ScheduleService(db)
+        entry = await service.update_entry(entry_id, req)
+        await db.commit()
+        
+        return {
+            "success": True,
+            "message": "تم تحديث الحصة بنجاح",
+            "id": str(entry.id)
+        }
+        
+    except NotFoundException as e:
+        return JSONResponse(
+            {"detail": str(e)},
+            status_code=404
+        )
+    except Exception as e:
+        print(f"❌ Error updating entry: {str(e)}")
+        traceback.print_exc()
+        await db.rollback()
+        return JSONResponse(
+            {"detail": str(e)},
+            status_code=500
+        )
+
+
+@router.delete("/api/entries/{entry_id}")
+async def delete_entry_api(
+    entry_id: str,
+    user: CurrentUser = Depends(require_any_permission("schedules.update")),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    حذف حصة من الجدول عبر API
+    """
+    try:
+        service = ScheduleService(db)
+        await service.delete_entry(entry_id)
+        await db.commit()
+        
+        return {
+            "success": True,
+            "message": "تم حذف الحصة بنجاح"
+        }
+        
+    except NotFoundException as e:
+        return JSONResponse(
+            {"detail": str(e)},
+            status_code=404
+        )
+    except Exception as e:
+        print(f"❌ Error deleting entry: {str(e)}")
+        traceback.print_exc()
+        await db.rollback()
+        return JSONResponse(
+            {"detail": str(e)},
+            status_code=500
+        )
+
+
+# ============================================================
+# استيراد الـ Schemas (في نهاية الملف لتجنب المشاكل)
+# ============================================================
+from app.schemas.schedules import (
+    ScheduleCreate, ScheduleUpdate, 
+    ScheduleEntryCreate, ScheduleEntryUpdate
+)
