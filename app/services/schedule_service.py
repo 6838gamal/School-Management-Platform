@@ -1,10 +1,11 @@
 """Schedule service."""
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
+from sqlalchemy.orm import selectinload
 from typing import List, Optional, Dict, Any
 
 from app.core.exceptions import NotFoundException
-from app.models.academics import Section, Period, Subject, Room, AcademicYear
+from app.models.academics import Section, Period, Subject, Room, AcademicYear, Grade, Stage
 from app.models.schedules import Schedule, ScheduleEntry
 from app.models.users import User, UserRole, Role
 from app.schemas.schedules import (
@@ -20,9 +21,13 @@ class ScheduleService:
     # ============= دوال مساعدة للبحث والتحقق =============
 
     async def find_section_by_id(self, section_id: str) -> Optional[Section]:
-        """البحث عن شعبة بالمعرف"""
+        """البحث عن شعبة بالمعرف مع تحميل العلاقات"""
         result = await self.db.execute(
-            select(Section).where(Section.id == section_id)
+            select(Section)
+            .options(
+                selectinload(Section.grade).selectinload(Grade.stage)
+            )
+            .where(Section.id == section_id)
         )
         return result.scalar_one_or_none()
 
@@ -73,7 +78,7 @@ class ScheduleService:
             .where(
                 Schedule.school_id == school_id,
                 Schedule.section_id == section_id,
-                Schedule.year_id == academic_year_id  # ✅ استخدام year_id
+                Schedule.year_id == academic_year_id
             )
         )
         return result.scalar_one_or_none()
@@ -141,7 +146,6 @@ class ScheduleService:
         result_list = []
         for schedule in schedules:
             section_name = await self.get_section_name(schedule.section_id)
-            # ✅ استخدام year_id من النموذج
             year_name = await self.get_academic_year_name(schedule.year_id)
             
             entries_result = await self.db.execute(
@@ -177,7 +181,6 @@ class ScheduleService:
             return None
         
         section_name = await self.get_section_name(schedule.section_id)
-        # ✅ استخدام year_id من النموذج
         year_name = await self.get_academic_year_name(schedule.year_id)
         
         return {
@@ -224,7 +227,6 @@ class ScheduleService:
                 "teacher_name": teacher_name,
                 "room_id": entry.room_id,
                 "room_name": room_name,
-                
             })
         
         schedule_data["entries"] = entries_with_names
@@ -244,18 +246,14 @@ class ScheduleService:
         print(f"   is_active: {req.is_active}")
         print("=" * 50)
         
-        # ✅ التحقق من وجود school_id
         if not school_id:
             raise ValueError("معرف المدرسة غير موجود")
         
-        # ✅ التحقق من وجود section_id
         if not req.section_id:
             raise ValueError("معرف الشعبة مطلوب")
         
-        # ✅ البحث عن الشعبة
         section = await self.find_section_by_id(req.section_id)
         if not section:
-            # 🔍 جلب جميع الشعب للمساعدة في التشخيص
             all_sections = await self.db.execute(
                 select(Section).where(Section.school_id == school_id)
             )
@@ -266,14 +264,11 @@ class ScheduleService:
         
         print(f"✅ تم العثور على الشعبة: {section.name}")
         
-        # ✅ التحقق من وجود academic_year_id
         if not req.academic_year_id:
             raise ValueError("معرف العام الدراسي مطلوب")
         
-        # ✅ البحث عن العام الدراسي
         year = await self.find_academic_year_by_id(req.academic_year_id)
         if not year:
-            # 🔍 جلب جميع الأعوام للمساعدة في التشخيص
             all_years = await self.db.execute(
                 select(AcademicYear).where(AcademicYear.school_id == school_id)
             )
@@ -284,7 +279,6 @@ class ScheduleService:
         
         print(f"✅ تم العثور على العام الدراسي: {year.name}")
         
-        # ✅ التحقق من عدم وجود جدول مكرر - استخدام year_id
         duplicate = await self.find_schedule_duplicate(
             school_id, req.section_id, req.academic_year_id
         )
@@ -293,12 +287,11 @@ class ScheduleService:
         
         print("✅ لا يوجد جدول مكرر")
         
-        # ✅ إنشاء الجدول - استخدام year_id
         schedule = Schedule(
             school_id=school_id,
             name=req.name,
             section_id=req.section_id,
-            year_id=req.academic_year_id,  # ✅ year_id في قاعدة البيانات
+            year_id=req.academic_year_id,
             is_active=req.is_active,
         )
         self.db.add(schedule)
@@ -354,38 +347,32 @@ class ScheduleService:
         print(f"   room_id: {req.room_id}")
         print("=" * 50)
         
-        # ✅ التحقق من وجود الجدول
         schedule_result = await self.db.execute(
             select(Schedule).where(Schedule.id == schedule_id)
         )
         if not schedule_result.scalar_one_or_none():
             raise NotFoundException("الجدول غير موجود")
         
-        # ✅ التحقق من وجود المادة
         subject = await self.find_subject_by_id(req.subject_id)
         if not subject:
             raise ValueError(f"المادة غير موجودة: {req.subject_id}")
         print(f"✅ تم العثور على المادة: {subject.name}")
         
-        # ✅ التحقق من وجود المعلم
         teacher = await self.find_teacher_by_id(req.teacher_id)
         if not teacher:
             raise ValueError(f"المعلم غير موجود: {req.teacher_id}")
         print(f"✅ تم العثور على المعلم: {teacher.full_name}")
         
-        # ✅ التحقق من وجود القاعة
         room = await self.find_room_by_id(req.room_id)
         if not room:
             raise ValueError(f"القاعة غير موجودة: {req.room_id}")
         print(f"✅ تم العثور على القاعة: {room.name}")
         
-        # ✅ التحقق من وجود الفترة
         period = await self.find_period_by_id(req.period_id)
         if not period:
             raise ValueError(f"الفترة غير موجودة: {req.period_id}")
         print(f"✅ تم العثور على الفترة: {period.name}")
         
-        # ✅ التحقق من عدم وجود تعارض
         conflict = await self.find_entry_conflict(
             schedule_id, req.day_of_week, req.period_id
         )
@@ -394,7 +381,6 @@ class ScheduleService:
         
         print("✅ لا يوجد تعارض")
         
-        # ✅ إنشاء المدخل
         entry = ScheduleEntry(
             schedule_id=schedule_id,
             day_of_week=req.day_of_week,
@@ -402,7 +388,6 @@ class ScheduleService:
             subject_id=req.subject_id,
             teacher_id=req.teacher_id,
             room_id=req.room_id,
-            
         )
         self.db.add(entry)
         await self.db.flush()
@@ -442,29 +427,47 @@ class ScheduleService:
         await self.db.flush()
         return True
 
-    # ============= دوال جلب البيانات للقوائم =============
+    # ============================================================
+    # 🔴 تم تحديث هذه الدوال
+    # ============================================================
 
     async def get_all_sections(self, school_id: str) -> List[Dict[str, Any]]:
-        """جلب جميع الشعب كقواميس"""
+        """جلب جميع الشعب كقواميس مع تفاصيل الصف والمرحلة"""
         result = await self.db.execute(
             select(Section)
+            .options(
+                selectinload(Section.grade).selectinload(Grade.stage)
+            )
             .where(Section.school_id == school_id)
             .where(Section.is_active == True)
-            .order_by(Section.name)
+            .order_by(Section.grade_id, Section.name)
         )
         sections = list(result.scalars().all())
+        
         return [
-            {"id": s.id, "name": s.name, "capacity": s.capacity, "is_active": s.is_active}
+            {
+                "id": str(s.id),
+                "name": s.name,
+                "grade_id": str(s.grade_id) if s.grade_id else None,
+                "grade_name": s.grade.name if s.grade else None,
+                "stage_name": s.grade.stage.name if s.grade and s.grade.stage else None,
+                "display_name": f"{s.grade.stage.name if s.grade and s.grade.stage else ''} - {s.grade.name if s.grade else ''} - {s.name}",
+                "capacity": s.capacity,
+                "is_active": s.is_active
+            }
             for s in sections
         ]
 
     async def get_sections_objects(self, school_id: str) -> List[Section]:
-        """جلب جميع الشعب كـ ORM Objects"""
+        """جلب جميع الشعب كـ ORM Objects مع تحميل العلاقات"""
         result = await self.db.execute(
             select(Section)
+            .options(
+                selectinload(Section.grade).selectinload(Grade.stage)
+            )
             .where(Section.school_id == school_id)
             .where(Section.is_active == True)
-            .order_by(Section.name)
+            .order_by(Section.grade_id, Section.name)
         )
         return list(result.scalars().all())
 
@@ -473,7 +476,8 @@ class ScheduleService:
         result = await self.db.execute(
             select(AcademicYear)
             .where(AcademicYear.school_id == school_id)
-            .order_by(AcademicYear.name.desc())
+            .where(AcademicYear.is_active == True)
+            .order_by(AcademicYear.start_date.desc())
         )
         return list(result.scalars().all())
 
@@ -536,6 +540,174 @@ class ScheduleService:
         rooms = list(result.scalars().all())
         return [{"id": r.id, "name": r.name} for r in rooms]
 
+    # ============================================================
+    # دوال جديدة لصفحة إنشاء الجدول
+    # ============================================================
+
+    async def get_sections_for_schedule(self, school_id: str) -> List[Dict[str, Any]]:
+        """
+        جلب جميع الشعب المتاحة للجدول الدراسي مع تفاصيلها
+        
+        هذه الدالة تعيد الشعب مع معلومات الصف والمرحلة
+        """
+        try:
+            result = await self.db.execute(
+                select(Section)
+                .options(
+                    selectinload(Section.grade).selectinload(Grade.stage)
+                )
+                .where(Section.school_id == school_id)
+                .where(Section.is_active == True)
+                .order_by(Section.grade_id, Section.name)
+            )
+            sections = list(result.scalars().all())
+            
+            sections_data = []
+            for section in sections:
+                grade_name = section.grade.name if section.grade else "غير محدد"
+                stage_name = section.grade.stage.name if section.grade and section.grade.stage else "غير محدد"
+                
+                sections_data.append({
+                    "id": str(section.id),
+                    "name": section.name,
+                    "grade_id": str(section.grade_id) if section.grade_id else None,
+                    "grade_name": grade_name,
+                    "stage_name": stage_name,
+                    "display_name": f"{stage_name} - {grade_name} - {section.name}",
+                    "capacity": section.capacity,
+                    "is_active": section.is_active
+                })
+            
+            print(f"📚 تم جلب {len(sections_data)} شعبة للمدرسة {school_id}")
+            return sections_data
+            
+        except Exception as e:
+            print(f"❌ خطأ في جلب الشعب: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return []
+
+    async def get_academic_years_for_schedule(self, school_id: str) -> List[Dict[str, Any]]:
+        """جلب السنوات الدراسية المتاحة للجدول"""
+        try:
+            result = await self.db.execute(
+                select(AcademicYear)
+                .where(AcademicYear.school_id == school_id)
+                .where(AcademicYear.is_active == True)
+                .order_by(AcademicYear.start_date.desc())
+            )
+            years = list(result.scalars().all())
+            
+            years_data = []
+            for year in years:
+                years_data.append({
+                    "id": str(year.id),
+                    "name": year.name,
+                    "start_date": year.start_date,
+                    "end_date": year.end_date,
+                    "is_current": year.is_current,
+                    "is_active": year.is_active
+                })
+            
+            print(f"📅 تم جلب {len(years_data)} سنة دراسية للمدرسة {school_id}")
+            return years_data
+            
+        except Exception as e:
+            print(f"❌ خطأ في جلب السنوات الدراسية: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return []
+
+    async def get_subjects_for_schedule(self, school_id: str) -> List[Dict[str, Any]]:
+        """جلب المواد المتاحة للجدول"""
+        try:
+            result = await self.db.execute(
+                select(Subject)
+                .where(Subject.school_id == school_id)
+                .where(Subject.is_active == True)
+                .order_by(Subject.name)
+            )
+            subjects = list(result.scalars().all())
+            
+            return [
+                {
+                    "id": str(subject.id),
+                    "name": subject.name,
+                    "code": subject.code,
+                    "color": subject.color
+                }
+                for subject in subjects
+            ]
+        except Exception as e:
+            print(f"⚠️ خطأ في جلب المواد: {str(e)}")
+            return []
+
+    async def get_teachers_for_schedule(self, school_id: str) -> List[Dict[str, Any]]:
+        """جلب المعلمين المتاحين للجدول"""
+        try:
+            role_result = await self.db.execute(
+                select(Role).where(Role.key == "teacher", Role.school_id == school_id)
+            )
+            teacher_role = role_result.scalar_one_or_none()
+            
+            if not teacher_role:
+                print("⚠️ لا يوجد دور معلم في المدرسة")
+                return []
+            
+            result = await self.db.execute(
+                select(User)
+                .join(UserRole, UserRole.user_id == User.id)
+                .where(UserRole.role_id == teacher_role.id)
+                .where(User.school_id == school_id)
+                .where(User.is_active == True)
+                .order_by(User.full_name)
+            )
+            teachers = list(result.scalars().all())
+            
+            return [
+                {
+                    "id": str(teacher.id),
+                    "name": teacher.full_name or teacher.name,
+                    "email": teacher.email
+                }
+                for teacher in teachers
+            ]
+        except Exception as e:
+            print(f"⚠️ خطأ في جلب المعلمين: {str(e)}")
+            return []
+
+    async def get_periods_for_schedule(self, school_id: str) -> List[Dict[str, Any]]:
+        """جلب الحصص (الفترات) المتاحة للجدول"""
+        try:
+            result = await self.db.execute(
+                select(Period)
+                .where(Period.school_id == school_id)
+                .order_by(Period.order)
+            )
+            periods = list(result.scalars().all())
+            
+            return [
+                {
+                    "id": str(period.id),
+                    "name": period.name,
+                    "order": period.order,
+                    "start_time": period.start_time,
+                    "end_time": period.end_time
+                }
+                for period in periods
+            ]
+        except Exception as e:
+            print(f"⚠️ خطأ في جلب الحصص: {str(e)}")
+            # إرجاع حصص افتراضية
+            return [
+                {"id": "1", "name": "الحصة الأولى", "order": 1},
+                {"id": "2", "name": "الحصة الثانية", "order": 2},
+                {"id": "3", "name": "الحصة الثالثة", "order": 3},
+                {"id": "4", "name": "الحصة الرابعة", "order": 4},
+                {"id": "5", "name": "الحصة الخامسة", "order": 5},
+                {"id": "6", "name": "الحصة السادسة", "order": 6},
+            ]
+
     # ============= دوال تشخيصية =============
 
     async def check_available_data(self, school_id: str) -> Dict[str, Any]:
@@ -547,7 +719,13 @@ class ScheduleService:
         return {
             "school_id": school_id,
             "sections": [
-                {"id": s.id, "name": s.name, "is_active": s.is_active}
+                {
+                    "id": s.id, 
+                    "name": s.name, 
+                    "is_active": s.is_active,
+                    "grade": s.grade.name if s.grade else None,
+                    "stage": s.grade.stage.name if s.grade and s.grade.stage else None
+                }
                 for s in sections
             ],
             "academic_years": [
