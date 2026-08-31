@@ -1,0 +1,64 @@
+{% extends "layouts/deputy.html" %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+<div dir="rtl" class="p-4">
+  <h1 class="text-2xl font-bold mb-3">🔴 تكليف معلم بديل — {{ date }}</h1>
+
+  <div class="bg-white shadow rounded p-4 mb-4">
+    <h2 class="font-semibold mb-2">🟢 نفس التخصص</h2>
+    {% if data.same_specialty %}
+      <table class="w-full text-sm">
+        <thead><tr><th class="p-2">المعلم</th><th class="p-2">التخصص</th><th class="p-2">إجراء</th></tr></thead>
+        <tbody>
+          {% for t in data.same_specialty %}
+            <tr class="border-t">
+              <td class="p-2">{{ t.full_name }}</td>
+              <td class="p-2">{{ t.specialization or '—' }}</td>
+              <td class="p-2">
+                <form method="post" action="/substitutes/request">
+                  <input type="hidden" name="schedule_entry_id" value="{{ data.schedule_entry_id }}">
+                  <input type="hidden" name="absent_teacher_id" value="{{ data.absent_teacher_id }}">
+                  <input type="hidden" name="substitute_teacher_id" value="{{ t.id }}">
+                  <input type="hidden" name="date" value="{{ date }}">
+                  <input name="reason" placeholder="سبب التكليف" class="border rounded px-2 py-1 text-xs">
+                  <button class="bg-green-600 text-white px-2 py-1 rounded text-xs">إرسال الحصة</button>
+                </form>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p class="text-gray-500 text-sm">لا يوجد بديل بنفس التخصص.</p>
+    {% endif %}
+  </div>
+
+  <div class="bg-white shadow rounded p-4">
+    <h2 class="font-semibold mb-2">🟠 تخصص مختلف</h2>
+    {% if data.other_specialty %}
+      <table class="w-full text-sm">
+        <thead><tr><th class="p-2">المعلم</th><th class="p-2">التخصص</th><th class="p-2">إجراء</th></tr></thead>
+        <tbody>
+          {% for t in data.other_specialty %}
+            <tr class="border-t">
+              <td class="p-2">{{ t.full_name }}</td>
+              <td class="p-2">{{ t.specialization or '—' }}</td>
+              <td class="p-2">
+                <form method="post" action="/substitutes/request">
+                  <input type="hidden" name="schedule_entry_id" value="{{ data.schedule_entry_id }}">
+                  <input type="hidden" name="absent_teacher_id" value="{{ data.absent_teacher_id }}">
+                  <input type="hidden" name="substitute_teacher_id" value="{{ t.id }}">
+                  <input type="hidden" name="date" value="{{ date }}">
+                  <button class="bg-orange-600 text-white px-2 py-1 rounded text-xs">إرسال الحصة</button>
+                </form>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p class="text-gray-500 text-sm">لا يوجد بدائل متاحة.</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

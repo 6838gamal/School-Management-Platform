@@ -1,0 +1,121 @@
+{% extends "layouts/deputy.html" %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+<div dir="rtl" class="p-4">
+
+  {# =========== المعلومات الأساسية =========== #}
+  <div class="bg-white shadow rounded p-4 mb-4 flex gap-4">
+    {% if student.photo_url %}
+      <img src="{{ student.photo_url }}" alt="" class="w-24 h-24 rounded-full object-cover">
+    {% endif %}
+    <div class="flex-1">
+      <h1 class="text-xl font-bold">{{ student.full_name }}</h1>
+      <p class="text-sm text-gray-600">رقم الطالب: {{ student.student_number }}</p>
+      <p class="text-sm">المرحلة: {{ student.stage_name or '—' }} — الصف: {{ student.grade_name or '—' }} — الفصل: {{ student.section_name or '—' }}</p>
+      <p class="text-sm">السنة: {{ student.academic_year or '—' }}</p>
+      <p class="text-sm">ولي الأمر: {{ student.guardian_name or '—' }} — {{ student.guardian_phone or '' }}</p>
+    </div>
+  </div>
+
+  {# =========== الحضور =========== #}
+  <div class="bg-white shadow rounded p-4 mb-4">
+    <h2 class="text-lg font-bold mb-2">📊 الحضور</h2>
+    <form method="get" action="/students/{{ student.id }}/profile" class="flex gap-2 mb-3 text-sm">
+      <select name="preset" class="border rounded px-2 py-1">
+        <option value="last_30_days" {% if preset=='last_30_days' %}selected{% endif %}>آخر 30 يوم</option>
+        <option value="this_month" {% if preset=='this_month' %}selected{% endif %}>هذا الشهر</option>
+        <option value="custom" {% if preset=='custom' %}selected{% endif %}>فترة مخصصة</option>
+      </select>
+      <input name="date_from" type="date" value="{{ date_from }}" class="border rounded px-2 py-1">
+      <input name="date_to" type="date" value="{{ date_to }}" class="border rounded px-2 py-1">
+      <button class="bg-blue-600 text-white px-3 py-1 rounded">تطبيق</button>
+    </form>
+
+    <div class="grid grid-cols-4 gap-2 text-center text-sm mb-3">
+      <div class="bg-green-100 p-2 rounded">🟢 حضور: {{ attendance.counts.present }}</div>
+      <div class="bg-red-100 p-2 rounded">🔴 غياب: {{ attendance.counts.absent }}</div>
+      <div class="bg-orange-100 p-2 rounded">🟠 تأخير: {{ attendance.counts.late }}</div>
+      <div class="bg-blue-100 p-2 rounded">🔵 استئذان: {{ attendance.counts.excused }}</div>
+    </div>
+
+    {# Calendar timeline (30-day strip) #}
+    <div class="flex gap-1 overflow-x-auto pb-2">
+      {% for d in attendance.timeline %}
+        {% set s = d.status or '' %}
+        <div class="flex-shrink-0 w-16 text-center p-1 rounded text-xs
+                    {% if s=='present' %}bg-green-100{% elif s=='absent' %}bg-red-100
+                    {% elif s=='late' %}bg-orange-100{% elif s=='excused' %}bg-blue-100
+                    {% else %}bg-gray-100{% endif %}">
+          <div class="font-bold">{{ d.date[8:10] }}</div>
+          {% if s == 'present' %}🟢
+          {% elif s == 'absent' %}🔴
+          {% elif s == 'late' %}🟠
+          {% elif s == 'excused' %}🔵
+          {% else %}⚪{% endif %}
+          {% if d.late_minutes %}<div>+{{ d.late_minutes }}د</div>{% endif %}
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  {# =========== الأداء الأكاديمي =========== #}
+  <div class="bg-white shadow rounded p-4 mb-4">
+    <h2 class="text-lg font-bold mb-2">🎓 الأداء الأكاديمي</h2>
+    <div class="grid grid-cols-3 gap-2 text-sm">
+      <div>
+        <h3 class="font-semibold">الدرجات ({{ performance.grades|length }})</h3>
+        <ul class="list-disc pr-4">
+          {% for g in performance.grades[:5] %}<li>{{ g.subject_id[:8] }}: {{ g.value }}/{{ g.max_value }}</li>{% endfor %}
+        </ul>
+      </div>
+      <div>
+        <h3 class="font-semibold">الواجبات ({{ performance.homework|length }})</h3>
+        <ul class="list-disc pr-4">
+          {% for h in performance.homework[:5] %}<li>{{ h.title or '—' }}</li>{% endfor %}
+        </ul>
+      </div>
+      <div>
+        <h3 class="font-semibold">السلوك ({{ performance.behavior|length }})</h3>
+        <ul class="list-disc pr-4">
+          {% for b in performance.behavior[:5] %}<li>{{ b.type == 'positive' and '➕' or '➖' }} {{ b.title }}</li>{% endfor %}
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  {# =========== الحالة الصحية + المرفقات =========== #}
+  <div class="bg-white shadow rounded p-4 mb-4">
+    <h2 class="text-lg font-bold mb-2">🏥 الحالة الصحية</h2>
+    <p>الحالة: <strong>{{ student.health_status or '—' }}</strong></p>
+    <p class="text-sm text-gray-600">{{ student.health_notes or '' }}</p>
+
+    <h3 class="font-semibold mt-3">📎 المرفقات</h3>
+    {% if attachments %}
+      <ul class="text-sm list-disc pr-5">
+        {% for a in attachments %}
+          <li><a href="{{ a.file_url }}" class="text-blue-600 underline">{{ a.title }}</a> ({{ a.kind }})</li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="text-gray-500 text-sm">لا توجد مرفقات.</p>
+    {% endif %}
+  </div>
+
+  {# =========== نقل الطالب (يحفظ السجل) =========== #}
+  {% if can('students.transfer') %}
+  <div class="bg-white shadow rounded p-4 mb-4">
+    <h2 class="text-lg font-bold mb-2">🔁 نقل الطالب</h2>
+    <form method="post" action="/students/{{ student.id }}/transfer" class="flex flex-col gap-2 text-sm">
+      <label>إلى الشعبة الجديدة:
+        <input name="to_section_id" class="border rounded px-2 py-1" required>
+      </label>
+      <label>السنة الدراسية:
+        <input name="year_id" class="border rounded px-2 py-1" required value="{{ student.year_id or '' }}">
+      </label>
+      <button class="bg-yellow-600 text-white px-3 py-1 rounded">تنفيذ النقل (يحافظ على السجل)</button>
+    </form>
+    <p class="text-xs text-gray-500 mt-1">النقل ينشئ سجل StudentEnrollment جديد بحالة "active" ويغلق السابق بـ "transferred" — السجل التاريخي محفوظ.</p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
