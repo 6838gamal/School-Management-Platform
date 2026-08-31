@@ -1,0 +1,33 @@
+{% extends "layouts/deputy.html" %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+<div dir="rtl" class="p-4">
+  <h1 class="text-2xl font-bold mb-3">🔔 إعدادات التنبيهات — مرتبطة بالـTimetable</h1>
+  <p class="text-xs text-gray-600 mb-3">
+    هذه الإعدادات مرتبطة بالـSchool Timetable (الحصص والفترات)، وليست إشعارات عشوائية.
+    التغييرات تؤثّر تلقائيًا على تنبيهات (قبل بداية الطابور، قبل/بعد الحصة، التحضير، التأخر عن التحضير).
+  </p>
+  <form method="post" action="/settings/alerts/update" class="bg-white shadow rounded p-4 grid grid-cols-2 gap-3 text-sm">
+    <label>تنبيه قبل بداية الطابور (د):
+      <input name="assembly_lead_minutes" type="number" value="{{ settings.assembly_lead_minutes }}" class="border rounded px-2 py-1">
+    </label>
+    <label>تنبيه قبل بداية الحصة (د):
+      <input name="period_start_lead_minutes" type="number" value="{{ settings.period_start_lead_minutes }}" class="border rounded px-2 py-1">
+    </label>
+    <label>تنبيه قبل نهاية الحصة (د):
+      <input name="period_end_lead_minutes" type="number" value="{{ settings.period_end_lead_minutes }}" class="border rounded px-2 py-1">
+    </label>
+    <label>تنبيه التحضير (د):
+      <input name="preparation_lead_minutes" type="number" value="{{ settings.preparation_lead_minutes }}" class="border rounded px-2 py-1">
+    </label>
+    <label>حدّ التأخر المسموح (د):
+      <input name="late_threshold_minutes" type="number" value="{{ settings.late_threshold_minutes }}" class="border rounded px-2 py-1">
+    </label>
+    <label class="flex items-center gap-2">
+      <input name="alert_on_late_preparation" type="checkbox" {% if settings.alert_on_late_preparation %}checked{% endif %}>
+      تنبيه عند التأخر عن التحضير
+    </label>
+    <button class="col-span-2 bg-blue-600 text-white px-3 py-2 rounded">حفظ الإعدادات</button>
+  </form>
+</div>
+{% endblock %}

@@ -1,0 +1,71 @@
+{% extends "layouts/deputy.html" %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+<div dir="rtl" class="p-4">
+  <h1 class="text-2xl font-bold mb-2">🏫 لوحة تحكم الوكيل</h1>
+  <p class="text-sm text-gray-600 mb-4">التاريخ: <strong>{{ selected_date }}</strong></p>
+
+  {# ============ الفصول مرتبة من اليمين لليسار حسب السنة/الصف ============ #}
+  {% for sec in dashboard.sections %}
+    <div class="bg-white shadow rounded p-4 mb-4">
+      <div class="flex justify-between items-center mb-2">
+        <h2 class="text-lg font-semibold">
+          🏫 {{ sec.stage_name }} — {{ sec.grade_name }} — {{ sec.section_name }}
+        </h2>
+        <span class="text-xs bg-gray-100 rounded px-2 py-1">{{ sec.enrolled_count }} طالب</span>
+      </div>
+
+      {% if sec.periods_today %}
+        <table class="w-full text-sm">
+          <thead class="bg-gray-50">
+            <tr>
+              <th class="p-2">الحصة</th>
+              <th class="p-2">المادة</th>
+              <th class="p-2">المعلم</th>
+              <th class="p-2">الحالة</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for p in sec.periods_today %}
+              <tr class="border-t">
+                <td class="p-2">{{ loop.index }}</td>
+                <td class="p-2">{{ p.subject_id[:8] }}</td>
+                <td class="p-2">{{ p.teacher_name }}</td>
+                <td class="p-2">
+                  <span class="ml-1">{{ p.indicator }}</span>
+                  {{ p.status_label }}
+                  {% if p.status in ("teacher_absent","substitute_required") %}
+                    {% if can('substitutes.create') %}
+                    <form method="get" action="/substitutes/alternatives" class="inline">
+                      <input type="hidden" name="schedule_entry_id" value="{{ p.schedule_entry_id }}">
+                      <input type="hidden" name="date" value="{{ selected_date }}">
+                      <button class="text-xs text-red-600 underline">🔴 تكليف بديل</button>
+                    </form>
+                    {% endif %}
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <p class="text-sm text-gray-500">لا توجد حصص مجدولة لهذا الفصل اليوم.</p>
+      {% endif %}
+    </div>
+  {% endfor %}
+
+  {# ============ Attendance Analytics ============ #}
+  <div class="bg-white shadow rounded p-4 mt-6">
+    <h2 class="text-lg font-bold mb-3">📊 Attendance Analytics — {{ selected_date }}</h2>
+    <div class="grid grid-cols-2 md:grid-cols-6 gap-2 text-center">
+      <div class="bg-green-100 p-3 rounded"><div class="text-2xl font-bold">🟢</div><div>{{ dashboard.analytics.present }}</div><small>حضور</small></div>
+      <div class="bg-red-100 p-3 rounded"><div class="text-2xl font-bold">🔴</div><div>{{ dashboard.analytics.absent }}</div><small>غياب</small></div>
+      <div class="bg-orange-100 p-3 rounded"><div class="text-2xl font-bold">🟠</div><div>{{ dashboard.analytics.late }}</div><small>تأخير</small></div>
+      <div class="bg-yellow-100 p-3 rounded"><div class="text-2xl font-bold">⏰</div><div>{{ dashboard.analytics.late_arrivals }}</div><small>تأخير صباحي</small></div>
+      <div class="bg-blue-100 p-3 rounded"><div class="text-2xl font-bold">🔵</div><div>{{ dashboard.analytics.excused }}</div><small>استئذان</small></div>
+      <div class="bg-gray-100 p-3 rounded"><div class="text-2xl font-bold">…</div><div>{{ dashboard.analytics.other }}</div><small>حالات أخرى</small></div>
+    </div>
+    <p class="text-xs text-gray-500 mt-2">إجمالي السجلات: {{ dashboard.analytics.total_records }}</p>
+  </div>
+</div>
+{% endblock %}

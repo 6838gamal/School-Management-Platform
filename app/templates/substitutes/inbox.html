@@ -1,0 +1,30 @@
+{% extends "layouts/teacher.html" %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+<div dir="rtl" class="p-4">
+  <h1 class="text-xl font-bold mb-3">📬 تكليفات بانتظار ردّك</h1>
+  {% if items %}
+    {% for r in items %}
+      <div class="bg-white shadow rounded p-4 mb-3">
+        <p class="text-sm text-gray-600 mb-2">التاريخ: {{ r.date }}</p>
+        <p class="font-semibold">الوكيل أرسل إليك حصة:</p>
+        <ul class="text-sm list-disc pr-5 my-2">
+          <li>الفصل المرتبط: {{ r.schedule_entry_id[:8] }}…</li>
+          <li>السبب: {{ r.reason or '—' }}</li>
+        </ul>
+        <form method="post" action="/substitutes/{{ r.id }}/respond" class="inline">
+          <input type="hidden" name="accept" value="true">
+          <button class="bg-green-600 text-white px-3 py-1 rounded">قبول ✅</button>
+        </form>
+        <form method="post" action="/substitutes/{{ r.id }}/respond" class="inline">
+          <input type="hidden" name="accept" value="false">
+          <input name="reason" placeholder="سبب الرفض" class="border rounded px-2 py-1 text-xs">
+          <button class="bg-red-600 text-white px-3 py-1 rounded">رفض ❌</button>
+        </form>
+      </div>
+    {% endfor %}
+  {% else %}
+    <p class="text-gray-500">لا توجد تكليفات بانتظار ردّك.</p>
+  {% endif %}
+</div>
+{% endblock %}

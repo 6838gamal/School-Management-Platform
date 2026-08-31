@@ -471,3 +471,33 @@ async def root(request: Request):
 @app.get("/health")
 async def health():
     return {"status": "ok", "app": settings.APP_NAME}
+
+
+# ============================================================
+# Spec features (Sessions 1-12): dashboard, excused-leaves,
+# substitutes, student profile, attendance late/absent,
+# timetable alerts, session lifecycle API.
+# ============================================================
+try:
+    from app.routes.web.deputy_dashboard import router as web_deputy_dashboard
+    from app.routes.web.excused_leaves import router as web_excused_leaves
+    from app.routes.web.substitutes import router as web_substitutes
+    from app.routes.web.student_profile import router as web_student_profile
+    from app.routes.web.timetable_alerts import router as web_timetable_alerts
+    from app.routes.api.v1.attendance import router as api_attendance_v2
+    from app.routes.api.v1.session_lifecycle import router as api_lifecycle
+    from app.routes.api.v1.substitutes import router as api_substitutes_v2
+
+    app.include_router(web_deputy_dashboard)
+    app.include_router(web_excused_leaves)
+    app.include_router(web_substitutes)
+    app.include_router(web_student_profile)
+    app.include_router(web_timetable_alerts)
+    app.include_router(api_attendance_v2, prefix="/api/v1")
+    app.include_router(api_lifecycle, prefix="/api/v1")
+    app.include_router(api_substitutes_v2, prefix="/api/v1")
+except Exception as e:  # noqa
+    import logging
+    logging.getLogger("app.main").warning(
+        "spec routes not all loaded: %s", e
+    )
