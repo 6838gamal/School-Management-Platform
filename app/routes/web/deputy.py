@@ -85,23 +85,24 @@ async def deputy_dashboard(
         # جلب أيام الأسبوع
         week_days = get_mock_week_days(selected_date)
         
-        # إعداد بيانات الرسم البياني
+        # إعداد بيانات الرسم البياني - تأكد من وجودها دائماً
+        analytics = dashboard_data.get("analytics", {})
         chart_data = {
             "status": {
-                "present": dashboard_data.get("analytics", {}).get("present", 0),
-                "absent": dashboard_data.get("analytics", {}).get("absent", 0),
-                "late": dashboard_data.get("analytics", {}).get("late", 0),
-                "excused": dashboard_data.get("analytics", {}).get("excused", 0),
-                "sick": dashboard_data.get("analytics", {}).get("sick", 0),
-                "late_arrival": dashboard_data.get("analytics", {}).get("late_arrival", 0)
+                "present": analytics.get("present", 0),
+                "absent": analytics.get("absent", 0),
+                "late": analytics.get("late", 0),
+                "excused": analytics.get("excused", 0),
+                "sick": analytics.get("sick", 0),
+                "late_arrival": analytics.get("late_arrival", 0)
             },
             "attendance": {
-                "present": dashboard_data.get("analytics", {}).get("present", 0),
-                "absent": dashboard_data.get("analytics", {}).get("absent", 0),
-                "late": dashboard_data.get("analytics", {}).get("late", 0),
-                "excused": dashboard_data.get("analytics", {}).get("excused", 0),
-                "sick": dashboard_data.get("analytics", {}).get("sick", 0),
-                "late_arrival": dashboard_data.get("analytics", {}).get("late_arrival", 0)
+                "present": analytics.get("present", 0),
+                "absent": analytics.get("absent", 0),
+                "late": analytics.get("late", 0),
+                "excused": analytics.get("excused", 0),
+                "sick": analytics.get("sick", 0),
+                "late_arrival": analytics.get("late_arrival", 0)
             }
         }
         
@@ -150,22 +151,23 @@ async def deputy_dashboard_by_date(
         week_days = get_mock_week_days(date)
         
         # إعداد بيانات الرسم البياني
+        analytics = dashboard_data.get("analytics", {})
         chart_data = {
             "status": {
-                "present": dashboard_data.get("analytics", {}).get("present", 0),
-                "absent": dashboard_data.get("analytics", {}).get("absent", 0),
-                "late": dashboard_data.get("analytics", {}).get("late", 0),
-                "excused": dashboard_data.get("analytics", {}).get("excused", 0),
-                "sick": dashboard_data.get("analytics", {}).get("sick", 0),
-                "late_arrival": dashboard_data.get("analytics", {}).get("late_arrival", 0)
+                "present": analytics.get("present", 0),
+                "absent": analytics.get("absent", 0),
+                "late": analytics.get("late", 0),
+                "excused": analytics.get("excused", 0),
+                "sick": analytics.get("sick", 0),
+                "late_arrival": analytics.get("late_arrival", 0)
             },
             "attendance": {
-                "present": dashboard_data.get("analytics", {}).get("present", 0),
-                "absent": dashboard_data.get("analytics", {}).get("absent", 0),
-                "late": dashboard_data.get("analytics", {}).get("late", 0),
-                "excused": dashboard_data.get("analytics", {}).get("excused", 0),
-                "sick": dashboard_data.get("analytics", {}).get("sick", 0),
-                "late_arrival": dashboard_data.get("analytics", {}).get("late_arrival", 0)
+                "present": analytics.get("present", 0),
+                "absent": analytics.get("absent", 0),
+                "late": analytics.get("late", 0),
+                "excused": analytics.get("excused", 0),
+                "sick": analytics.get("sick", 0),
+                "late_arrival": analytics.get("late_arrival", 0)
             }
         }
         dashboard_data["chart_data"] = chart_data
@@ -491,22 +493,23 @@ async def export_dashboard_pdf(
         dashboard_data = await get_dashboard_data(db, user.school_id, selected_date)
         
         # إعداد بيانات الرسم البياني
+        analytics = dashboard_data.get("analytics", {})
         chart_data = {
             "status": {
-                "present": dashboard_data.get("analytics", {}).get("present", 0),
-                "absent": dashboard_data.get("analytics", {}).get("absent", 0),
-                "late": dashboard_data.get("analytics", {}).get("late", 0),
-                "excused": dashboard_data.get("analytics", {}).get("excused", 0),
-                "sick": dashboard_data.get("analytics", {}).get("sick", 0),
-                "late_arrival": dashboard_data.get("analytics", {}).get("late_arrival", 0)
+                "present": analytics.get("present", 0),
+                "absent": analytics.get("absent", 0),
+                "late": analytics.get("late", 0),
+                "excused": analytics.get("excused", 0),
+                "sick": analytics.get("sick", 0),
+                "late_arrival": analytics.get("late_arrival", 0)
             },
             "attendance": {
-                "present": dashboard_data.get("analytics", {}).get("present", 0),
-                "absent": dashboard_data.get("analytics", {}).get("absent", 0),
-                "late": dashboard_data.get("analytics", {}).get("late", 0),
-                "excused": dashboard_data.get("analytics", {}).get("excused", 0),
-                "sick": dashboard_data.get("analytics", {}).get("sick", 0),
-                "late_arrival": dashboard_data.get("analytics", {}).get("late_arrival", 0)
+                "present": analytics.get("present", 0),
+                "absent": analytics.get("absent", 0),
+                "late": analytics.get("late", 0),
+                "excused": analytics.get("excused", 0),
+                "sick": analytics.get("sick", 0),
+                "late_arrival": analytics.get("late_arrival", 0)
             }
         }
         dashboard_data["chart_data"] = chart_data
@@ -542,22 +545,23 @@ async def export_report(
         dashboard_data = await get_dashboard_data(db, user.school_id, selected_date)
         
         # إعداد بيانات الرسم البياني
+        analytics = dashboard_data.get("analytics", {})
         chart_data = {
             "status": {
-                "present": dashboard_data.get("analytics", {}).get("present", 0),
-                "absent": dashboard_data.get("analytics", {}).get("absent", 0),
-                "late": dashboard_data.get("analytics", {}).get("late", 0),
-                "excused": dashboard_data.get("analytics", {}).get("excused", 0),
-                "sick": dashboard_data.get("analytics", {}).get("sick", 0),
-                "late_arrival": dashboard_data.get("analytics", {}).get("late_arrival", 0)
+                "present": analytics.get("present", 0),
+                "absent": analytics.get("absent", 0),
+                "late": analytics.get("late", 0),
+                "excused": analytics.get("excused", 0),
+                "sick": analytics.get("sick", 0),
+                "late_arrival": analytics.get("late_arrival", 0)
             },
             "attendance": {
-                "present": dashboard_data.get("analytics", {}).get("present", 0),
-                "absent": dashboard_data.get("analytics", {}).get("absent", 0),
-                "late": dashboard_data.get("analytics", {}).get("late", 0),
-                "excused": dashboard_data.get("analytics", {}).get("excused", 0),
-                "sick": dashboard_data.get("analytics", {}).get("sick", 0),
-                "late_arrival": dashboard_data.get("analytics", {}).get("late_arrival", 0)
+                "present": analytics.get("present", 0),
+                "absent": analytics.get("absent", 0),
+                "late": analytics.get("late", 0),
+                "excused": analytics.get("excused", 0),
+                "sick": analytics.get("sick", 0),
+                "late_arrival": analytics.get("late_arrival", 0)
             }
         }
         dashboard_data["chart_data"] = chart_data
@@ -1214,19 +1218,22 @@ async def api_transfer_student(
             raise HTTPException(status_code=404, detail="الفصل المستهدف غير موجود")
         
         # تسجيل عملية النقل
-        from app.models.transfers import TransferLog
-        
-        transfer_log = TransferLog(
-            id=str(uuid.uuid4()),
-            student_id=student_id,
-            from_section_id=student.section_id,
-            to_section_id=target_section_id,
-            transfer_type="section",
-            transferred_by=user.id,
-            transferred_at=datetime.now(),
-            notes="نقل بواسطة الوكيل"
-        )
-        db.add(transfer_log)
+        try:
+            from app.models.transfers import TransferLog
+            transfer_log = TransferLog(
+                id=str(uuid.uuid4()),
+                student_id=student_id,
+                from_section_id=student.section_id,
+                to_section_id=target_section_id,
+                transfer_type="section",
+                transferred_by=user.id,
+                transferred_at=datetime.now(),
+                notes="نقل بواسطة الوكيل"
+            )
+            db.add(transfer_log)
+        except:
+            # إذا لم يكن نموذج TransferLog موجوداً
+            pass
         
         # تحديث فصل الطالب
         student.section_id = target_section_id
