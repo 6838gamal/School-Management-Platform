@@ -2,6 +2,8 @@
 {% block body %}
 <div class="min-h-screen flex flex-col">
     {% block navbar %}{% include "base/navbar.html" %}{% endblock %}
+    {# شريط تنقل علوي أفقي اختياري — يُستخدم في شاشة الوكيل بدلاً من القائمة الجانبية #}
+    {% block topnav %}{% endblock %}
     <div class="flex flex-1">
         <!-- ============================================ -->
         <!-- القائمة الجانبية حسب دور المستخدم             -->
