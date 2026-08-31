@@ -9,12 +9,13 @@ from typing import Optional, Dict, Any, List
 
 from app.core.database import get_db
 from app.core.dependencies import CurrentUser, require_permission, template_context
-from app.models.attendance import  ScheduleEntry, StudentAttendance,TeacherAttendance
+from app.models.attendance import  StudentAttendance,TeacherAttendance
 from app.models.schools import School
 from app.models.academics import Section, Subject 
 from app.models.users import User 
 from app.models.students import Student 
 from app.models.teachers import Teachers
+from app.models.schedules import Schedule, ScheduleEntry
 
 router = APIRouter(prefix="/deputy", tags=["deputy-dashboard"])
 templates = Jinja2Templates(directory="app/templates")
