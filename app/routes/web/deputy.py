@@ -14,7 +14,7 @@ from app.models.schools import School
 from app.models.academics import Section, Subject 
 from app.models.users import User 
 from app.models.students import Student 
-from app.models.teachers import Teachers
+from app.models.teachers import Teacher
 from app.models.schedules import Schedule, ScheduleEntry
 
 router = APIRouter(prefix="/deputy", tags=["deputy-dashboard"])
