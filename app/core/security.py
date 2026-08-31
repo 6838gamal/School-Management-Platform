@@ -22,11 +22,18 @@ def _get_serializer() -> URLSafeTimedSerializer:
     return _serializer_instance
 
 
+def _truncate_to_72_bytes(raw: str) -> str:
+    """Truncate a password to bcrypt's 72-byte limit on a UTF-8 boundary."""
+    encoded = raw.encode("utf-8")
+    if len(encoded) <= 72:
+        return raw
+    return encoded[:72].decode("utf-8", errors="ignore")
+
+
 def hash_password(raw: str) -> str:
     """Hash a password using bcrypt with automatic truncation to 72 bytes."""
-    # bcrypt limit is 72 bytes
-    if len(raw.encode('utf-8')) > 72:
-        raw = raw[:72]
+    # bcrypt limit is 72 bytes — truncate on a UTF-8 byte boundary
+    raw = _truncate_to_72_bytes(raw)
     
     # Hash the password using bcrypt
     salt = bcrypt.gensalt()
@@ -36,9 +43,8 @@ def hash_password(raw: str) -> str:
 
 def verify_password(raw: str, hashed: str) -> bool:
     """Verify a password against its hash with automatic truncation to 72 bytes."""
-    # bcrypt limit is 72 bytes
-    if len(raw.encode('utf-8')) > 72:
-        raw = raw[:72]
+    # bcrypt limit is 72 bytes — truncate on a UTF-8 byte boundary
+    raw = _truncate_to_72_bytes(raw)
     
     # Verify the password
     return bcrypt.checkpw(raw.encode('utf-8'), hashed.encode('utf-8'))

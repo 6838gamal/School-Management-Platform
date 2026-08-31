@@ -11,6 +11,19 @@ dist
 dist-ssr
 *.local
 
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.venv/
+venv/
+.coverage
+htmlcov/
+
+# App runtime
+uploads/
+
 .vscode/*
 !.vscode/extensions.json
 .idea
