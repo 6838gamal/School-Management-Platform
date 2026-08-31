@@ -60,18 +60,23 @@ async def dashboard_router(
     
     elif role == "deputy":
         stats = await service.deputy_stats(user.school_id, user.id)
+        
+        # ✅ تحويل stats إلى الهيكل المطلوب للقالب
+        dashboard_data = convert_stats_to_dashboard(stats, user.school_id)
+        
         return templates.TemplateResponse(
             "deputy/dashboard.html",
             {
                 **ctx, 
                 "title": "لوحة تحكم الوكيل",
-                "stats": stats,
+                "dashboard": dashboard_data,  # ✅ تغيير من stats إلى dashboard
+                "selected_date": dashboard_data.get("date", ""),
                 "role_name": "وكيل",
-                "role_icon": "👨‍🏫"
+                "role_icon": "👨‍🏫",
+                "user": user,
             },
         )
     
-    # ✅ تغيير من activities_manager إلى activities
     elif role == "activities_manager":
         stats = await service.activities_manager_stats(user.school_id, user.id)
         return templates.TemplateResponse(
@@ -106,6 +111,44 @@ async def dashboard_router(
     raise ForbiddenException("دور غير معروف")
 
 
+def convert_stats_to_dashboard(stats: dict, school_id: str) -> dict:
+    """
+    تحويل بيانات stats من DashboardService إلى الهيكل المطلوب للقالب
+    """
+    from datetime import date as _date
+    
+    # استخراج الفصول من stats
+    sections = []
+    
+    # إذا كانت stats تحتوي على بيانات الفصول
+    if "sections" in stats:
+        for section in stats.get("sections", []):
+            sections.append({
+                "stage_name": section.get("stage_name", "المرحلة"),
+                "grade_name": section.get("grade_name", "الصف"),
+                "section_name": section.get("section_name", "فصل"),
+                "enrolled_count": section.get("enrolled_count", 0),
+                "periods_today": section.get("periods_today", [])
+            })
+    
+    # إحصائيات الحضور
+    analytics = {
+        "present": stats.get("present_count", 0),
+        "absent": stats.get("absent_count", 0),
+        "late": stats.get("late_count", 0),
+        "late_arrivals": stats.get("late_arrivals_count", 0),
+        "excused": stats.get("excused_count", 0),
+        "other": stats.get("other_count", 0),
+        "total_records": stats.get("total_records", 0)
+    }
+    
+    return {
+        "date": _date.today().isoformat(),
+        "sections": sections,
+        "analytics": analytics
+    }
+
+
 # مسارات مباشرة لكل دور (للوصول المباشر)
 @router.get("/director/dashboard")
 async def director_dashboard_redirect(
@@ -129,7 +172,6 @@ async def deputy_dashboard_redirect(
     return RedirectResponse("/dashboard", status_code=302)
 
 
-# ✅ تغيير من activities_manager إلى activities
 @router.get("/activities/dashboard")
 async def activities_dashboard_redirect(
     request: Request,
