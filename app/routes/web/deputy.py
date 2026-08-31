@@ -20,7 +20,7 @@ from app.core.database import get_db
 from app.core.dependencies import CurrentUser, require_permission, template_context
 from app.models.attendance import StudentAttendance, TeacherAttendance
 from app.models.schools import School
-from app.models.academics import Section, Subject, Grade, Stage, Period
+from app.models.academics import Section, Subject, Grade, Stage, Period, AcademicYear
 from app.models.users import User 
 from app.models.students import Student 
 from app.models.teachers import Teacher
@@ -168,10 +168,14 @@ async def debug_simple(
             result["errors"].append("School not found")
             print("❌ School not found")
         
-        # 2. جلب الفصول
-        print("📚 Fetching sections...")
+        # 2. جلب الفصول مع العلاقات
+        print("📚 Fetching sections with relations...")
         sections = await db.execute(
-            select(Section).where(Section.school_id == user.school_id)
+            select(Section)
+            .options(
+                selectinload(Section.grade).selectinload(Grade.stage)
+            )
+            .where(Section.school_id == user.school_id)
         )
         sections = sections.scalars().all()
         print(f"✅ Found {len(sections)} sections")
@@ -185,9 +189,11 @@ async def debug_simple(
             result["sections"].append({
                 "id": str(section.id),
                 "name": section.name,
+                "grade": section.grade.name if section.grade else None,
+                "stage": section.grade.stage.name if section.grade and section.grade.stage else None,
                 "student_count": student_count
             })
-            print(f"   📚 Section: {section.name} - {student_count} students")
+            print(f"   📚 Section: {section.name} - Grade: {section.grade.name if section.grade else 'None'} - {student_count} students")
         
         # 3. جلب الطلاب
         print("👥 Fetching students...")
@@ -340,6 +346,9 @@ async def debug_db_test(
             if section_count and section_count > 0:
                 sections = await db.execute(
                     select(Section)
+                    .options(
+                        selectinload(Section.grade).selectinload(Grade.stage)
+                    )
                     .where(Section.school_id == user.school_id)
                     .limit(5)
                 )
@@ -349,7 +358,8 @@ async def debug_db_test(
                         "name": s.name,
                         "school_id": str(s.school_id) if s.school_id else None,
                         "grade_id": str(s.grade_id) if s.grade_id else None,
-                        "stage_id": str(s.stage_id) if s.stage_id else None,
+                        "grade_name": s.grade.name if s.grade else None,
+                        "stage_name": s.grade.stage.name if s.grade and s.grade.stage else None,
                     })
             print(f"✅ Sections: {section_count or 0}")
         except Exception as e:
@@ -537,14 +547,16 @@ async def debug_raw(
             print(f"❌ {error_msg}")
             traceback.print_exc()
         
-        # 2. جلب الفصول
+        # 2. جلب الفصول مع العلاقات
         try:
-            print("📚 Fetching sections...")
+            print("📚 Fetching sections with relations...")
             sections_result = await db.execute(
                 select(Section)
-                .options(selectinload(Section.stage), selectinload(Section.grade))
+                .options(
+                    selectinload(Section.grade).selectinload(Grade.stage)
+                )
                 .where(Section.school_id == user.school_id)
-                .order_by(Section.stage_id, Section.grade_id, Section.name)
+                .order_by(Section.grade_id, Section.name)
             )
             sections = sections_result.scalars().all()
             print(f"✅ Found {len(sections)} sections")
@@ -558,15 +570,14 @@ async def debug_raw(
                 section_info = {
                     "id": str(section.id),
                     "name": section.name,
-                    "stage_id": str(section.stage_id) if section.stage_id else None,
-                    "stage_name": section.stage.name if section.stage else None,
                     "grade_id": str(section.grade_id) if section.grade_id else None,
                     "grade_name": section.grade.name if section.grade else None,
+                    "stage_name": section.grade.stage.name if section.grade and section.grade.stage else None,
                     "student_count": student_count,
                     "school_id": str(section.school_id) if section.school_id else None,
                 }
                 result["sections"].append(section_info)
-                print(f"   📚 Section: {section.name} - Grade: {section.grade.name if section.grade else 'None'} - {student_count} students")
+                print(f"   📚 Section: {section.name} - Grade: {section.grade.name if section.grade else 'None'} - Stage: {section.grade.stage.name if section.grade and section.grade.stage else 'None'} - {student_count} students")
                 
         except Exception as e:
             error_msg = f"Error fetching sections: {str(e)}"
@@ -770,13 +781,32 @@ async def generate_mock_data(
                 "existing_sections": section_count
             })
         
-        # 1. إنشاء مراحل
+        # 1. إنشاء سنة دراسية
+        year = AcademicYear(
+            id=str(uuid.uuid4()),
+            name="العام الدراسي 2024-2025",
+            school_id=user.school_id,
+            start_date="2024-09-01",
+            end_date="2025-06-30",
+            is_current=True,
+            is_active=True,
+            created_by=user.id,
+            updated_by=user.id,
+            created_at=datetime.now(),
+            updated_at=datetime.now()
+        )
+        db.add(year)
+        await db.flush()
+        print(f"✅ Created academic year: {year.name}")
+        
+        # 2. إنشاء مراحل
         stages = []
         for stage_name in MOCK_STAGES:
             stage = Stage(
                 id=str(uuid.uuid4()),
                 name=stage_name,
                 school_id=user.school_id,
+                year_id=year.id,
                 created_by=user.id,
                 updated_by=user.id,
                 created_at=datetime.now(),
@@ -788,14 +818,15 @@ async def generate_mock_data(
         await db.flush()
         print(f"✅ Created {len(stages)} stages")
         
-        # 2. إنشاء صفوف
+        # 3. إنشاء صفوف
         grades = []
         for i, grade_name in enumerate(MOCK_GRADES, 1):
             grade = Grade(
                 id=str(uuid.uuid4()),
                 name=grade_name,
-                level=i,
+                order=i,
                 school_id=user.school_id,
+                stage_id=stages[i % len(stages)].id,
                 created_by=user.id,
                 updated_by=user.id,
                 created_at=datetime.now(),
@@ -807,29 +838,29 @@ async def generate_mock_data(
         await db.flush()
         print(f"✅ Created {len(grades)} grades")
         
-        # 3. إنشاء فصول
+        # 4. إنشاء فصول
         sections = []
-        for stage in stages[:2]:
-            for grade in grades[:2]:
-                for section_name in MOCK_SECTIONS[:2]:
-                    section = Section(
-                        id=str(uuid.uuid4()),
-                        name=section_name,
-                        stage_id=stage.id,
-                        grade_id=grade.id,
-                        school_id=user.school_id,
-                        created_by=user.id,
-                        updated_by=user.id,
-                        created_at=datetime.now(),
-                        updated_at=datetime.now()
-                    )
-                    sections.append(section)
-                    db.add(section)
+        for grade in grades[:2]:
+            for section_name in MOCK_SECTIONS[:2]:
+                section = Section(
+                    id=str(uuid.uuid4()),
+                    name=section_name,
+                    grade_id=grade.id,
+                    school_id=user.school_id,
+                    capacity=30,
+                    is_active=True,
+                    created_by=user.id,
+                    updated_by=user.id,
+                    created_at=datetime.now(),
+                    updated_at=datetime.now()
+                )
+                sections.append(section)
+                db.add(section)
         
         await db.flush()
         print(f"✅ Created {len(sections)} sections")
         
-        # 4. إنشاء معلمين
+        # 5. إنشاء معلمين
         teachers = []
         for teacher_name in MOCK_TEACHERS[:5]:
             teacher = Teacher(
@@ -848,13 +879,14 @@ async def generate_mock_data(
         await db.flush()
         print(f"✅ Created {len(teachers)} teachers")
         
-        # 5. إنشاء مواد
+        # 6. إنشاء مواد
         subjects = []
         for subject_name in MOCK_SUBJECTS[:5]:
             subject = Subject(
                 id=str(uuid.uuid4()),
                 name=subject_name,
                 school_id=user.school_id,
+                is_active=True,
                 created_by=user.id,
                 updated_by=user.id,
                 created_at=datetime.now(),
@@ -866,14 +898,17 @@ async def generate_mock_data(
         await db.flush()
         print(f"✅ Created {len(subjects)} subjects")
         
-        # 6. إنشاء حصص (Periods)
+        # 7. إنشاء حصص (Periods)
         periods = []
         for i in range(1, 7):
             period = Period(
                 id=str(uuid.uuid4()),
-                number=i,
                 name=f"الحصة {i}",
+                order=i,
+                start_time=f"{7 + i}:00",
+                end_time=f"{7 + i + 1}:00",
                 school_id=user.school_id,
+                is_break=False,
                 created_by=user.id,
                 updated_by=user.id,
                 created_at=datetime.now(),
@@ -885,7 +920,7 @@ async def generate_mock_data(
         await db.flush()
         print(f"✅ Created {len(periods)} periods")
         
-        # 7. إنشاء طلاب
+        # 8. إنشاء طلاب
         students = []
         for section in sections:
             for student_name in MOCK_STUDENTS[:3]:
@@ -905,14 +940,14 @@ async def generate_mock_data(
         await db.flush()
         print(f"✅ Created {len(students)} students")
         
-        # 8. إنشاء جدول دراسي (Schedule)
+        # 9. إنشاء جدول دراسي (Schedule)
         schedules = []
         for section in sections:
             schedule = Schedule(
                 id=str(uuid.uuid4()),
                 name=f"جدول {section.name}",
                 section_id=section.id,
-                year_id="year_default",  # سيتم تحديثه لاحقاً
+                year_id=year.id,
                 school_id=user.school_id,
                 is_active=True,
                 created_by=user.id,
@@ -926,7 +961,7 @@ async def generate_mock_data(
         await db.flush()
         print(f"✅ Created {len(schedules)} schedules")
         
-        # 9. إنشاء مدخلات الجدول (ScheduleEntry)
+        # 10. إنشاء مدخلات الجدول (ScheduleEntry)
         entries_count = 0
         for schedule in schedules:
             for day in range(5):  # الأحد إلى الخميس
@@ -941,7 +976,7 @@ async def generate_mock_data(
                         period_id=period.id,
                         subject_id=subject.id,
                         teacher_id=teacher.id,
-                        room_id="room_default",
+                        room_id="default_room",
                         created_by=user.id,
                         updated_by=user.id,
                         created_at=datetime.now(),
@@ -953,7 +988,7 @@ async def generate_mock_data(
         await db.flush()
         print(f"✅ Created {entries_count} schedule entries")
         
-        # 10. إنشاء سجلات حضور
+        # 11. إنشاء سجلات حضور
         attendance_records = []
         today = _date.today()
         
@@ -987,6 +1022,7 @@ async def generate_mock_data(
         
         print("=" * 80)
         print("✅ MOCK DATA GENERATION COMPLETE")
+        print(f"   Academic Year: {year.name}")
         print(f"   Stages: {len(stages)}")
         print(f"   Grades: {len(grades)}")
         print(f"   Sections: {len(sections)}")
@@ -1003,6 +1039,7 @@ async def generate_mock_data(
             "status": "success",
             "message": "تم إنشاء بيانات وهمية بنجاح",
             "counts": {
+                "academic_year": year.name,
                 "stages": len(stages),
                 "grades": len(grades),
                 "sections": len(sections),
@@ -1054,24 +1091,93 @@ async def fix_all_data(
             "periods_created": 0,
             "schedules_created": 0,
             "schedule_entries_created": 0,
-            "attendance_created": 0
+            "attendance_created": 0,
+            "academic_year_created": False
         }
         
         # ============================================================
-        # 1. التأكد من وجود فصل
+        # 1. التأكد من وجود سنة دراسية
         # ============================================================
-        print("\n📚 Step 1: Checking sections...")
+        print("\n📅 Step 1: Checking academic year...")
+        year_result = await db.execute(
+            select(AcademicYear)
+            .where(
+                AcademicYear.school_id == user.school_id,
+                AcademicYear.is_current == True
+            )
+            .limit(1)
+        )
+        year = year_result.scalar_one_or_none()
+        
+        if not year:
+            year = AcademicYear(
+                id=str(uuid.uuid4()),
+                name="العام الدراسي 2024-2025",
+                school_id=user.school_id,
+                start_date="2024-09-01",
+                end_date="2025-06-30",
+                is_current=True,
+                is_active=True,
+                created_by=user.id,
+                updated_by=user.id,
+                created_at=datetime.now(),
+                updated_at=datetime.now()
+            )
+            db.add(year)
+            await db.flush()
+            result["academic_year_created"] = True
+            result["messages"].append("تم إنشاء سنة دراسية جديدة")
+            print(f"   ✅ Created academic year: {year.name}")
+        else:
+            print(f"   ✅ Using existing academic year: {year.name}")
+        
+        # ============================================================
+        # 2. التأكد من وجود فصل
+        # ============================================================
+        print("\n📚 Step 2: Checking sections...")
         sections_result = await db.execute(
             select(Section).where(Section.school_id == user.school_id)
         )
         sections = sections_result.scalars().all()
         
         if not sections:
-            # إنشاء فصل افتراضي
+            # إنشاء مرحلة
+            stage = Stage(
+                id=str(uuid.uuid4()),
+                name="المرحلة الابتدائية",
+                school_id=user.school_id,
+                year_id=year.id,
+                created_by=user.id,
+                updated_by=user.id,
+                created_at=datetime.now(),
+                updated_at=datetime.now()
+            )
+            db.add(stage)
+            await db.flush()
+            
+            # إنشاء صف
+            grade = Grade(
+                id=str(uuid.uuid4()),
+                name="الصف الأول",
+                order=1,
+                school_id=user.school_id,
+                stage_id=stage.id,
+                created_by=user.id,
+                updated_by=user.id,
+                created_at=datetime.now(),
+                updated_at=datetime.now()
+            )
+            db.add(grade)
+            await db.flush()
+            
+            # إنشاء فصل
             section = Section(
                 id=str(uuid.uuid4()),
-                name="الشعبة أ",
+                name="أ",
+                grade_id=grade.id,
                 school_id=user.school_id,
+                capacity=30,
+                is_active=True,
                 created_by=user.id,
                 updated_by=user.id,
                 created_at=datetime.now(),
@@ -1080,16 +1186,16 @@ async def fix_all_data(
             db.add(section)
             await db.flush()
             sections = [section]
-            result["messages"].append("تم إنشاء فصل جديد: الشعبة أ")
+            result["messages"].append("تم إنشاء فصل جديد")
             print(f"   ✅ Created section: {section.name}")
         else:
             section = sections[0]
             print(f"   ✅ Using existing section: {section.name}")
         
         # ============================================================
-        # 2. ربط الطلاب بالفصل
+        # 3. ربط الطلاب بالفصل
         # ============================================================
-        print("\n👥 Step 2: Fixing students...")
+        print("\n👥 Step 3: Fixing students...")
         students_result = await db.execute(
             select(Student)
             .where(
@@ -1111,9 +1217,9 @@ async def fix_all_data(
             result["messages"].append("جميع الطلاب مرتبطون بالفعل بفصول")
         
         # ============================================================
-        # 3. إنشاء معلمين إذا لم يوجد
+        # 4. إنشاء معلمين إذا لم يوجد
         # ============================================================
-        print("\n👨‍🏫 Step 3: Creating teachers...")
+        print("\n👨‍🏫 Step 4: Creating teachers...")
         teachers_result = await db.execute(
             select(Teacher).where(Teacher.school_id == user.school_id)
         )
@@ -1152,9 +1258,9 @@ async def fix_all_data(
         teachers = teachers_result.scalars().all()
         
         # ============================================================
-        # 4. إنشاء مواد إذا لم توجد
+        # 5. إنشاء مواد إذا لم توجد
         # ============================================================
-        print("\n📚 Step 4: Creating subjects...")
+        print("\n📚 Step 5: Creating subjects...")
         subjects_result = await db.execute(
             select(Subject).where(Subject.school_id == user.school_id)
         )
@@ -1173,6 +1279,7 @@ async def fix_all_data(
                     id=str(uuid.uuid4()),
                     name=name,
                     school_id=user.school_id,
+                    is_active=True,
                     created_by=user.id,
                     updated_by=user.id,
                     created_at=datetime.now(),
@@ -1193,9 +1300,9 @@ async def fix_all_data(
         subjects = subjects_result.scalars().all()
         
         # ============================================================
-        # 5. إنشاء حصص (Periods)
+        # 6. إنشاء حصص (Periods)
         # ============================================================
-        print("\n⏰ Step 5: Creating periods...")
+        print("\n⏰ Step 6: Creating periods...")
         periods_result = await db.execute(
             select(Period).where(Period.school_id == user.school_id)
         )
@@ -1205,9 +1312,12 @@ async def fix_all_data(
             for i in range(1, 7):
                 period = Period(
                     id=str(uuid.uuid4()),
-                    number=i,
                     name=f"الحصة {i}",
+                    order=i,
+                    start_time=f"{7 + i}:00",
+                    end_time=f"{7 + i + 1}:00",
                     school_id=user.school_id,
+                    is_break=False,
                     created_by=user.id,
                     updated_by=user.id,
                     created_at=datetime.now(),
@@ -1228,9 +1338,9 @@ async def fix_all_data(
         periods = periods_result.scalars().all()
         
         # ============================================================
-        # 6. إنشاء جدول دراسي (Schedule)
+        # 7. إنشاء جدول دراسي (Schedule)
         # ============================================================
-        print("\n📅 Step 6: Creating schedules...")
+        print("\n📅 Step 7: Creating schedules...")
         
         # حذف الجداول القديمة
         await db.execute(
@@ -1245,7 +1355,7 @@ async def fix_all_data(
                 id=str(uuid.uuid4()),
                 name=f"جدول {sec.name}",
                 section_id=sec.id,
-                year_id="default_year",
+                year_id=year.id,
                 school_id=user.school_id,
                 is_active=True,
                 created_by=user.id,
@@ -1267,9 +1377,9 @@ async def fix_all_data(
         schedules = schedules_result.scalars().all()
         
         # ============================================================
-        # 7. إنشاء مدخلات الجدول (ScheduleEntry)
+        # 8. إنشاء مدخلات الجدول (ScheduleEntry)
         # ============================================================
-        print("\n📝 Step 7: Creating schedule entries...")
+        print("\n📝 Step 8: Creating schedule entries...")
         
         entries_count = 0
         for schedule in schedules:
@@ -1304,9 +1414,9 @@ async def fix_all_data(
         print(f"   ✅ Created {entries_count} schedule entries")
         
         # ============================================================
-        # 8. إنشاء سجلات حضور
+        # 9. إنشاء سجلات حضور
         # ============================================================
-        print("\n📊 Step 8: Creating attendance records...")
+        print("\n📊 Step 9: Creating attendance records...")
         
         # جلب جميع الطلاب في الفصول
         students_result = await db.execute(
@@ -1355,10 +1465,11 @@ async def fix_all_data(
         print(f"   ✅ Created {attendance_count} attendance records")
         
         # ============================================================
-        # 9. عرض النتائج النهائية
+        # 10. عرض النتائج النهائية
         # ============================================================
         print("\n" + "=" * 80)
         print("✅ FIX ALL DATA - COMPLETE")
+        print(f"   Academic year created: {result['academic_year_created']}")
         print(f"   Students fixed: {result['students_fixed']}")
         print(f"   Teachers created: {result['teachers_created']}")
         print(f"   Subjects created: {result['subjects_created']}")
@@ -1568,10 +1679,12 @@ async def section_students(
     try:
         print(f"👥 Fetching students for section: {section_id}")
         
-        # جلب الفصل
+        # جلب الفصل مع العلاقات
         section_result = await db.execute(
             select(Section)
-            .options(selectinload(Section.stage), selectinload(Section.grade))
+            .options(
+                selectinload(Section.grade).selectinload(Grade.stage)
+            )
             .where(Section.id == section_id)
         )
         section = section_result.scalar_one_or_none()
@@ -1633,10 +1746,12 @@ async def section_attendance(
         selected_date = target_date or _date.today().isoformat()
         print(f"📝 Attendance form for section: {section_id}, date: {selected_date}")
         
-        # جلب الفصل
+        # جلب الفصل مع العلاقات
         section_result = await db.execute(
             select(Section)
-            .options(selectinload(Section.stage), selectinload(Section.grade))
+            .options(
+                selectinload(Section.grade).selectinload(Grade.stage)
+            )
             .where(Section.id == section_id)
         )
         section = section_result.scalar_one_or_none()
@@ -1712,10 +1827,12 @@ async def transfer_students(
     try:
         print(f"🔄 Transfer students from section: {section_id}")
         
-        # جلب الفصل الحالي
+        # جلب الفصل الحالي مع العلاقات
         section_result = await db.execute(
             select(Section)
-            .options(selectinload(Section.stage), selectinload(Section.grade))
+            .options(
+                selectinload(Section.grade).selectinload(Grade.stage)
+            )
             .where(Section.id == section_id)
         )
         current_section = section_result.scalar_one_or_none()
@@ -1726,12 +1843,14 @@ async def transfer_students(
         # جلب جميع الفصول الأخرى في المدرسة
         other_sections_result = await db.execute(
             select(Section)
-            .options(selectinload(Section.stage), selectinload(Section.grade))
+            .options(
+                selectinload(Section.grade).selectinload(Grade.stage)
+            )
             .where(
                 Section.school_id == current_section.school_id,
                 Section.id != section_id
             )
-            .order_by(Section.stage_id, Section.grade_id, Section.name)
+            .order_by(Section.grade_id, Section.name)
         )
         other_sections = other_sections_result.scalars().all()
         
@@ -1786,10 +1905,12 @@ async def section_report(
         selected_date = target_date or _date.today().isoformat()
         print(f"📊 Report for section: {section_id}, date: {selected_date}")
         
-        # جلب الفصل
+        # جلب الفصل مع العلاقات
         section_result = await db.execute(
             select(Section)
-            .options(selectinload(Section.stage), selectinload(Section.grade))
+            .options(
+                selectinload(Section.grade).selectinload(Grade.stage)
+            )
             .where(Section.id == section_id)
         )
         section = section_result.scalar_one_or_none()
@@ -2145,7 +2266,7 @@ async def get_section_periods_for_date(
             try:
                 period = await db.get(Period, entry.period_id)
                 if period:
-                    period_number = period.number if hasattr(period, 'number') else period.name
+                    period_number = period.order if hasattr(period, 'order') else period.name
             except:
                 pass
             
@@ -2209,17 +2330,15 @@ async def get_dashboard_data(db: AsyncSession, school_id: str, target_date: str)
         
         print(f"✅ School found: {school.name}")
         
-        # 2. جلب الفصول
-        print("🔍 Step 2: Fetching sections...")
+        # 2. جلب الفصول مع العلاقات
+        print("🔍 Step 2: Fetching sections with relations...")
         sections_result = await db.execute(
             select(Section)
             .options(
-                selectinload(Section.stage),
-                selectinload(Section.grade)
+                selectinload(Section.grade).selectinload(Grade.stage)
             )
             .where(Section.school_id == school_id)
             .order_by(
-                Section.stage_id,
                 Section.grade_id,
                 Section.name
             )
@@ -2289,7 +2408,7 @@ async def get_dashboard_data(db: AsyncSession, school_id: str, target_date: str)
                 # بناء بيانات الفصل
                 section_data = {
                     "section_id": section.id,
-                    "stage_name": section.stage.name if section.stage else "غير محدد",
+                    "stage_name": section.grade.stage.name if section.grade and section.grade.stage else "غير محدد",
                     "grade_name": section.grade.name if section.grade else "غير محدد",
                     "section_name": section.name or "فصل",
                     "enrolled_count": len(students),
