@@ -16,7 +16,7 @@ import traceback
 
 from app.core.database import get_db
 from app.core.dependencies import CurrentUser, require_permission, template_context
-from app.models.attendance import StudentAttendance, TeacherAttendance, Attendance
+from app.models.attendance import StudentAttendance, TeacherAttendance
 from app.models.schools import School
 from app.models.academics import Section, Subject, Grade, Stage
 from app.models.users import User 
