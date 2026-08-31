@@ -3,7 +3,10 @@ from fastapi import APIRouter, Depends, Request, Form, HTTPException
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, func
 from typing import Optional
+import uuid
+from datetime import datetime
 
 from app.core.database import get_db
 from app.core.dependencies import CurrentUser, require_any_permission, template_context
@@ -15,6 +18,10 @@ from app.core.exceptions import (
     ValidationException,
     AppException
 )
+# إضافة النماذج المفقودة
+from app.models.students import Student
+from app.models.academics import Section, Grade, Stage
+from app.models.schools import School
 
 router = APIRouter(prefix="/students", tags=["students"])
 templates = Jinja2Templates(directory="app/templates")
@@ -25,6 +32,50 @@ templates = Jinja2Templates(directory="app/templates")
 #    المسارات الثابتة (مثل /new) يجب أن تأتي قبل المسارات الديناميكية (مثل /{student_id})
 # ============================================================
 
+# ============================================================
+# دالة مساعدة لجلب بيانات الفصول والسنوات الدراسية
+# ============================================================
+async def get_onboarding_data(db: AsyncSession, school_id: str):
+    """
+    جلب بيانات الفصول والسنوات الدراسية للمدرسة
+    """
+    try:
+        # 1. جلب الفصول
+        sections_result = await db.execute(
+            select(Section)
+            .options(
+                selectinload(Section.stage),
+                selectinload(Section.grade)
+            )
+            .where(Section.school_id == school_id)
+            .order_by(Section.stage_id, Section.grade_id, Section.name)
+        )
+        sections = sections_result.scalars().all()
+        
+        # 2. جلب السنوات الدراسية (إذا كان لديك نموذج Year)
+        # إذا لم يكن موجوداً، استخدم قائمة افتراضية
+        years = []
+        try:
+            from app.models.academics import AcademicYear
+            years_result = await db.execute(
+                select(AcademicYear)
+                .where(AcademicYear.school_id == school_id)
+                .order_by(AcademicYear.start_date.desc())
+            )
+            years = years_result.scalars().all()
+        except ImportError:
+            # إذا لم يكن هناك نموذج AcademicYear
+            years = []
+        
+        return {
+            "sections": sections,
+            "years": years
+        }
+    except Exception as e:
+        print(f"⚠️ Error in get_onboarding_data: {str(e)}")
+        return {"sections": [], "years": []}
+
+
 # 1️⃣ GET /students/new - صفحة إضافة طالب جديد
 @router.get("/new")
 async def student_new(
@@ -34,18 +85,36 @@ async def student_new(
     ctx: dict = Depends(template_context),
 ):
     try:
-        from app.services.academic_service import AcademicService
-        academic = AcademicService(db)
-        data = await academic.get_onboarding_data(user.school_id)
+        data = await get_onboarding_data(db, user.school_id)
+        
+        # تحويل البيانات إلى صيغة مناسبة للقالب
+        sections_data = []
+        for section in data.get("sections", []):
+            sections_data.append({
+                "id": str(section.id),
+                "name": section.name,
+                "stage_name": section.stage.name if section.stage else "غير محدد",
+                "grade_name": section.grade.name if section.grade else "غير محدد",
+                "full_name": f"{section.stage.name if section.stage else ''} - {section.grade.name if section.grade else ''} - {section.name}"
+            })
+        
         return templates.TemplateResponse(
             "students/form.html",
-            {**ctx, "title": "إضافة طالب", "mode": "create", 
-             "sections": data.get("sections", []), "years": data.get("years", [])},
+            {
+                **ctx, 
+                "title": "إضافة طالب", 
+                "mode": "create", 
+                "sections": sections_data, 
+                "years": data.get("years", []),
+                "student": None,
+                "error": None
+            },
         )
-    except AppException as e:
+    except Exception as e:
+        print(f"❌ Error in student_new: {str(e)}")
         return templates.TemplateResponse(
             "errors/error.html",
-            {**ctx, "message": str(e)},
+            {**ctx, "message": f"حدث خطأ: {str(e)}"},
             status_code=400
         )
 
@@ -87,17 +156,23 @@ async def student_create(
     
     # إذا كان هناك أخطاء، ارجع الصفحة مع رسائل الخطأ
     if errors:
-        from app.services.academic_service import AcademicService
-        academic = AcademicService(db)
-        data = await academic.get_onboarding_data(user.school_id)
+        data = await get_onboarding_data(db, user.school_id)
+        sections_data = []
+        for section in data.get("sections", []):
+            sections_data.append({
+                "id": str(section.id),
+                "name": section.name,
+                "full_name": f"{section.stage.name if section.stage else ''} - {section.grade.name if section.grade else ''} - {section.name}"
+            })
         return templates.TemplateResponse(
             "students/form.html",
             {
                 **ctx, 
                 "title": "إضافة طالب", 
                 "mode": "create", 
-                "sections": data.get("sections", []), 
+                "sections": sections_data, 
                 "years": data.get("years", []),
+                "student": None,
                 "error": "الرجاء تصحيح الأخطاء التالية:<br>• " + "<br>• ".join(errors.values())
             },
             status_code=422
@@ -122,37 +197,93 @@ async def student_create(
         student = await service.create_student(student_data, user.id, user.school_id)
         return RedirectResponse(url=f"/students/{student.id}", status_code=303)
     except ConflictException as e:
-        from app.services.academic_service import AcademicService
-        academic = AcademicService(db)
-        data = await academic.get_onboarding_data(user.school_id)
+        data = await get_onboarding_data(db, user.school_id)
+        sections_data = []
+        for section in data.get("sections", []):
+            sections_data.append({
+                "id": str(section.id),
+                "name": section.name,
+                "full_name": f"{section.stage.name if section.stage else ''} - {section.grade.name if section.grade else ''} - {section.name}"
+            })
         return templates.TemplateResponse(
             "students/form.html",
-            {**ctx, "title": "إضافة طالب", "mode": "create", 
-             "sections": data.get("sections", []), "years": data.get("years", []), 
-             "error": str(e)},
+            {
+                **ctx, 
+                "title": "إضافة طالب", 
+                "mode": "create", 
+                "sections": sections_data, 
+                "years": data.get("years", []),
+                "student": None,
+                "error": str(e)
+            },
             status_code=409
         )
     except ValidationException as e:
-        from app.services.academic_service import AcademicService
-        academic = AcademicService(db)
-        data = await academic.get_onboarding_data(user.school_id)
+        data = await get_onboarding_data(db, user.school_id)
+        sections_data = []
+        for section in data.get("sections", []):
+            sections_data.append({
+                "id": str(section.id),
+                "name": section.name,
+                "full_name": f"{section.stage.name if section.stage else ''} - {section.grade.name if section.grade else ''} - {section.name}"
+            })
         return templates.TemplateResponse(
             "students/form.html",
-            {**ctx, "title": "إضافة طالب", "mode": "create", 
-             "sections": data.get("sections", []), "years": data.get("years", []), 
-             "error": str(e)},
+            {
+                **ctx, 
+                "title": "إضافة طالب", 
+                "mode": "create", 
+                "sections": sections_data, 
+                "years": data.get("years", []),
+                "student": None,
+                "error": str(e)
+            },
             status_code=422
         )
     except AppException as e:
-        from app.services.academic_service import AcademicService
-        academic = AcademicService(db)
-        data = await academic.get_onboarding_data(user.school_id)
+        data = await get_onboarding_data(db, user.school_id)
+        sections_data = []
+        for section in data.get("sections", []):
+            sections_data.append({
+                "id": str(section.id),
+                "name": section.name,
+                "full_name": f"{section.stage.name if section.stage else ''} - {section.grade.name if section.grade else ''} - {section.name}"
+            })
         return templates.TemplateResponse(
             "students/form.html",
-            {**ctx, "title": "إضافة طالب", "mode": "create", 
-             "sections": data.get("sections", []), "years": data.get("years", []), 
-             "error": str(e)},
+            {
+                **ctx, 
+                "title": "إضافة طالب", 
+                "mode": "create", 
+                "sections": sections_data, 
+                "years": data.get("years", []),
+                "student": None,
+                "error": str(e)
+            },
             status_code=400
+        )
+    except Exception as e:
+        print(f"❌ Error in student_create: {str(e)}")
+        data = await get_onboarding_data(db, user.school_id)
+        sections_data = []
+        for section in data.get("sections", []):
+            sections_data.append({
+                "id": str(section.id),
+                "name": section.name,
+                "full_name": f"{section.stage.name if section.stage else ''} - {section.grade.name if section.grade else ''} - {section.name}"
+            })
+        return templates.TemplateResponse(
+            "students/form.html",
+            {
+                **ctx, 
+                "title": "إضافة طالب", 
+                "mode": "create", 
+                "sections": sections_data, 
+                "years": data.get("years", []),
+                "student": None,
+                "error": f"حدث خطأ غير متوقع: {str(e)}"
+            },
+            status_code=500
         )
 
 
@@ -166,13 +297,37 @@ async def students_list(
     db: AsyncSession = Depends(get_db),
     ctx: dict = Depends(template_context),
 ):
-    service = StudentService(db)
-    result = await service.list_students(user.school_id, page, 20, search or None)
-    return templates.TemplateResponse(
-        "students/list.html",
-        {**ctx, "title": "الطلاب", "students": result["items"], "total": result["total"],
-         "page": page, "page_size": 20, "search": search},
-    )
+    try:
+        service = StudentService(db)
+        result = await service.list_students(user.school_id, page, 20, search or None)
+        return templates.TemplateResponse(
+            "students/list.html",
+            {
+                **ctx, 
+                "title": "الطلاب", 
+                "students": result.get("items", []), 
+                "total": result.get("total", 0),
+                "page": page, 
+                "page_size": 20, 
+                "search": search
+            },
+        )
+    except Exception as e:
+        print(f"❌ Error in students_list: {str(e)}")
+        return templates.TemplateResponse(
+            "students/list.html",
+            {
+                **ctx, 
+                "title": "الطلاب", 
+                "students": [], 
+                "total": 0,
+                "page": page, 
+                "page_size": 20, 
+                "search": search,
+                "error": f"حدث خطأ: {str(e)}"
+            },
+            status_code=400
+        )
 
 
 # 4️⃣ GET /students/{student_id}/edit - صفحة تعديل الطالب
@@ -187,15 +342,27 @@ async def student_edit(
     service = StudentService(db)
     try:
         detail = await service.get_student_detail(student_id)
+        data = await get_onboarding_data(db, user.school_id)
         
-        from app.services.academic_service import AcademicService
-        academic = AcademicService(db)
-        data = await academic.get_onboarding_data(user.school_id)
+        sections_data = []
+        for section in data.get("sections", []):
+            sections_data.append({
+                "id": str(section.id),
+                "name": section.name,
+                "full_name": f"{section.stage.name if section.stage else ''} - {section.grade.name if section.grade else ''} - {section.name}"
+            })
         
         return templates.TemplateResponse(
             "students/form.html",
-            {**ctx, "title": "تعديل طالب", "mode": "edit", "student": detail, 
-             "sections": data.get("sections", []), "years": data.get("years", [])},
+            {
+                **ctx, 
+                "title": "تعديل طالب", 
+                "mode": "edit", 
+                "student": detail, 
+                "sections": sections_data, 
+                "years": data.get("years", []),
+                "error": None
+            },
         )
     except NotFoundException as e:
         return templates.TemplateResponse(
@@ -203,10 +370,11 @@ async def student_edit(
             {**ctx, "message": str(e)},
             status_code=404
         )
-    except AppException as e:
+    except Exception as e:
+        print(f"❌ Error in student_edit: {str(e)}")
         return templates.TemplateResponse(
             "errors/error.html",
-            {**ctx, "message": str(e)},
+            {**ctx, "message": f"حدث خطأ: {str(e)}"},
             status_code=400
         )
 
@@ -244,9 +412,14 @@ async def student_update(
     if errors:
         try:
             detail = await service.get_student_detail(student_id)
-            from app.services.academic_service import AcademicService
-            academic = AcademicService(db)
-            data = await academic.get_onboarding_data(user.school_id)
+            data = await get_onboarding_data(db, user.school_id)
+            sections_data = []
+            for section in data.get("sections", []):
+                sections_data.append({
+                    "id": str(section.id),
+                    "name": section.name,
+                    "full_name": f"{section.stage.name if section.stage else ''} - {section.grade.name if section.grade else ''} - {section.name}"
+                })
             return templates.TemplateResponse(
                 "students/form.html",
                 {
@@ -254,7 +427,7 @@ async def student_update(
                     "title": "تعديل طالب", 
                     "mode": "edit", 
                     "student": detail,
-                    "sections": data.get("sections", []), 
+                    "sections": sections_data, 
                     "years": data.get("years", []), 
                     "error": "الرجاء تصحيح الأخطاء التالية:<br>• " + "<br>• ".join(errors.values())
                 },
@@ -292,14 +465,25 @@ async def student_update(
     except ConflictException as e:
         try:
             detail = await service.get_student_detail(student_id)
-            from app.services.academic_service import AcademicService
-            academic = AcademicService(db)
-            data = await academic.get_onboarding_data(user.school_id)
+            data = await get_onboarding_data(db, user.school_id)
+            sections_data = []
+            for section in data.get("sections", []):
+                sections_data.append({
+                    "id": str(section.id),
+                    "name": section.name,
+                    "full_name": f"{section.stage.name if section.stage else ''} - {section.grade.name if section.grade else ''} - {section.name}"
+                })
             return templates.TemplateResponse(
                 "students/form.html",
-                {**ctx, "title": "تعديل طالب", "mode": "edit", "student": detail,
-                 "sections": data.get("sections", []), "years": data.get("years", []), 
-                 "error": str(e)},
+                {
+                    **ctx, 
+                    "title": "تعديل طالب", 
+                    "mode": "edit", 
+                    "student": detail,
+                    "sections": sections_data, 
+                    "years": data.get("years", []), 
+                    "error": str(e)
+                },
                 status_code=409
             )
         except NotFoundException:
@@ -311,14 +495,25 @@ async def student_update(
     except ValidationException as e:
         try:
             detail = await service.get_student_detail(student_id)
-            from app.services.academic_service import AcademicService
-            academic = AcademicService(db)
-            data = await academic.get_onboarding_data(user.school_id)
+            data = await get_onboarding_data(db, user.school_id)
+            sections_data = []
+            for section in data.get("sections", []):
+                sections_data.append({
+                    "id": str(section.id),
+                    "name": section.name,
+                    "full_name": f"{section.stage.name if section.stage else ''} - {section.grade.name if section.grade else ''} - {section.name}"
+                })
             return templates.TemplateResponse(
                 "students/form.html",
-                {**ctx, "title": "تعديل طالب", "mode": "edit", "student": detail,
-                 "sections": data.get("sections", []), "years": data.get("years", []), 
-                 "error": str(e)},
+                {
+                    **ctx, 
+                    "title": "تعديل طالب", 
+                    "mode": "edit", 
+                    "student": detail,
+                    "sections": sections_data, 
+                    "years": data.get("years", []), 
+                    "error": str(e)
+                },
                 status_code=422
             )
         except NotFoundException:
@@ -327,18 +522,30 @@ async def student_update(
                 {**ctx, "message": "الطالب غير موجود"},
                 status_code=404
             )
-    except AppException as e:
+    except Exception as e:
+        print(f"❌ Error in student_update: {str(e)}")
         try:
             detail = await service.get_student_detail(student_id)
-            from app.services.academic_service import AcademicService
-            academic = AcademicService(db)
-            data = await academic.get_onboarding_data(user.school_id)
+            data = await get_onboarding_data(db, user.school_id)
+            sections_data = []
+            for section in data.get("sections", []):
+                sections_data.append({
+                    "id": str(section.id),
+                    "name": section.name,
+                    "full_name": f"{section.stage.name if section.stage else ''} - {section.grade.name if section.grade else ''} - {section.name}"
+                })
             return templates.TemplateResponse(
                 "students/form.html",
-                {**ctx, "title": "تعديل طالب", "mode": "edit", "student": detail,
-                 "sections": data.get("sections", []), "years": data.get("years", []), 
-                 "error": str(e)},
-                status_code=400
+                {
+                    **ctx, 
+                    "title": "تعديل طالب", 
+                    "mode": "edit", 
+                    "student": detail,
+                    "sections": sections_data, 
+                    "years": data.get("years", []), 
+                    "error": f"حدث خطأ غير متوقع: {str(e)}"
+                },
+                status_code=500
             )
         except NotFoundException:
             return templates.TemplateResponse(
@@ -360,7 +567,8 @@ async def student_delete(
     try:
         await service.delete_student(student_id)
         return RedirectResponse(url="/students", status_code=303)
-    except (NotFoundException, AppException):
+    except Exception as e:
+        print(f"❌ Error in student_delete: {str(e)}")
         return RedirectResponse(url="/students", status_code=303)
 
 
@@ -378,7 +586,7 @@ async def student_detail(
         detail = await service.get_student_detail(student_id)
         return templates.TemplateResponse(
             "students/detail.html",
-            {**ctx, "title": detail["full_name"], "student": detail},
+            {**ctx, "title": detail.get("full_name", "تفاصيل الطالب"), "student": detail},
         )
     except NotFoundException as e:
         return templates.TemplateResponse(
@@ -386,9 +594,53 @@ async def student_detail(
             {**ctx, "message": str(e)},
             status_code=404
         )
-    except AppException as e:
+    except Exception as e:
+        print(f"❌ Error in student_detail: {str(e)}")
         return templates.TemplateResponse(
             "errors/error.html",
-            {**ctx, "message": str(e)},
-            status_code=e.status_code if hasattr(e, 'status_code') else 400
+            {**ctx, "message": f"حدث خطأ: {str(e)}"},
+            status_code=400
         )
+
+
+# ============================================================
+# 🔧 مسار تصحيح إضافي - عرض جميع الطلاب مع فصولهم
+# ============================================================
+@router.get("/debug/all")
+async def debug_all_students(
+    request: Request,
+    user: CurrentUser = Depends(require_any_permission("students.view")),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    عرض جميع الطلاب مع فصولهم (للتأكد من ارتباطهم)
+    """
+    try:
+        students_result = await db.execute(
+            select(Student, Section)
+            .outerjoin(Section, Student.section_id == Section.id)
+            .where(Student.school_id == user.school_id)
+        )
+        students = students_result.all()
+        
+        result = []
+        for student, section in students:
+            result.append({
+                "id": str(student.id),
+                "name": student.full_name,
+                "section_id": str(student.section_id) if student.section_id else None,
+                "section_name": section.name if section else "غير مرتبط",
+                "school_id": str(student.school_id),
+                "is_active": student.is_active if hasattr(student, 'is_active') else True
+            })
+        
+        return JSONResponse({
+            "total": len(result),
+            "students": result
+        })
+        
+    except Exception as e:
+        return JSONResponse({
+            "error": str(e),
+            "traceback": traceback.format_exc()
+        }, status_code=500)
