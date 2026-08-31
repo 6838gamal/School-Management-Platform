@@ -16,6 +16,15 @@ from app.services.schedule_service import ScheduleService
 from app.core.exceptions import NotFoundException, AppException
 from app.core.security import hash_password
 
+# ============================================================
+# استيراد الـ Schemas (في نهاية الملف لتجنب المشاكل)
+# ============================================================
+from app.schemas.schedules import (
+    ScheduleCreate, ScheduleUpdate, 
+    ScheduleEntryCreate, ScheduleEntryUpdate
+)
+
+
 # النماذج
 from app.models.schedules import Schedule, ScheduleEntry
 from app.models.academics import Section, Subject, Grade, Stage, AcademicYear, Period
@@ -1080,10 +1089,3 @@ async def delete_entry_api(
         )
 
 
-# ============================================================
-# استيراد الـ Schemas (في نهاية الملف لتجنب المشاكل)
-# ============================================================
-from app.schemas.schedules import (
-    ScheduleCreate, ScheduleUpdate, 
-    ScheduleEntryCreate, ScheduleEntryUpdate
-)
