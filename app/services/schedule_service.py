@@ -428,7 +428,7 @@ class ScheduleService:
         return True
 
     # ============================================================
-    # 🔴 تم تحديث هذه الدوال
+    # دوال جلب البيانات للقوائم (مع تحميل العلاقات)
     # ============================================================
 
     async def get_all_sections(self, school_id: str) -> List[Dict[str, Any]]:
@@ -541,7 +541,7 @@ class ScheduleService:
         return [{"id": r.id, "name": r.name} for r in rooms]
 
     # ============================================================
-    # دوال جديدة لصفحة إنشاء الجدول
+    # دوال جديدة لصفحة إنشاء الجدول (باستخدام AcademicService)
     # ============================================================
 
     async def get_sections_for_schedule(self, school_id: str) -> List[Dict[str, Any]]:
