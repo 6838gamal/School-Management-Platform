@@ -1,15 +1,17 @@
 {% extends "layouts/director.html" %}
 {% block content %}
-<div class="max-w-2xl mx-auto">
+<div class="max-w-6xl mx-auto">
     <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-6">
         <div class="flex items-center justify-between mb-6">
             <div>
-                <h1 class="text-2xl font-bold text-slate-800 dark:text-white">إنشاء جدول دراسي</h1>
-                <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">أدخل بيانات الجدول الجديد</p>
+                <h1 class="text-2xl font-bold text-slate-800 dark:text-white">📅 إنشاء جدول دراسي</h1>
+                <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">قم بإنشاء جدول دراسي جديد مع الحصص والأوقات</p>
             </div>
-            <a href="/schedules/list" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
-                ✕ إلغاء
-            </a>
+            <div class="flex gap-2">
+                <a href="/schedules/list" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 px-3 py-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors duration-200">
+                    ✕ إلغاء
+                </a>
+            </div>
         </div>
 
         <!-- ✅ منطقة عرض الرسائل -->
@@ -24,8 +26,31 @@
         </div>
         {% endif %}
 
+        <!-- ✅ تقدم العملية -->
+        <div class="mb-6">
+            <div class="flex items-center gap-4">
+                <div class="flex items-center gap-2">
+                    <span class="w-8 h-8 rounded-full bg-primary-600 text-white flex items-center justify-center text-sm font-bold">1</span>
+                    <span class="text-sm font-medium text-slate-700 dark:text-slate-300">معلومات الجدول</span>
+                </div>
+                <div class="flex-1 h-0.5 bg-slate-200 dark:bg-slate-700"></div>
+                <div class="flex items-center gap-2 opacity-50">
+                    <span class="w-8 h-8 rounded-full bg-slate-300 dark:bg-slate-600 text-white flex items-center justify-center text-sm font-bold">2</span>
+                    <span class="text-sm text-slate-400 dark:text-slate-500">إضافة الحصص</span>
+                </div>
+                <div class="flex-1 h-0.5 bg-slate-200 dark:bg-slate-700"></div>
+                <div class="flex items-center gap-2 opacity-50">
+                    <span class="w-8 h-8 rounded-full bg-slate-300 dark:bg-slate-600 text-white flex items-center justify-center text-sm font-bold">3</span>
+                    <span class="text-sm text-slate-400 dark:text-slate-500">مراجعة</span>
+                </div>
+            </div>
+        </div>
+
         <form id="createForm" method="POST" action="/api/v1/schedules" onsubmit="return handleSubmit(event, this)">
-            <div class="space-y-4">
+            <!-- ============================================================ -->
+            <!-- القسم 1: معلومات الجدول -->
+            <!-- ============================================================ -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                 <div>
                     <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                         اسم الجدول <span class="text-red-500">*</span>
@@ -33,21 +58,7 @@
                     <input type="text" name="name" id="name" placeholder="مثال: جدول الصف الأول أ" 
                            class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-slate-700 dark:text-white transition-colors duration-200" 
                            required>
-                </div>
-
-                <div>
-                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                        الشعبة <span class="text-red-500">*</span>
-                    </label>
-                    <select name="section_id" id="section_id" class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-slate-700 dark:text-white transition-colors duration-200" required>
-                        <option value="">اختر الشعبة</option>
-                        {% for s in sections %}
-                        <option value="{{ s.id }}">{{ s.name }}</option>
-                        {% endfor %}
-                    </select>
-                    {% if sections|length == 0 %}
-                    <p class="text-xs text-amber-500 dark:text-amber-400 mt-1">⚠️ لا توجد شعب متاحة. يرجى إضافة شعبة أولاً.</p>
-                    {% endif %}
+                    <p class="text-xs text-slate-400 dark:text-slate-500 mt-1">أدخل اسماً مميزاً للجدول ليسهل التعرف عليه</p>
                 </div>
 
                 <div>
@@ -64,6 +75,90 @@
                     <p class="text-xs text-amber-500 dark:text-amber-400 mt-1">⚠️ لا توجد أعوام دراسية متاحة. يرجى إضافة عام دراسي أولاً.</p>
                     {% endif %}
                 </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- القسم 2: اختيار الشعبة -->
+            <!-- ============================================================ -->
+            <div class="mb-6">
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                    الشعبة <span class="text-red-500">*</span>
+                </label>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2" id="sectionsGrid">
+                    {% if sections and sections|length > 0 %}
+                        {% for s in sections %}
+                        <label class="relative flex items-center p-3 border border-slate-200 dark:border-slate-700 rounded-lg cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-all duration-200 has-[:checked]:border-primary-500 has-[:checked]:bg-primary-50 dark:has-[:checked]:bg-primary-900/20 has-[:checked]:shadow-sm">
+                            <input type="radio" name="section_id" value="{{ s.id }}" 
+                                   class="w-4 h-4 text-primary-600 border-slate-300 focus:ring-primary-500 dark:border-slate-600"
+                                   {% if loop.first %}checked{% endif %}>
+                            <span class="mr-2 text-sm text-slate-700 dark:text-slate-300">
+                                <span class="font-medium">{{ s.name }}</span>
+                                {% if s.grade_name %}
+                                <span class="text-xs text-slate-400 dark:text-slate-500">({{ s.grade_name }})</span>
+                                {% endif %}
+                                {% if s.stage_name %}
+                                <span class="text-xs text-slate-400 dark:text-slate-500">- {{ s.stage_name }}</span>
+                                {% endif %}
+                            </span>
+                        </label>
+                        {% endfor %}
+                    {% else %}
+                        <div class="col-span-full p-4 text-center text-amber-500 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
+                            ⚠️ لا توجد شعب متاحة. يرجى إضافة شعبة أولاً.
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- القسم 3: إعدادات الجدول -->
+            <!-- ============================================================ -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6 p-4 bg-slate-50 dark:bg-slate-700/30 rounded-lg border border-slate-200 dark:border-slate-700">
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                        عدد الأيام <span class="text-red-500">*</span>
+                    </label>
+                    <select id="daysCount" class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-slate-700 dark:text-white transition-colors duration-200">
+                        <option value="5">5 أيام (الأحد - الخميس)</option>
+                        <option value="6">6 أيام (الأحد - الجمعة)</option>
+                        <option value="7">7 أيام</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                        عدد الحصص في اليوم <span class="text-red-500">*</span>
+                    </label>
+                    <select id="periodsPerDay" class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-slate-700 dark:text-white transition-colors duration-200">
+                        <option value="4">4 حصص</option>
+                        <option value="5" selected>5 حصص</option>
+                        <option value="6">6 حصص</option>
+                        <option value="7">7 حصص</option>
+                        <option value="8">8 حصص</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                        وقت بداية اليوم
+                    </label>
+                    <input type="time" id="startTime" value="07:00" 
+                           class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-slate-700 dark:text-white transition-colors duration-200">
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                        مدة الحصة (دقيقة)
+                    </label>
+                    <select id="periodDuration" class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-slate-700 dark:text-white transition-colors duration-200">
+                        <option value="30">30 دقيقة</option>
+                        <option value="35">35 دقيقة</option>
+                        <option value="40">40 دقيقة</option>
+                        <option value="45" selected>45 دقيقة</option>
+                        <option value="50">50 دقيقة</option>
+                        <option value="60">60 دقيقة</option>
+                    </select>
+                </div>
 
                 <div class="flex items-center space-x-3 space-x-reverse">
                     <input type="checkbox" name="is_active" id="is_active" value="true" checked
@@ -71,35 +166,252 @@
                     <label for="is_active" class="text-sm text-slate-700 dark:text-slate-300">مفعل</label>
                 </div>
             </div>
+
+            <!-- ============================================================ -->
+            <!-- القسم 4: إضافة المواد والمعلمين -->
+            <!-- ============================================================ -->
+            <div class="mb-6">
+                <div class="flex items-center justify-between mb-3">
+                    <h3 class="text-md font-semibold text-slate-700 dark:text-slate-300">📚 المواد والمعلمين</h3>
+                    <button type="button" onclick="addPeriodRow()" class="text-sm bg-primary-100 hover:bg-primary-200 dark:bg-primary-900/30 dark:hover:bg-primary-900/50 text-primary-700 dark:text-primary-300 px-3 py-1.5 rounded-lg transition-colors duration-200">
+                        ➕ إضافة حصة
+                    </button>
+                </div>
+                
+                <div class="overflow-x-auto">
+                    <table class="w-full border border-slate-200 dark:border-slate-700 rounded-lg">
+                        <thead class="bg-slate-50 dark:bg-slate-700/50">
+                            <tr>
+                                <th class="p-2 text-right text-xs font-medium text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700">#</th>
+                                <th class="p-2 text-right text-xs font-medium text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700">اليوم</th>
+                                <th class="p-2 text-right text-xs font-medium text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700">الحصة</th>
+                                <th class="p-2 text-right text-xs font-medium text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700">المادة</th>
+                                <th class="p-2 text-right text-xs font-medium text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700">المعلم</th>
+                                <th class="p-2 text-right text-xs font-medium text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700">الغرفة</th>
+                                <th class="p-2 text-center text-xs font-medium text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700">إجراء</th>
+                            </tr>
+                        </thead>
+                        <tbody id="periodsBody">
+                            <!-- سيتم إضافة الصفوف بواسطة JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+                <p class="text-xs text-slate-400 dark:text-slate-500 mt-2">💡 يمكنك إضافة حصص للجدول الدراسي. سيتم إنشاء الجدول تلقائياً.</p>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- القسم 5: ملخص الجدول -->
+            <!-- ============================================================ -->
+            <div class="mb-6 p-4 bg-slate-50 dark:bg-slate-700/30 rounded-lg border border-slate-200 dark:border-slate-700">
+                <h3 class="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">📊 ملخص الجدول</h3>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                    <div>
+                        <span class="text-slate-400 dark:text-slate-500">عدد الأيام:</span>
+                        <span class="font-medium text-slate-700 dark:text-slate-300" id="summaryDays">5</span>
+                    </div>
+                    <div>
+                        <span class="text-slate-400 dark:text-slate-500">الحصص في اليوم:</span>
+                        <span class="font-medium text-slate-700 dark:text-slate-300" id="summaryPeriods">5</span>
+                    </div>
+                    <div>
+                        <span class="text-slate-400 dark:text-slate-500">إجمالي الحصص:</span>
+                        <span class="font-medium text-slate-700 dark:text-slate-300" id="summaryTotal">25</span>
+                    </div>
+                    <div>
+                        <span class="text-slate-400 dark:text-slate-500">المواد المضافة:</span>
+                        <span class="font-medium text-slate-700 dark:text-slate-300" id="summarySubjects">0</span>
+                    </div>
+                </div>
+            </div>
             
+            <!-- ============================================================ -->
+            <!-- الأزرار -->
+            <!-- ============================================================ -->
             <div class="flex gap-3 mt-6 pt-6 border-t border-slate-200 dark:border-slate-700">
                 <button type="submit" id="submitBtn" class="flex-1 bg-primary-600 hover:bg-primary-700 text-white px-4 py-2.5 rounded-lg font-medium transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed">
-                    إنشاء
+                    🚀 إنشاء الجدول
+                </button>
+                <button type="button" onclick="previewSchedule()" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-lg font-medium transition-colors duration-200">
+                    👁️ معاينة
                 </button>
                 <a href="/schedules/list" class="flex-1 bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 px-4 py-2.5 rounded-lg font-medium transition-colors duration-200 text-center">
-                    إلغاء
+                    ✕ إلغاء
                 </a>
             </div>
         </form>
     </div>
 </div>
 
-<script src="/static/js/schedule.js"></script>
+<!-- ============================================================ -->
+<!-- Modal للمعاينة -->
+<!-- ============================================================ -->
+<div id="previewModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 hidden">
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 max-w-4xl w-full max-h-[90vh] overflow-hidden">
+        <div class="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-700">
+            <h3 class="text-lg font-bold text-slate-800 dark:text-white">👁️ معاينة الجدول الدراسي</h3>
+            <button onclick="closePreview()" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
+                ✕
+            </button>
+        </div>
+        <div id="previewContent" class="p-4 overflow-auto max-h-[calc(90vh-120px)]">
+            <div class="text-center text-slate-400 dark:text-slate-500 py-8">
+                ⏳ جاري تحميل المعاينة...
+            </div>
+        </div>
+        <div class="flex gap-3 p-4 border-t border-slate-200 dark:border-slate-700">
+            <button onclick="closePreview()" class="flex-1 bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 px-4 py-2 rounded-lg font-medium transition-colors duration-200">
+                إغلاق
+            </button>
+            <button onclick="applyPreview()" class="flex-1 bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg font-medium transition-colors duration-200">
+                تطبيق الجدول
+            </button>
+        </div>
+    </div>
+</div>
 
 <script>
-/**
- * عرض رسالة للمستخدم
- * @param {string} message - نص الرسالة
- * @param {string} type - نوع الرسالة (success, error, warning, info)
- */
+// ============================================================
+// البيانات الأساسية
+// ============================================================
+const DAYS = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'];
+const PERIODS = ['الأولى', 'الثانية', 'الثالثة', 'الرابعة', 'الخامسة', 'السادسة', 'السابعة', 'الثامنة'];
+
+let periodRows = [];
+let rowCounter = 0;
+
+// ============================================================
+// تهيئة الصفحة
+// ============================================================
+document.addEventListener('DOMContentLoaded', function() {
+    // إضافة 3 صفوف افتراضية
+    for (let i = 0; i < 3; i++) {
+        addPeriodRow();
+    }
+    
+    // تحديث الملخص عند تغيير الإعدادات
+    document.getElementById('daysCount').addEventListener('change', updateSummary);
+    document.getElementById('periodsPerDay').addEventListener('change', updateSummary);
+    
+    // تحديث الملخص الأولي
+    updateSummary();
+});
+
+// ============================================================
+// إضافة صف حصة جديد
+// ============================================================
+function addPeriodRow() {
+    const tbody = document.getElementById('periodsBody');
+    const rowId = ++rowCounter;
+    
+    const tr = document.createElement('tr');
+    tr.className = 'border-b border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors duration-200';
+    tr.id = `period-row-${rowId}`;
+    tr.innerHTML = `
+        <td class="p-2 text-center text-sm text-slate-500 dark:text-slate-400">${rowId}</td>
+        <td class="p-2">
+            <select name="periods[${rowId}][day]" class="w-full px-2 py-1 text-sm border border-slate-300 dark:border-slate-600 rounded focus:ring-1 focus:ring-primary-500 focus:border-primary-500 dark:bg-slate-700 dark:text-white">
+                ${DAYS.map((d, i) => `<option value="${i}" ${i === 0 ? 'selected' : ''}>${d}</option>`).join('')}
+            </select>
+        </td>
+        <td class="p-2">
+            <select name="periods[${rowId}][period]" class="w-full px-2 py-1 text-sm border border-slate-300 dark:border-slate-600 rounded focus:ring-1 focus:ring-primary-500 focus:border-primary-500 dark:bg-slate-700 dark:text-white">
+                ${PERIODS.map((p, i) => `<option value="${i + 1}" ${i === 0 ? 'selected' : ''}>الحصة ${p}</option>`).join('')}
+            </select>
+        </td>
+        <td class="p-2">
+            <select name="periods[${rowId}][subject]" class="w-full px-2 py-1 text-sm border border-slate-300 dark:border-slate-600 rounded focus:ring-1 focus:ring-primary-500 focus:border-primary-500 dark:bg-slate-700 dark:text-white">
+                <option value="">اختر المادة</option>
+                {% if subjects %}
+                    {% for subject in subjects %}
+                    <option value="{{ subject.id }}">{{ subject.name }}</option>
+                    {% endfor %}
+                {% else %}
+                    <option value="">لا توجد مواد</option>
+                {% endif %}
+            </select>
+        </td>
+        <td class="p-2">
+            <select name="periods[${rowId}][teacher]" class="w-full px-2 py-1 text-sm border border-slate-300 dark:border-slate-600 rounded focus:ring-1 focus:ring-primary-500 focus:border-primary-500 dark:bg-slate-700 dark:text-white">
+                <option value="">اختر المعلم</option>
+                {% if teachers %}
+                    {% for teacher in teachers %}
+                    <option value="{{ teacher.id }}">{{ teacher.name }}</option>
+                    {% endfor %}
+                {% else %}
+                    <option value="">لا يوجد معلمين</option>
+                {% endif %}
+            </select>
+        </td>
+        <td class="p-2">
+            <input type="text" name="periods[${rowId}][room]" placeholder="الغرفة" 
+                   class="w-full px-2 py-1 text-sm border border-slate-300 dark:border-slate-600 rounded focus:ring-1 focus:ring-primary-500 focus:border-primary-500 dark:bg-slate-700 dark:text-white">
+        </td>
+        <td class="p-2 text-center">
+            <button type="button" onclick="removePeriodRow(${rowId})" class="text-red-500 hover:text-red-700 dark:hover:text-red-400 transition-colors duration-200">
+                ✕
+            </button>
+        </td>
+    `;
+    
+    tbody.appendChild(tr);
+    periodRows.push(rowId);
+    updateSummary();
+}
+
+// ============================================================
+// حذف صف حصة
+// ============================================================
+function removePeriodRow(rowId) {
+    if (periodRows.length <= 1) {
+        showMessage('⚠️ يجب أن يكون هناك حصة واحدة على الأقل', 'warning');
+        return;
+    }
+    
+    const row = document.getElementById(`period-row-${rowId}`);
+    if (row) {
+        row.remove();
+        periodRows = periodRows.filter(id => id !== rowId);
+        updateSummary();
+        renumberRows();
+    }
+}
+
+// ============================================================
+// إعادة ترقيم الصفوف
+// ============================================================
+function renumberRows() {
+    const rows = document.querySelectorAll('#periodsBody tr');
+    rows.forEach((row, index) => {
+        const td = row.querySelector('td:first-child');
+        if (td) {
+            td.textContent = index + 1;
+        }
+    });
+}
+
+// ============================================================
+// تحديث الملخص
+// ============================================================
+function updateSummary() {
+    const days = parseInt(document.getElementById('daysCount').value) || 5;
+    const periods = parseInt(document.getElementById('periodsPerDay').value) || 5;
+    const total = days * periods;
+    
+    document.getElementById('summaryDays').textContent = days;
+    document.getElementById('summaryPeriods').textContent = periods;
+    document.getElementById('summaryTotal').textContent = total;
+    document.getElementById('summarySubjects').textContent = periodRows.length;
+}
+
+// ============================================================
+// عرض الرسائل
+// ============================================================
 function showMessage(message, type = 'info') {
     const container = document.getElementById('messageContainer');
     const content = document.getElementById('messageContent');
     
-    // إزالة الكلاسات السابقة
     content.className = 'p-3 rounded-lg';
     
-    // إضافة الكلاسات حسب النوع
     const styles = {
         success: 'bg-green-100 dark:bg-green-900/30 border border-green-400 dark:border-green-700 text-green-700 dark:text-green-400',
         error: 'bg-red-100 dark:bg-red-900/30 border border-red-400 dark:border-red-700 text-red-700 dark:text-red-400',
@@ -111,7 +423,6 @@ function showMessage(message, type = 'info') {
     content.textContent = message;
     container.classList.remove('hidden');
     
-    // إخفاء الرسالة بعد 5 ثواني (إلا إذا كانت error)
     if (type !== 'error') {
         setTimeout(() => {
             container.classList.add('hidden');
@@ -119,39 +430,172 @@ function showMessage(message, type = 'info') {
     }
 }
 
-/**
- * معالج تقديم النموذج
- * @param {Event} event - حدث التقديم
- * @param {HTMLFormElement} form - عنصر النموذج
- * @returns {Promise<boolean>}
- */
+// ============================================================
+// معاينة الجدول
+// ============================================================
+function previewSchedule() {
+    const modal = document.getElementById('previewModal');
+    const content = document.getElementById('previewContent');
+    
+    modal.classList.remove('hidden');
+    content.innerHTML = '<div class="text-center text-slate-400 dark:text-slate-500 py-8">⏳ جاري تحميل المعاينة...</div>';
+    
+    // جمع البيانات
+    const data = collectFormData();
+    
+    // إنشاء جدول المعاينة
+    setTimeout(() => {
+        content.innerHTML = buildPreviewTable(data);
+    }, 500);
+}
+
+function closePreview() {
+    document.getElementById('previewModal').classList.add('hidden');
+}
+
+function applyPreview() {
+    closePreview();
+    document.getElementById('createForm').dispatchEvent(new Event('submit'));
+}
+
+// ============================================================
+// بناء جدول المعاينة
+// ============================================================
+function buildPreviewTable(data) {
+    const days = parseInt(document.getElementById('daysCount').value) || 5;
+    const periods = parseInt(document.getElementById('periodsPerDay').value) || 5;
+    
+    let html = `
+        <div class="overflow-x-auto">
+            <table class="w-full border border-slate-200 dark:border-slate-700 rounded-lg text-sm">
+                <thead class="bg-slate-50 dark:bg-slate-700/50">
+                    <tr>
+                        <th class="p-2 text-center border-b border-slate-200 dark:border-slate-700">الحصة</th>
+                        ${DAYS.slice(0, days).map(d => `<th class="p-2 text-center border-b border-slate-200 dark:border-slate-700">${d}</th>`).join('')}
+                    </tr>
+                </thead>
+                <tbody>
+    `;
+    
+    for (let p = 1; p <= periods; p++) {
+        html += `
+            <tr class="border-b border-slate-200 dark:border-slate-700">
+                <td class="p-2 text-center font-medium text-slate-600 dark:text-slate-400">الحصة ${PERIODS[p-1]}</td>
+        `;
+        
+        for (let d = 0; d < days; d++) {
+            // البحث عن حصة تطابق اليوم والرقم
+            const matched = data.periods?.find(per => 
+                parseInt(per.day) === d && parseInt(per.period) === p
+            );
+            
+            if (matched) {
+                html += `
+                    <td class="p-2 text-center border-l border-slate-200 dark:border-slate-700">
+                        <span class="block font-medium text-slate-700 dark:text-slate-300">${matched.subject_name || 'مادة'}</span>
+                        <span class="text-xs text-slate-400 dark:text-slate-500">${matched.teacher_name || 'معلم'}</span>
+                        ${matched.room ? `<span class="text-xs text-slate-400 dark:text-slate-500 block">${matched.room}</span>` : ''}
+                    </td>
+                `;
+            } else {
+                html += `
+                    <td class="p-2 text-center border-l border-slate-200 dark:border-slate-700 text-slate-300 dark:text-slate-600">
+                        —
+                    </td>
+                `;
+            }
+        }
+        
+        html += `</tr>`;
+    }
+    
+    html += `
+                </tbody>
+            </table>
+        </div>
+        <p class="text-xs text-slate-400 dark:text-slate-500 mt-3">📌 هذه معاينة للجدول. يمكنك تعديل الحصص قبل الإنشاء.</p>
+    `;
+    
+    return html;
+}
+
+// ============================================================
+// جمع بيانات النموذج
+// ============================================================
+function collectFormData() {
+    const form = document.getElementById('createForm');
+    const formData = new FormData(form);
+    
+    // جمع بيانات الحصص
+    const periods = [];
+    const rows = document.querySelectorAll('#periodsBody tr');
+    rows.forEach(row => {
+        const day = row.querySelector('select[name$="[day]"]')?.value;
+        const period = row.querySelector('select[name$="[period]"]')?.value;
+        const subject = row.querySelector('select[name$="[subject]"]')?.value;
+        const teacher = row.querySelector('select[name$="[teacher]"]')?.value;
+        const room = row.querySelector('input[name$="[room]"]')?.value;
+        
+        if (subject || teacher) {
+            periods.push({
+                day: day || '0',
+                period: period || '1',
+                subject: subject || '',
+                teacher: teacher || '',
+                room: room || '',
+                subject_name: row.querySelector('select[name$="[subject]"] option:checked')?.text || 'مادة',
+                teacher_name: row.querySelector('select[name$="[teacher]"] option:checked')?.text || 'معلم',
+            });
+        }
+    });
+    
+    return {
+        name: document.getElementById('name').value,
+        section_id: formData.get('section_id'),
+        academic_year_id: formData.get('academic_year_id'),
+        is_active: formData.get('is_active') === 'true' || formData.get('is_active') === 'on',
+        periods: periods
+    };
+}
+
+// ============================================================
+// معالج تقديم النموذج
+// ============================================================
 async function handleSubmit(event, form) {
     event.preventDefault();
     
     const submitBtn = document.getElementById('submitBtn');
     const container = document.getElementById('messageContainer');
     
-    // إخفاء أي رسالة سابقة
     container.classList.add('hidden');
-    
-    // تعطيل الزر
     submitBtn.disabled = true;
-    submitBtn.textContent = 'جاري الإنشاء...';
+    submitBtn.textContent = '⏳ جاري الإنشاء...';
 
-    // جمع البيانات من النموذج
-    const formData = new FormData(form);
-    const data = Object.fromEntries(formData.entries());
+    // جمع البيانات
+    const data = collectFormData();
     
-    // تحويل is_active إلى boolean
-    data.is_active = data.is_active === 'true' || data.is_active === 'on';
+    // التحقق من البيانات
+    if (!data.name || !data.name.trim()) {
+        showMessage('⚠️ يرجى إدخال اسم الجدول', 'error');
+        submitBtn.disabled = false;
+        submitBtn.textContent = '🚀 إنشاء الجدول';
+        return;
+    }
     
-    // تنظيف البيانات - إزالة القيم الفارغة
-    Object.keys(data).forEach(key => {
-        if (data[key] === '') {
-            delete data[key];
-        }
-    });
-
+    if (!data.section_id) {
+        showMessage('⚠️ يرجى اختيار الشعبة', 'error');
+        submitBtn.disabled = false;
+        submitBtn.textContent = '🚀 إنشاء الجدول';
+        return;
+    }
+    
+    if (!data.academic_year_id) {
+        showMessage('⚠️ يرجى اختيار العام الدراسي', 'error');
+        submitBtn.disabled = false;
+        submitBtn.textContent = '🚀 إنشاء الجدول';
+        return;
+    }
+    
     console.log('📤 إرسال البيانات:', data);
 
     try {
@@ -163,28 +607,25 @@ async function handleSubmit(event, form) {
             body: JSON.stringify(data)
         });
         
-        // قراءة الرد كـ JSON
         const result = await response.json();
         console.log('📥 الرد:', result);
         
         if (response.ok) {
-            // ✅ نجاح
             showMessage('✅ ' + (result.message || 'تم إنشاء الجدول بنجاح'), 'success');
             setTimeout(() => {
                 window.location.href = '/schedules/list';
             }, 1500);
         } else {
-            // ❌ فشل - عرض رسالة الخطأ
             const errorMessage = result.detail || result.message || 'حدث خطأ أثناء الإنشاء';
             showMessage('❌ ' + errorMessage, 'error');
             submitBtn.disabled = false;
-            submitBtn.textContent = 'إنشاء';
+            submitBtn.textContent = '🚀 إنشاء الجدول';
         }
     } catch (error) {
         console.error('❌ خطأ في الاتصال:', error);
         showMessage('❌ حدث خطأ في الاتصال بالخادم', 'error');
         submitBtn.disabled = false;
-        submitBtn.textContent = 'إنشاء';
+        submitBtn.textContent = '🚀 إنشاء الجدول';
     }
     
     return false;
@@ -192,12 +633,28 @@ async function handleSubmit(event, form) {
 </script>
 
 <style>
+/* أنيميشن الرسائل */
 @keyframes slideIn {
     from { transform: translateX(100%); opacity: 0; }
     to { transform: translateX(0); opacity: 1; }
 }
 #messageContainer {
     animation: slideIn 0.3s ease-out;
+}
+
+/* تنسيق الجدول */
+#periodsBody tr:hover {
+    background-color: rgba(59, 130, 246, 0.05);
+}
+
+/* تنسيق الـ Radio buttons */
+input[type="radio"]:checked + span {
+    color: rgb(59, 130, 246);
+}
+
+/* تنسيق الـ Modal */
+#previewModal {
+    backdrop-filter: blur(4px);
 }
 </style>
 {% endblock %}
