@@ -93,7 +93,10 @@ async def ping():
     """
     مسار اختبار بسيط للتأكد من أن الـ router يعمل
     """
-    logger.info("🏓 Ping test - Router is working!")
+    print("=" * 80)
+    print("🏓 Ping test - Router is working!")
+    print(f"⏰ Timestamp: {datetime.now().isoformat()}")
+    print("=" * 80)
     return {"status": "ok", "message": "Deputy dashboard router is working!", "timestamp": datetime.now().isoformat()}
 
 
@@ -104,13 +107,13 @@ async def test_log(
     """
     مسار اختبار للتأكد من أن التسجيل يعمل
     """
-    logger.info("=" * 80)
-    logger.info("🧪 TEST LOG - This is a test log message")
-    logger.info(f"👤 User ID: {user.id}")
-    logger.info(f"🏫 School ID: {user.school_id}")
-    logger.info(f"📧 Email: {getattr(user, 'email', 'N/A')}")
-    logger.info(f"📛 Full Name: {getattr(user, 'full_name', 'N/A')}")
-    logger.info("=" * 80)
+    print("=" * 80)
+    print("🧪 TEST LOG - This is a test log message")
+    print(f"👤 User ID: {user.id}")
+    print(f"🏫 School ID: {user.school_id}")
+    print(f"📧 Email: {getattr(user, 'email', 'N/A')}")
+    print(f"📛 Full Name: {getattr(user, 'full_name', 'N/A')}")
+    print("=" * 80)
     return {
         "status": "ok", 
         "message": "Log test successful",
@@ -123,20 +126,156 @@ async def test_log(
     }
 
 
+@router.get("/debug/simple")
+async def debug_simple(
+    user: CurrentUser = Depends(require_permission("session_lifecycle.view")),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    مسار تصحيح بسيط لعرض البيانات الخام
+    """
+    print("=" * 80)
+    print("🐛 DEBUG SIMPLE - STARTING")
+    print(f"👤 User ID: {user.id}")
+    print(f"🏫 School ID: {user.school_id}")
+    print("=" * 80)
+    
+    result = {
+        "user_id": str(user.id),
+        "school_id": str(user.school_id) if user.school_id else None,
+        "sections": [],
+        "students": [],
+        "attendance": [],
+        "schedule": [],
+        "errors": []
+    }
+    
+    try:
+        # 1. جلب المدرسة
+        print("📚 Fetching school...")
+        school = await db.execute(
+            select(School).where(School.id == user.school_id)
+        )
+        school = school.scalar_one_or_none()
+        
+        if school:
+            result["school"] = {
+                "id": str(school.id),
+                "name": school.name
+            }
+            print(f"✅ School found: {school.name}")
+        else:
+            result["errors"].append("School not found")
+            print("❌ School not found")
+        
+        # 2. جلب الفصول
+        print("📚 Fetching sections...")
+        sections = await db.execute(
+            select(Section).where(Section.school_id == user.school_id)
+        )
+        sections = sections.scalars().all()
+        print(f"✅ Found {len(sections)} sections")
+        
+        for section in sections:
+            student_count = await db.scalar(
+                select(func.count(Student.id))
+                .where(Student.section_id == section.id)
+            ) or 0
+            
+            result["sections"].append({
+                "id": str(section.id),
+                "name": section.name,
+                "student_count": student_count
+            })
+            print(f"   📚 Section: {section.name} - {student_count} students")
+        
+        # 3. جلب الطلاب
+        print("👥 Fetching students...")
+        students = await db.execute(
+            select(Student).where(Student.school_id == user.school_id).limit(20)
+        )
+        students = students.scalars().all()
+        print(f"✅ Found {len(students)} students (sample)")
+        
+        for student in students:
+            result["students"].append({
+                "id": str(student.id),
+                "name": student.full_name,
+                "section_id": str(student.section_id) if student.section_id else None
+            })
+            print(f"   👤 Student: {student.full_name} - Section: {student.section_id}")
+        
+        # 4. جلب سجلات الحضور
+        print("📊 Fetching attendance records...")
+        attendance_records = await db.execute(
+            select(Attendance).limit(10)
+        )
+        attendance = attendance_records.scalars().all()
+        
+        for record in attendance:
+            result["attendance"].append({
+                "id": str(record.id),
+                "student_id": str(record.student_id) if hasattr(record, 'student_id') else None,
+                "status": getattr(record, 'status', None),
+                "date": str(getattr(record, 'date', None))
+            })
+        
+        # 5. جلب سجلات الجدول
+        print("📅 Fetching schedule records...")
+        schedule_records = await db.execute(
+            select(ScheduleEntry).limit(10)
+        )
+        schedule = schedule_records.scalars().all()
+        
+        for record in schedule:
+            result["schedule"].append({
+                "id": str(record.id),
+                "section_id": str(record.section_id) if hasattr(record, 'section_id') else None,
+                "period_number": getattr(record, 'period_number', None),
+                "schedule_date": str(getattr(record, 'schedule_date', None))
+            })
+        
+        # 6. اختبار قاعدة البيانات
+        print("🔗 Testing database connection...")
+        db_result = await db.execute(text("SELECT 1"))
+        result["database"] = {
+            "connected": True,
+            "test_result": db_result.scalar() == 1
+        }
+        print("✅ Database connection successful")
+        
+        print("=" * 80)
+        print(f"✅ DEBUG COMPLETE - {len(result['errors'])} errors")
+        print("=" * 80)
+        
+        return JSONResponse(result)
+        
+    except Exception as e:
+        print(f"❌ Error: {str(e)}")
+        traceback.print_exc()
+        return JSONResponse(
+            status_code=500,
+            content={
+                "error": str(e),
+                "traceback": traceback.format_exc()
+            }
+        )
+
+
 @router.get("/debug/raw")
 async def debug_raw(
     user: CurrentUser = Depends(require_permission("session_lifecycle.view")),
     db: AsyncSession = Depends(get_db),
 ):
     """
-    عرض البيانات الخام من قاعدة البيانات
+    عرض البيانات الخام من قاعدة البيانات بشكل مفصل
     """
     try:
-        logger.info("=" * 80)
-        logger.info("🔍 DEBUG RAW DATA - STARTING")
-        logger.info(f"👤 User ID: {user.id}")
-        logger.info(f"🏫 School ID: {user.school_id}")
-        logger.info("=" * 80)
+        print("=" * 80)
+        print("🔍 DEBUG RAW DATA - STARTING")
+        print(f"👤 User ID: {user.id}")
+        print(f"🏫 School ID: {user.school_id}")
+        print("=" * 80)
         
         result = {
             "school": None,
@@ -149,7 +288,7 @@ async def debug_raw(
         
         # 1. جلب المدرسة
         try:
-            logger.info("📚 Fetching school...")
+            print("📚 Fetching school...")
             school_result = await db.execute(
                 select(School).where(School.id == user.school_id)
             )
@@ -163,18 +302,19 @@ async def debug_raw(
                     "address": getattr(school, 'address', None),
                     "phone": getattr(school, 'phone', None),
                 }
-                logger.info(f"✅ School found: {school.name}")
+                print(f"✅ School found: {school.name}")
             else:
                 result["errors"].append(f"School not found with ID: {user.school_id}")
-                logger.error(f"❌ School not found with ID: {user.school_id}")
+                print(f"❌ School not found with ID: {user.school_id}")
         except Exception as e:
             error_msg = f"Error fetching school: {str(e)}"
             result["errors"].append(error_msg)
-            logger.error(f"❌ {error_msg}", exc_info=True)
+            print(f"❌ {error_msg}")
+            traceback.print_exc()
         
         # 2. جلب الفصول
         try:
-            logger.info("📚 Fetching sections...")
+            print("📚 Fetching sections...")
             sections_result = await db.execute(
                 select(Section)
                 .options(selectinload(Section.stage), selectinload(Section.grade))
@@ -182,10 +322,9 @@ async def debug_raw(
                 .order_by(Section.stage_id, Section.grade_id, Section.name)
             )
             sections = sections_result.scalars().all()
-            logger.info(f"✅ Found {len(sections)} sections")
+            print(f"✅ Found {len(sections)} sections")
             
             for section in sections:
-                # جلب عدد الطلاب في الفصل
                 student_count = await db.scalar(
                     select(func.count(Student.id))
                     .where(Student.section_id == section.id)
@@ -202,21 +341,22 @@ async def debug_raw(
                     "school_id": str(section.school_id) if section.school_id else None,
                 }
                 result["sections"].append(section_info)
+                print(f"   📚 Section: {section.name} - Grade: {section.grade.name if section.grade else 'None'} - {student_count} students")
                 
         except Exception as e:
             error_msg = f"Error fetching sections: {str(e)}"
             result["errors"].append(error_msg)
-            logger.error(f"❌ {error_msg}", exc_info=True)
+            print(f"❌ {error_msg}")
+            traceback.print_exc()
         
         # 3. جلب الطلاب
         try:
-            logger.info("👥 Fetching students...")
+            print("👥 Fetching students...")
             total_students = await db.scalar(
                 select(func.count(Student.id))
                 .where(Student.school_id == user.school_id)
             ) or 0
             
-            # جلب أول 50 طالب
             students_result = await db.execute(
                 select(Student)
                 .where(Student.school_id == user.school_id)
@@ -237,20 +377,20 @@ async def debug_raw(
                     for s in students
                 ]
             }
-            logger.info(f"✅ Total students: {total_students}")
+            print(f"✅ Total students: {total_students}")
         except Exception as e:
             error_msg = f"Error fetching students: {str(e)}"
             result["errors"].append(error_msg)
-            logger.error(f"❌ {error_msg}", exc_info=True)
+            print(f"❌ {error_msg}")
+            traceback.print_exc()
         
         # 4. جلب بيانات الحضور
         try:
-            logger.info("📊 Fetching attendance data...")
+            print("📊 Fetching attendance data...")
             total_attendance = await db.scalar(
                 select(func.count(Attendance.id))
             ) or 0
             
-            # جلب عينة من سجلات الحضور
             attendance_result = await db.execute(
                 select(Attendance)
                 .limit(20)
@@ -271,20 +411,20 @@ async def debug_raw(
                     for a in attendance_records
                 ]
             }
-            logger.info(f"✅ Total attendance records: {total_attendance}")
+            print(f"✅ Total attendance records: {total_attendance}")
         except Exception as e:
             error_msg = f"Error fetching attendance: {str(e)}"
             result["errors"].append(error_msg)
-            logger.error(f"❌ {error_msg}", exc_info=True)
+            print(f"❌ {error_msg}")
+            traceback.print_exc()
         
         # 5. جلب بيانات الجدول
         try:
-            logger.info("📅 Fetching schedule data...")
+            print("📅 Fetching schedule data...")
             total_schedule = await db.scalar(
                 select(func.count(ScheduleEntry.id))
             ) or 0
             
-            # جلب عينة من الجدول
             schedule_result = await db.execute(
                 select(ScheduleEntry)
                 .limit(20)
@@ -306,42 +446,38 @@ async def debug_raw(
                     for s in schedule_records
                 ]
             }
-            logger.info(f"✅ Total schedule records: {total_schedule}")
+            print(f"✅ Total schedule records: {total_schedule}")
         except Exception as e:
             error_msg = f"Error fetching schedule: {str(e)}"
             result["errors"].append(error_msg)
-            logger.error(f"❌ {error_msg}", exc_info=True)
+            print(f"❌ {error_msg}")
+            traceback.print_exc()
         
         # 6. اختبار الاتصال بقاعدة البيانات
         try:
-            logger.info("🔗 Testing database connection...")
-            result_db = await db.execute(text("SELECT 1"))
+            print("🔗 Testing database connection...")
+            db_result = await db.execute(text("SELECT 1"))
             result["database"] = {
                 "connected": True,
-                "test_result": result_db.scalar() == 1
+                "test_result": db_result.scalar() == 1
             }
-            logger.info("✅ Database connection successful")
+            print("✅ Database connection successful")
         except Exception as e:
             error_msg = f"Database connection error: {str(e)}"
             result["errors"].append(error_msg)
             result["database"] = {"connected": False, "error": str(e)}
-            logger.error(f"❌ {error_msg}", exc_info=True)
+            print(f"❌ {error_msg}")
+            traceback.print_exc()
         
-        # 7. معلومات النظام
-        result["system"] = {
-            "timestamp": datetime.now().isoformat(),
-            "python_version": sys.version,
-            "router_prefix": "/deputy",
-        }
-        
-        logger.info("=" * 80)
-        logger.info(f"🔍 DEBUG RAW COMPLETE - {len(result['errors'])} errors found")
-        logger.info("=" * 80)
+        print("=" * 80)
+        print(f"🔍 DEBUG RAW COMPLETE - {len(result['errors'])} errors found")
+        print("=" * 80)
         
         return JSONResponse(result)
         
     except Exception as e:
-        logger.error(f"❌ Fatal error in debug_raw: {str(e)}", exc_info=True)
+        print(f"❌ Fatal error in debug_raw: {str(e)}")
+        traceback.print_exc()
         return JSONResponse(
             status_code=500,
             content={
@@ -367,12 +503,12 @@ async def deputy_dashboard(
     لوحة تحكم الوكيل - تعرض الفصول مرتبة من اليمين لليسار مع الحصص والإحصائيات
     """
     try:
-        logger.info("=" * 80)
-        logger.info("🚀 DEPUTY DASHBOARD - STARTING")
-        logger.info(f"👤 User ID: {user.id}")
-        logger.info(f"🏫 School ID: {user.school_id}")
-        logger.info(f"📅 Target date: {target_date}")
-        logger.info("=" * 80)
+        print("=" * 80)
+        print("🚀 DEPUTY DASHBOARD - STARTING")
+        print(f"👤 User ID: {user.id}")
+        print(f"🏫 School ID: {user.school_id}")
+        print(f"📅 Target date: {target_date}")
+        print("=" * 80)
         
         # تحديد التاريخ المستهدف
         selected_date = target_date or _date.today().isoformat()
@@ -410,9 +546,11 @@ async def deputy_dashboard(
         # إضافة chart_data إلى dashboard_data
         dashboard_data["chart_data"] = chart_data
         
-        logger.info(f"📊 Dashboard data prepared: {len(dashboard_data.get('sections', []))} sections")
-        logger.info(f"📊 Total students: {len(dashboard_data.get('all_students', []))}")
-        logger.info("=" * 80)
+        print(f"📊 Dashboard data prepared: {len(dashboard_data.get('sections', []))} sections")
+        print(f"📊 Total students: {len(dashboard_data.get('all_students', []))}")
+        if dashboard_data.get("error"):
+            print(f"⚠️ Error: {dashboard_data['error']}")
+        print("=" * 80)
         
         # ========== عرض القالب ==========
         return templates.TemplateResponse(
@@ -426,11 +564,13 @@ async def deputy_dashboard(
                 "selected_month": selected_month,
                 "week_days": week_days,
                 "user": user,
+                "debug_mode": True,  # تمكين وضع التصحيح
             },
         )
     
     except Exception as e:
-        logger.error(f"❌ Error in deputy_dashboard: {str(e)}", exc_info=True)
+        print(f"❌ Error in deputy_dashboard: {str(e)}")
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"حدث خطأ: {str(e)}")
 
 
@@ -452,7 +592,7 @@ async def deputy_dashboard_by_date(
         except ValueError:
             raise HTTPException(status_code=400, detail="تنسيق تاريخ غير صحيح. استخدم YYYY-MM-DD")
         
-        logger.info(f"📅 Deputy dashboard by date: {date}")
+        print(f"📅 Deputy dashboard by date: {date}")
         
         dashboard_data = await get_dashboard_data(db, user.school_id, date)
         selected_month = date[:7]
@@ -491,262 +631,16 @@ async def deputy_dashboard_by_date(
                 "selected_month": selected_month,
                 "week_days": week_days,
                 "user": user,
+                "debug_mode": True,
             },
         )
     
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"❌ Error in deputy_dashboard_by_date: {str(e)}", exc_info=True)
+        print(f"❌ Error in deputy_dashboard_by_date: {str(e)}")
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"حدث خطأ: {str(e)}")
-
-
-# ============================================================================
-# القسم 1.5: صفحة تصحيح الأخطاء (DEBUG)
-# ============================================================================
-
-@router.get("/dashboard/debug")
-async def debug_dashboard(
-    request: Request,
-    user: CurrentUser = Depends(require_permission("session_lifecycle.view")),
-    db: AsyncSession = Depends(get_db),
-    ctx: dict = Depends(template_context),
-):
-    """
-    صفحة تصحيح الأخطاء لعرض البيانات الأولية
-    """
-    try:
-        logger.info("=" * 80)
-        logger.info("🐛 DEBUG DASHBOARD - STARTING")
-        logger.info("=" * 80)
-        
-        debug_data = {
-            "user": {
-                "id": str(user.id),
-                "school_id": str(user.school_id) if user.school_id else None,
-                "email": getattr(user, 'email', None),
-                "full_name": getattr(user, 'full_name', None),
-            },
-            "school": None,
-            "sections": [],
-            "students": [],
-            "attendance": {},
-            "schedule": {},
-            "errors": []
-        }
-        
-        # 1. جلب المدرسة
-        try:
-            logger.info("🔍 Step 1: Fetching school...")
-            school_result = await db.execute(
-                select(School).where(School.id == user.school_id)
-            )
-            school = school_result.scalar_one_or_none()
-            
-            if school:
-                debug_data["school"] = {
-                    "id": str(school.id),
-                    "name": school.name,
-                    "code": getattr(school, 'code', None),
-                }
-                logger.info(f"✅ School found: {school.name}")
-            else:
-                debug_data["errors"].append(f"School not found with ID: {user.school_id}")
-                logger.error(f"❌ School not found with ID: {user.school_id}")
-        except Exception as e:
-            error_msg = f"Error fetching school: {str(e)}"
-            debug_data["errors"].append(error_msg)
-            logger.error(f"❌ {error_msg}", exc_info=True)
-        
-        # 2. جلب الفصول
-        try:
-            logger.info("🔍 Step 2: Fetching sections...")
-            sections_result = await db.execute(
-                select(Section)
-                .options(selectinload(Section.stage), selectinload(Section.grade))
-                .where(Section.school_id == user.school_id)
-                .order_by(Section.stage_id, Section.grade_id, Section.name)
-            )
-            sections = sections_result.scalars().all()
-            logger.info(f"✅ Found {len(sections)} sections")
-            
-            for section in sections:
-                # جلب عدد الطلاب في الفصل
-                student_count = await db.scalar(
-                    select(func.count(Student.id))
-                    .where(Student.section_id == section.id)
-                ) or 0
-                
-                # جلب الطلاب (أول 10 فقط)
-                students_result = await db.execute(
-                    select(Student)
-                    .where(Student.section_id == section.id)
-                    .limit(10)
-                )
-                students = students_result.scalars().all()
-                
-                section_info = {
-                    "id": str(section.id),
-                    "name": section.name,
-                    "stage_id": str(section.stage_id) if section.stage_id else None,
-                    "stage_name": section.stage.name if section.stage else None,
-                    "grade_id": str(section.grade_id) if section.grade_id else None,
-                    "grade_name": section.grade.name if section.grade else None,
-                    "student_count": student_count,
-                    "students": [
-                        {
-                            "id": str(s.id),
-                            "name": s.full_name,
-                            "code": getattr(s, 'code', None)
-                        }
-                        for s in students
-                    ]
-                }
-                debug_data["sections"].append(section_info)
-                
-        except Exception as e:
-            error_msg = f"Error fetching sections: {str(e)}"
-            debug_data["errors"].append(error_msg)
-            logger.error(f"❌ {error_msg}", exc_info=True)
-        
-        # 3. جلب جميع الطلاب
-        try:
-            logger.info("🔍 Step 3: Fetching all students...")
-            total_students = await db.scalar(
-                select(func.count(Student.id))
-                .where(Student.school_id == user.school_id)
-            ) or 0
-            
-            # جلب أول 20 طالب
-            students_result = await db.execute(
-                select(Student)
-                .where(Student.school_id == user.school_id)
-                .limit(20)
-            )
-            students = students_result.scalars().all()
-            
-            debug_data["students"] = {
-                "total": total_students,
-                "sample": [
-                    {
-                        "id": str(s.id),
-                        "name": s.full_name,
-                        "section_id": str(s.section_id) if s.section_id else None,
-                        "code": getattr(s, 'code', None)
-                    }
-                    for s in students
-                ]
-            }
-            logger.info(f"✅ Total students: {total_students}")
-        except Exception as e:
-            error_msg = f"Error fetching students: {str(e)}"
-            debug_data["errors"].append(error_msg)
-            logger.error(f"❌ {error_msg}", exc_info=True)
-        
-        # 4. جلب بيانات الحضور
-        try:
-            logger.info("🔍 Step 4: Fetching attendance data...")
-            total_attendance = await db.scalar(
-                select(func.count(Attendance.id))
-            ) or 0
-            
-            # جلب عينة من سجلات الحضور
-            attendance_sample = await db.execute(
-                select(Attendance)
-                .limit(10)
-            )
-            attendance_records = attendance_sample.scalars().all()
-            
-            debug_data["attendance"] = {
-                "total": total_attendance,
-                "sample": [
-                    {
-                        "id": str(a.id),
-                        "student_id": str(a.student_id) if hasattr(a, 'student_id') else None,
-                        "schedule_entry_id": str(a.schedule_entry_id) if hasattr(a, 'schedule_entry_id') else None,
-                        "status": getattr(a, 'status', None),
-                        "date": str(getattr(a, 'date', None))
-                    }
-                    for a in attendance_records
-                ]
-            }
-            logger.info(f"✅ Total attendance records: {total_attendance}")
-        except Exception as e:
-            error_msg = f"Error fetching attendance: {str(e)}"
-            debug_data["errors"].append(error_msg)
-            logger.error(f"❌ {error_msg}", exc_info=True)
-        
-        # 5. جلب بيانات الجدول
-        try:
-            logger.info("🔍 Step 5: Fetching schedule data...")
-            total_schedule = await db.scalar(
-                select(func.count(ScheduleEntry.id))
-            ) or 0
-            
-            # جلب عينة من الجدول
-            schedule_sample = await db.execute(
-                select(ScheduleEntry)
-                .limit(10)
-            )
-            schedule_records = schedule_sample.scalars().all()
-            
-            debug_data["schedule"] = {
-                "total": total_schedule,
-                "sample": [
-                    {
-                        "id": str(s.id),
-                        "section_id": str(s.section_id) if hasattr(s, 'section_id') else None,
-                        "subject_id": str(s.subject_id) if hasattr(s, 'subject_id') else None,
-                        "teacher_id": str(s.teacher_id) if hasattr(s, 'teacher_id') else None,
-                        "period_number": getattr(s, 'period_number', None),
-                        "schedule_date": str(getattr(s, 'schedule_date', None))
-                    }
-                    for s in schedule_records
-                ]
-            }
-            logger.info(f"✅ Total schedule records: {total_schedule}")
-        except Exception as e:
-            error_msg = f"Error fetching schedule: {str(e)}"
-            debug_data["errors"].append(error_msg)
-            logger.error(f"❌ {error_msg}", exc_info=True)
-        
-        # 6. اختبار الاتصال بقاعدة البيانات
-        try:
-            logger.info("🔍 Step 6: Testing database connection...")
-            result = await db.execute(text("SELECT 1"))
-            debug_data["database"] = {
-                "connected": True,
-                "test_result": result.scalar() == 1
-            }
-            logger.info("✅ Database connection successful")
-        except Exception as e:
-            error_msg = f"Database connection error: {str(e)}"
-            debug_data["errors"].append(error_msg)
-            debug_data["database"] = {"connected": False, "error": str(e)}
-            logger.error(f"❌ {error_msg}", exc_info=True)
-        
-        # 7. عرض النتائج
-        logger.info("=" * 80)
-        logger.info(f"🐛 DEBUG COMPLETE - {len(debug_data['errors'])} errors found")
-        logger.info("=" * 80)
-        
-        return templates.TemplateResponse(
-            "deputy/debug.html",
-            {
-                **ctx,
-                "request": request,
-                "user": user,
-                "debug_data": debug_data,
-                "has_errors": len(debug_data["errors"]) > 0
-            }
-        )
-        
-    except Exception as e:
-        logger.error(f"❌ Fatal error in debug: {str(e)}", exc_info=True)
-        return {
-            "error": str(e),
-            "traceback": traceback.format_exc()
-        }
 
 
 # ============================================================================
@@ -765,7 +659,7 @@ async def section_students(
     عرض قائمة الطلاب في فصل معين مع تفاصيل الحضور والغياب
     """
     try:
-        logger.info(f"👥 Fetching students for section: {section_id}")
+        print(f"👥 Fetching students for section: {section_id}")
         
         # جلب الفصل
         section_result = await db.execute(
@@ -811,7 +705,8 @@ async def section_students(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"❌ Error in section_students: {str(e)}", exc_info=True)
+        print(f"❌ Error in section_students: {str(e)}")
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"حدث خطأ: {str(e)}")
 
 
@@ -829,6 +724,7 @@ async def section_attendance(
     """
     try:
         selected_date = target_date or _date.today().isoformat()
+        print(f"📝 Attendance form for section: {section_id}, date: {selected_date}")
         
         # جلب الفصل
         section_result = await db.execute(
@@ -890,7 +786,8 @@ async def section_attendance(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"❌ Error in section_attendance: {str(e)}", exc_info=True)
+        print(f"❌ Error in section_attendance: {str(e)}")
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"حدث خطأ: {str(e)}")
 
 
@@ -906,6 +803,8 @@ async def transfer_students(
     نقل الطلاب بين الصفوف أو المراحل أو المدارس
     """
     try:
+        print(f"🔄 Transfer students from section: {section_id}")
+        
         # جلب الفصل الحالي
         section_result = await db.execute(
             select(Section)
@@ -959,7 +858,8 @@ async def transfer_students(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"❌ Error in transfer_students: {str(e)}", exc_info=True)
+        print(f"❌ Error in transfer_students: {str(e)}")
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"حدث خطأ: {str(e)}")
 
 
@@ -977,6 +877,7 @@ async def section_report(
     """
     try:
         selected_date = target_date or _date.today().isoformat()
+        print(f"📊 Report for section: {section_id}, date: {selected_date}")
         
         # جلب الفصل
         section_result = await db.execute(
@@ -1026,7 +927,8 @@ async def section_report(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"❌ Error in section_report: {str(e)}", exc_info=True)
+        print(f"❌ Error in section_report: {str(e)}")
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"حدث خطأ: {str(e)}")
 
 
@@ -1083,7 +985,8 @@ async def export_dashboard_pdf(
         )
     
     except Exception as e:
-        logger.error(f"❌ Error in export_dashboard_pdf: {str(e)}", exc_info=True)
+        print(f"❌ Error in export_dashboard_pdf: {str(e)}")
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"حدث خطأ: {str(e)}")
 
 
@@ -1136,7 +1039,8 @@ async def export_report(
         )
     
     except Exception as e:
-        logger.error(f"❌ Error in export_report: {str(e)}", exc_info=True)
+        print(f"❌ Error in export_report: {str(e)}")
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"حدث خطأ: {str(e)}")
 
 
@@ -1166,7 +1070,7 @@ async def get_section_attendance_stats(db: AsyncSession, section_id: str, target
     """
     جلب إحصائيات الحضور لفصل معين في تاريخ محدد مع تسجيل تفصيلي
     """
-    logger.info(f"            📊 Getting attendance stats for section {section_id}, date {target_date}")
+    print(f"            📊 Getting attendance stats for section {section_id}, date {target_date}")
     
     try:
         # التحقق من وجود Attendance في قاعدة البيانات
@@ -1174,13 +1078,13 @@ async def get_section_attendance_stats(db: AsyncSession, section_id: str, target
             total_attendance = await db.scalar(
                 select(func.count(Attendance.id))
             )
-            logger.info(f"            📊 Total attendance records in DB: {total_attendance}")
+            print(f"            📊 Total attendance records in DB: {total_attendance}")
         except Exception as e:
-            logger.error(f"            ❌ Error counting attendance: {str(e)}")
+            print(f"            ❌ Error counting attendance: {str(e)}")
             total_attendance = 0
         
         if total_attendance == 0:
-            logger.warning(f"            ⚠️ No attendance records found in database")
+            print(f"            ⚠️ No attendance records found in database")
             return {
                 "present": 0, "absent": 0, "late": 0, "excused": 0,
                 "sick": 0, "late_arrival": 0, "teacher_absent": 0,
@@ -1200,13 +1104,12 @@ async def get_section_attendance_stats(db: AsyncSession, section_id: str, target
             )
             
             stats = result.all()
-            logger.info(f"            ✅ Found {len(stats)} status groups via join")
+            print(f"            ✅ Found {len(stats)} status groups via join")
             
         except Exception as e:
-            logger.error(f"            ❌ Error with join query: {str(e)}")
+            print(f"            ❌ Error with join query: {str(e)}")
             # محاولة استعلام بديل باستخدام student_id
             try:
-                # جلب الطلاب في الفصل
                 students_result = await db.execute(
                     select(Student.id)
                     .where(Student.section_id == section_id)
@@ -1223,11 +1126,11 @@ async def get_section_attendance_stats(db: AsyncSession, section_id: str, target
                         .group_by(Attendance.status)
                     )
                     stats = result.all()
-                    logger.info(f"            ✅ Found {len(stats)} status groups via student_ids")
+                    print(f"            ✅ Found {len(stats)} status groups via student_ids")
                 else:
                     stats = []
             except Exception as e2:
-                logger.error(f"            ❌ Error with alternative query: {str(e2)}")
+                print(f"            ❌ Error with alternative query: {str(e2)}")
                 stats = []
         
         # بناء النتيجة
@@ -1244,11 +1147,12 @@ async def get_section_attendance_stats(db: AsyncSession, section_id: str, target
                 attendance_stats["other"] += count
             attendance_stats["total"] += count
         
-        logger.info(f"            ✅ Final stats: {attendance_stats}")
+        print(f"            ✅ Final stats: {attendance_stats}")
         return attendance_stats
     
     except Exception as e:
-        logger.error(f"❌ Error getting section attendance stats: {str(e)}", exc_info=True)
+        print(f"❌ Error getting section attendance stats: {str(e)}")
+        traceback.print_exc()
         return {
             "present": 0, "absent": 0, "late": 0, "excused": 0,
             "sick": 0, "late_arrival": 0, "teacher_absent": 0,
@@ -1287,7 +1191,7 @@ async def get_student_attendance_stats(db: AsyncSession, student_id: str) -> Dic
         return attendance_stats
     
     except Exception as e:
-        logger.error(f"❌ Error getting student stats for {student_id}: {str(e)}")
+        print(f"❌ Error getting student stats for {student_id}: {str(e)}")
         return {
             "present": 0,
             "absent": 0,
@@ -1303,324 +1207,221 @@ async def get_dashboard_data(db: AsyncSession, school_id: str, target_date: str)
     """
     جلب جميع بيانات الداشبورد من قاعدة البيانات مع تسجيل تفصيلي
     """
-    logger.info("=" * 60)
-    logger.info(f"📊 STARTING get_dashboard_data()")
-    logger.info(f"   school_id: {school_id}")
-    logger.info(f"   target_date: {target_date}")
-    logger.info("=" * 60)
+    print("=" * 60)
+    print(f"📊 STARTING get_dashboard_data()")
+    print(f"   school_id: {school_id}")
+    print(f"   target_date: {target_date}")
+    print("=" * 60)
     
-    try:
-        # 1. التحقق من وجود المدرسة
-        logger.info("🔍 Step 1: Checking school...")
-        try:
-            school_result = await db.execute(
-                select(School).where(School.id == school_id)
-            )
-            school = school_result.scalar_one_or_none()
-            
-            if not school:
-                logger.error(f"❌ School not found with ID: {school_id}")
-                logger.info("💡 Returning empty dashboard data")
-                return get_empty_dashboard_data(target_date)
-            
-            logger.info(f"✅ School found: {school.name} (ID: {school.id})")
-            
-        except Exception as e:
-            logger.error(f"❌ Error fetching school: {str(e)}", exc_info=True)
-            return get_empty_dashboard_data(target_date)
-        
-        # 2. جلب الفصول
-        logger.info("🔍 Step 2: Fetching sections...")
-        try:
-            sections_result = await db.execute(
-                select(Section)
-                .options(
-                    selectinload(Section.stage),
-                    selectinload(Section.grade)
-                )
-                .where(Section.school_id == school_id)
-                .order_by(
-                    Section.stage_id,
-                    Section.grade_id,
-                    Section.name
-                )
-            )
-            sections = sections_result.scalars().all()
-            
-            logger.info(f"✅ Found {len(sections)} sections")
-            
-            # تسجيل تفاصيل الفصول
-            for idx, section in enumerate(sections):
-                stage_name = section.stage.name if section.stage else "None"
-                grade_name = section.grade.name if section.grade else "None"
-                logger.info(f"   Section {idx+1}: ID={section.id}, Name={section.name}, Stage={stage_name}, Grade={grade_name}")
-            
-        except Exception as e:
-            logger.error(f"❌ Error fetching sections: {str(e)}", exc_info=True)
-            return get_empty_dashboard_data(target_date)
-        
-        if not sections:
-            logger.warning(f"⚠️ No sections found for school: {school.name}")
-            return get_empty_dashboard_data(target_date)
-        
-        # 3. معالجة كل فصل
-        logger.info("🔍 Step 3: Processing sections...")
-        dashboard_sections = []
-        all_students = []
-        analytics = {
+    result = {
+        "date": target_date,
+        "sections": [],
+        "all_students": [],
+        "analytics": {
             "present": 0, "absent": 0, "late": 0, "late_arrival": 0,
             "excused": 0, "sick": 0, "teacher_absent": 0,
             "substitute_required": 0, "other": 0, "total_records": 0
-        }
-        
-        for idx, section in enumerate(sections):
-            logger.info(f"   📚 Processing section {idx+1}/{len(sections)}: {section.name}")
-            
-            try:
-                section_data = await process_section_data(db, section, target_date)
-                
-                # التحقق من نجاح المعالجة
-                if section_data:
-                    dashboard_sections.append(section_data)
-                    
-                    if section_data.get("students"):
-                        all_students.extend(section_data["students"])
-                        logger.info(f"      ✅ Added {len(section_data['students'])} students")
-                    
-                    # تحديث الإحصائيات
-                    if section_data.get("attendance_stats"):
-                        for key in analytics:
-                            if key in section_data["attendance_stats"]:
-                                analytics[key] += section_data["attendance_stats"].get(key, 0)
-                    
-                    logger.info(f"      ✅ Section processed successfully")
-                else:
-                    logger.warning(f"      ⚠️ Section data is empty for {section.name}")
-                    
-            except Exception as e:
-                logger.error(f"      ❌ Error processing section {section.name}: {str(e)}", exc_info=True)
-                # الاستمرار مع الفصل التالي
-        
-        # 4. النتيجة النهائية
-        logger.info("=" * 60)
-        logger.info(f"📊 FINAL RESULTS:")
-        logger.info(f"   Total sections: {len(dashboard_sections)}")
-        logger.info(f"   Total students: {len(all_students)}")
-        logger.info(f"   Analytics: {analytics}")
-        logger.info("=" * 60)
-        
-        return {
-            "date": target_date,
-            "sections": dashboard_sections,
-            "all_students": all_students,
-            "analytics": analytics
-        }
-    
-    except Exception as e:
-        logger.error(f"❌ FATAL ERROR in get_dashboard_data: {str(e)}", exc_info=True)
-        return get_empty_dashboard_data(target_date)
-
-
-async def process_section_data(db: AsyncSession, section: Section, target_date: str) -> Dict[str, Any]:
-    """
-    معالجة بيانات فصل واحد مع تسجيل تفصيلي
-    """
-    logger.info(f"      🔍 Processing section: {section.name} (ID: {section.id})")
+        },
+        "error": None
+    }
     
     try:
-        # 1. جلب عدد الطلاب
-        logger.info(f"         📊 Getting student count...")
-        try:
-            students_count = await db.scalar(
-                select(func.count(Student.id))
-                .where(Student.section_id == section.id)
-            ) or 0
-            logger.info(f"         ✅ Students count: {students_count}")
-        except Exception as e:
-            logger.error(f"         ❌ Error getting student count: {str(e)}")
-            students_count = 0
+        # 1. جلب المدرسة
+        print("🔍 Step 1: Fetching school...")
+        school_result = await db.execute(
+            select(School).where(School.id == school_id)
+        )
+        school = school_result.scalar_one_or_none()
         
-        # 2. جلب أسماء المرحلة والصف
-        try:
-            stage_name = section.stage.name if section.stage else "غير محدد"
-            grade_name = section.grade.name if section.grade else "غير محدد"
-            logger.info(f"         ✅ Stage: {stage_name}, Grade: {grade_name}")
-        except Exception as e:
-            logger.error(f"         ❌ Error getting stage/grade names: {str(e)}")
-            stage_name = "خطأ"
-            grade_name = "خطأ"
+        if not school:
+            print(f"❌ School not found with ID: {school_id}")
+            result["error"] = f"المدرسة غير موجودة: {school_id}"
+            return result
         
-        # 3. جلب الحصص
-        logger.info(f"         📖 Getting periods for date: {target_date}")
-        try:
-            periods = await get_section_periods(db, section.id, target_date)
-            logger.info(f"         ✅ Found {len(periods)} periods")
-        except Exception as e:
-            logger.error(f"         ❌ Error getting periods: {str(e)}", exc_info=True)
-            periods = []
+        print(f"✅ School found: {school.name}")
         
-        # 4. معالجة الحصص
-        periods_data = []
-        for period in periods:
-            try:
-                period_info = await process_period_data(db, period)
-                periods_data.append(period_info)
-            except Exception as e:
-                logger.error(f"         ❌ Error processing period {period.id}: {str(e)}")
-                # إضافة بيانات فارغة للحصة
-                periods_data.append({
-                    "subject_id": "",
-                    "subject_name": "خطأ",
-                    "teacher_name": "خطأ",
-                    "indicator": "⚪",
-                    "status_label": "خطأ",
-                    "status": "unknown",
-                    "schedule_entry_id": period.id,
-                    "period_number": getattr(period, 'period_number', 0),
-                    "attendance_id": None,
-                    "is_attendance_recorded": False,
-                    "attendance_stats": {}
-                })
-        
-        # 5. جلب إحصائيات الحضور
-        logger.info(f"         📊 Getting attendance stats...")
-        try:
-            attendance_stats = await get_section_attendance_stats(db, section.id, target_date)
-            logger.info(f"         ✅ Attendance stats: {attendance_stats}")
-        except Exception as e:
-            logger.error(f"         ❌ Error getting attendance stats: {str(e)}")
-            attendance_stats = {}
-        
-        # 6. جلب الطلاب
-        logger.info(f"         👥 Getting students...")
-        try:
-            students_result = await db.execute(
-                select(Student)
-                .where(Student.section_id == section.id)
-                .order_by(Student.full_name)
+        # 2. جلب الفصول
+        print("🔍 Step 2: Fetching sections...")
+        sections_result = await db.execute(
+            select(Section)
+            .options(
+                selectinload(Section.stage),
+                selectinload(Section.grade)
             )
-            students = students_result.scalars().all()
-            logger.info(f"         ✅ Found {len(students)} students")
+            .where(Section.school_id == school_id)
+            .order_by(
+                Section.stage_id,
+                Section.grade_id,
+                Section.name
+            )
+        )
+        sections = sections_result.scalars().all()
+        print(f"✅ Found {len(sections)} sections")
+        
+        if not sections:
+            print("⚠️ No sections found")
+            result["error"] = "لا توجد فصول مسجلة في هذه المدرسة"
+            return result
+        
+        # 3. معالجة كل فصل
+        print("🔍 Step 3: Processing sections...")
+        
+        for idx, section in enumerate(sections):
+            print(f"   📚 Processing section {idx+1}/{len(sections)}: {section.name}")
             
-            # طباعة أسماء الطلاب للتأكد
-            for student in students[:5]:  # أول 5 طلاب فقط
-                logger.info(f"            - {student.full_name} (ID: {student.id})")
-            if len(students) > 5:
-                logger.info(f"            ... and {len(students) - 5} more")
-                
-        except Exception as e:
-            logger.error(f"         ❌ Error getting students: {str(e)}", exc_info=True)
-            students = []
-        
-        # 7. معالجة بيانات الطلاب
-        students_data = []
-        for student in students:
             try:
-                stats = await get_student_attendance_stats(db, student.id)
+                # جلب الطلاب في الفصل
+                students_result = await db.execute(
+                    select(Student)
+                    .where(Student.section_id == section.id)
+                    .order_by(Student.full_name)
+                )
+                students = students_result.scalars().all()
                 
-                # تحديد الحالة الحالية
-                status = "unknown"
-                if stats.get("total", 0) > 0:
-                    if stats.get("present", 0) > stats.get("absent", 0) and stats.get("present", 0) > stats.get("late", 0):
-                        status = "present"
-                    elif stats.get("absent", 0) > stats.get("present", 0) and stats.get("absent", 0) > stats.get("late", 0):
-                        status = "absent"
-                    elif stats.get("late", 0) > 0:
-                        status = "late"
-                    elif stats.get("excused", 0) > 0:
-                        status = "excused"
-                    elif stats.get("sick", 0) > 0:
-                        status = "sick"
+                # جلب الحصص لهذا اليوم
+                periods = await get_section_periods(db, section.id, target_date)
                 
-                students_data.append({
-                    "id": student.id,
-                    "name": student.full_name,
-                    "code": getattr(student, 'code', ''),
-                    "status": status,
-                    "status_label": MOCK_STATUS_LABELS.get(status, status),
-                    "attendance": stats
-                })
+                # معالجة بيانات الطلاب
+                students_data = []
+                for student in students:
+                    stats = await get_student_attendance_stats(db, student.id)
+                    
+                    status = "unknown"
+                    if stats.get("total", 0) > 0:
+                        if stats.get("present", 0) > 0:
+                            status = "present"
+                        elif stats.get("absent", 0) > 0:
+                            status = "absent"
+                        elif stats.get("late", 0) > 0:
+                            status = "late"
+                    
+                    # تحديث الإحصائيات الكلية
+                    for key in ["present", "absent", "late", "excused", "sick", "late_arrival"]:
+                        if key in stats:
+                            result["analytics"][key] = result["analytics"].get(key, 0) + stats.get(key, 0)
+                            result["analytics"]["total_records"] = result["analytics"].get("total_records", 0) + stats.get(key, 0)
+                    
+                    students_data.append({
+                        "id": student.id,
+                        "name": student.full_name,
+                        "code": getattr(student, 'code', ''),
+                        "status": status,
+                        "status_label": MOCK_STATUS_LABELS.get(status, status),
+                        "attendance": stats,
+                        "section": section.name,
+                        "grade": section.grade.name if section.grade else "غير محدد",
+                    })
+                
+                # معالجة الحصص
+                periods_data = []
+                for period in periods:
+                    subject_name = "غير محدد"
+                    if period.subject_id:
+                        subject_result = await db.execute(
+                            select(Subject).where(Subject.id == period.subject_id)
+                        )
+                        subject = subject_result.scalar_one_or_none()
+                        if subject:
+                            subject_name = subject.name[:15]
+                    
+                    teacher_name = "غير محدد"
+                    if period.teacher_id:
+                        teacher_result = await db.execute(
+                            select(Teacher).where(Teacher.id == period.teacher_id)
+                        )
+                        teacher = teacher_result.scalar_one_or_none()
+                        if teacher:
+                            teacher_name = teacher.full_name or teacher.name or "معلم"
+                    
+                    attendance = await get_period_attendance(db, period.id)
+                    status = attendance.status if attendance else "unknown"
+                    status_config = get_status_config(status)
+                    
+                    periods_data.append({
+                        "subject_id": str(period.subject_id or ""),
+                        "subject_name": subject_name,
+                        "teacher_name": teacher_name,
+                        "indicator": status_config["indicator"],
+                        "status_label": status_config["label"],
+                        "status": status_config["status"],
+                        "schedule_entry_id": period.id,
+                        "period_number": getattr(period, 'period_number', 0),
+                        "attendance_id": attendance.id if attendance else None,
+                        "is_attendance_recorded": attendance is not None,
+                        "attendance_stats": {
+                            "present": 0, "absent": 0, "late": 0,
+                            "excused": 0, "sick": 0, "late_arrival": 0
+                        }
+                    })
+                
+                # جلب إحصائيات الفصل
+                attendance_stats = await get_section_attendance_stats(db, section.id, target_date)
+                
+                # بناء بيانات الفصل
+                section_data = {
+                    "section_id": section.id,
+                    "stage_name": section.stage.name if section.stage else "غير محدد",
+                    "grade_name": section.grade.name if section.grade else "غير محدد",
+                    "section_name": section.name or "فصل",
+                    "enrolled_count": len(students),
+                    "periods_today": periods_data,
+                    "attendance_stats": attendance_stats,
+                    "students": students_data
+                }
+                
+                result["sections"].append(section_data)
+                result["all_students"].extend(students_data)
+                
+                print(f"      ✅ Added {len(students_data)} students, {len(periods_data)} periods")
+                
             except Exception as e:
-                logger.error(f"         ❌ Error processing student {student.id}: {str(e)}")
-                students_data.append({
-                    "id": student.id,
-                    "name": getattr(student, 'full_name', 'غير معروف'),
-                    "code": getattr(student, 'code', ''),
-                    "status": "unknown",
-                    "status_label": "خطأ",
-                    "attendance": {}
-                })
+                print(f"      ❌ Error processing section {section.name}: {str(e)}")
+                traceback.print_exc()
         
-        # 8. النتيجة النهائية
-        result = {
-            "section_id": section.id,
-            "stage_name": stage_name,
-            "grade_name": grade_name,
-            "section_name": section.name or "فصل",
-            "enrolled_count": students_count,
-            "periods_today": periods_data,
-            "attendance_stats": attendance_stats,
-            "students": students_data
-        }
+        print("=" * 60)
+        print(f"📊 FINAL RESULTS:")
+        print(f"   Total sections: {len(result['sections'])}")
+        print(f"   Total students: {len(result['all_students'])}")
+        print(f"   Analytics: {result['analytics']}")
+        print("=" * 60)
         
-        logger.info(f"         ✅ Section processing complete: {len(students_data)} students, {len(periods_data)} periods")
         return result
-    
+        
     except Exception as e:
-        logger.error(f"❌ FATAL ERROR processing section {section.id}: {str(e)}", exc_info=True)
-        return {
-            "section_id": section.id,
-            "stage_name": "خطأ",
-            "grade_name": "خطأ",
-            "section_name": section.name or "فصل",
-            "enrolled_count": 0,
-            "periods_today": [],
-            "attendance_stats": {},
-            "students": []
-        }
+        print(f"❌ FATAL ERROR: {str(e)}")
+        traceback.print_exc()
+        result["error"] = str(e)
+        return result
 
 
 async def get_section_periods(db: AsyncSession, section_id: str, target_date: str) -> List[ScheduleEntry]:
     """
     جلب الحصص لفصل في تاريخ محدد مع محاولة حقول تاريخ مختلفة
     """
-    logger.info(f"            🔍 Fetching periods for section {section_id}, date {target_date}")
+    print(f"            🔍 Fetching periods for section {section_id}, date {target_date}")
     
-    # قائمة بجميع الحقول الممكنة للتاريخ
-    date_fields = [
-        'schedule_date', 
-        'date', 
-        'day', 
-        'period_date',
-        'session_date',
-        'class_date',
-        'entry_date'
-    ]
+    date_fields = ['schedule_date', 'date', 'day', 'period_date', 'session_date', 'class_date', 'entry_date']
     
-    # أولاً: التحقق من وجود الجدول
     try:
-        # التحقق من وجود أي بيانات في الجدول
         count_result = await db.execute(
             select(func.count(ScheduleEntry.id))
             .where(ScheduleEntry.section_id == section_id)
         )
         total_count = count_result.scalar() or 0
-        logger.info(f"            📊 Total ScheduleEntry records for section: {total_count}")
+        print(f"            📊 Total ScheduleEntry records for section: {total_count}")
         
         if total_count == 0:
-            logger.warning(f"            ⚠️ No ScheduleEntry records found for section {section_id}")
+            print(f"            ⚠️ No ScheduleEntry records found for section {section_id}")
             return []
             
     except Exception as e:
-        logger.error(f"            ❌ Error checking ScheduleEntry table: {str(e)}")
+        print(f"            ❌ Error checking ScheduleEntry table: {str(e)}")
         return []
     
-    # محاولة كل حقل تاريخ
     for field in date_fields:
         try:
-            logger.info(f"            🔍 Trying date field: '{field}'")
+            print(f"            🔍 Trying date field: '{field}'")
             
-            # بناء الاستعلام
             query = select(ScheduleEntry).where(
                 ScheduleEntry.section_id == section_id,
                 getattr(ScheduleEntry, field) == target_date
@@ -1630,23 +1431,21 @@ async def get_section_periods(db: AsyncSession, section_id: str, target_date: st
             periods = result.scalars().all()
             
             if periods:
-                logger.info(f"            ✅ Found {len(periods)} periods using field '{field}'")
-                # طباعة تفاصيل الحصص
+                print(f"            ✅ Found {len(periods)} periods using field '{field}'")
                 for p in periods[:3]:
-                    logger.info(f"               - Period: {getattr(p, 'period_number', '?')}, Subject: {p.subject_id}")
+                    print(f"               - Period: {getattr(p, 'period_number', '?')}, Subject: {p.subject_id}")
                 return periods
             else:
-                logger.info(f"            ℹ️ No periods found using field '{field}'")
+                print(f"            ℹ️ No periods found using field '{field}'")
                 
         except AttributeError as e:
-            logger.warning(f"            ⚠️ Field '{field}' not found in ScheduleEntry: {e}")
+            print(f"            ⚠️ Field '{field}' not found in ScheduleEntry: {e}")
             continue
         except Exception as e:
-            logger.error(f"            ❌ Error querying with field '{field}': {str(e)}")
+            print(f"            ❌ Error querying with field '{field}': {str(e)}")
             continue
     
-    # محاولة الحصول على جميع الحصص بدون تصفية بالتاريخ
-    logger.warning(f"            ⚠️ No date field matched, returning all periods for section {section_id}")
+    print(f"            ⚠️ No date field matched, returning all periods for section {section_id}")
     try:
         result = await db.execute(
             select(ScheduleEntry)
@@ -1654,10 +1453,10 @@ async def get_section_periods(db: AsyncSession, section_id: str, target_date: st
             .order_by(getattr(ScheduleEntry, 'period_number', ScheduleEntry.id))
         )
         periods = result.scalars().all()
-        logger.info(f"            ✅ Found {len(periods)} total periods (no date filter)")
+        print(f"            ✅ Found {len(periods)} total periods (no date filter)")
         return periods
     except Exception as e:
-        logger.error(f"            ❌ Error getting all periods: {str(e)}")
+        print(f"            ❌ Error getting all periods: {str(e)}")
         return []
 
 
@@ -1666,7 +1465,6 @@ async def process_period_data(db: AsyncSession, period: ScheduleEntry) -> Dict[s
     معالجة بيانات حصة واحدة
     """
     try:
-        # جلب المادة
         subject_name = "غير محدد"
         if period.subject_id:
             subject_result = await db.execute(
@@ -1676,7 +1474,6 @@ async def process_period_data(db: AsyncSession, period: ScheduleEntry) -> Dict[s
             if subject:
                 subject_name = subject.name[:8]
         
-        # جلب المعلم
         teacher_name = "غير محدد"
         if period.teacher_id:
             teacher_result = await db.execute(
@@ -1686,22 +1483,9 @@ async def process_period_data(db: AsyncSession, period: ScheduleEntry) -> Dict[s
             if teacher:
                 teacher_name = teacher.full_name or teacher.name or "معلم"
         
-        # جلب الحضور
         attendance = await get_period_attendance(db, period.id)
-        
-        # تحديد الحالة
         status = attendance.status if attendance else "unknown"
         status_config = get_status_config(status)
-        
-        # إحصائيات عشوائية للحصة (للعرض)
-        stats = {
-            "present": random.randint(5, 15),
-            "absent": random.randint(0, 5),
-            "late": random.randint(0, 3),
-            "excused": random.randint(0, 2),
-            "sick": random.randint(0, 2),
-            "late_arrival": random.randint(0, 2)
-        }
         
         return {
             "subject_id": str(period.subject_id or ""),
@@ -1714,11 +1498,14 @@ async def process_period_data(db: AsyncSession, period: ScheduleEntry) -> Dict[s
             "period_number": getattr(period, 'period_number', 0),
             "attendance_id": attendance.id if attendance else None,
             "is_attendance_recorded": attendance is not None,
-            "attendance_stats": stats
+            "attendance_stats": {
+                "present": 0, "absent": 0, "late": 0,
+                "excused": 0, "sick": 0, "late_arrival": 0
+            }
         }
     
     except Exception as e:
-        logger.error(f"❌ Error processing period {period.id}: {str(e)}", exc_info=True)
+        print(f"❌ Error processing period {period.id}: {str(e)}")
         return {
             "subject_id": "",
             "subject_name": "خطأ",
@@ -1745,7 +1532,7 @@ async def get_period_attendance(db: AsyncSession, schedule_entry_id: str):
         )
         return result.scalars().first()
     except Exception as e:
-        logger.warning(f"⚠️ Could not query attendance for period {schedule_entry_id}: {e}")
+        print(f"⚠️ Could not query attendance for period {schedule_entry_id}: {e}")
         return None
 
 
@@ -1771,12 +1558,12 @@ def get_mock_week_days(target_date: str) -> List[Dict]:
             "name": day_names[i],
             "date": current_date.strftime("%Y-%m-%d"),
             "is_today": is_today,
-            "present": random.randint(50, 100),
-            "absent": random.randint(0, 15),
-            "late": random.randint(0, 10),
-            "excused": random.randint(0, 8),
-            "sick": random.randint(0, 5),
-            "late_arrival": random.randint(0, 5)
+            "present": 0,
+            "absent": 0,
+            "late": 0,
+            "excused": 0,
+            "sick": 0,
+            "late_arrival": 0
         })
     
     return week_days
@@ -1801,7 +1588,8 @@ def get_empty_dashboard_data(target_date: str) -> Dict[str, Any]:
             "substitute_required": 0,
             "other": 0,
             "total_records": 0
-        }
+        },
+        "error": None
     }
 
 
@@ -1828,7 +1616,8 @@ async def api_dashboard_data(
         }
     
     except Exception as e:
-        logger.error(f"❌ Error in API: {str(e)}", exc_info=True)
+        print(f"❌ Error in API: {str(e)}")
+        traceback.print_exc()
         return {
             "success": False,
             "error": str(e)
@@ -1884,7 +1673,8 @@ async def api_update_attendance(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"❌ Error updating attendance: {str(e)}", exc_info=True)
+        print(f"❌ Error updating attendance: {str(e)}")
+        traceback.print_exc()
         await db.rollback()
         raise HTTPException(status_code=500, detail=f"حدث خطأ: {str(e)}")
 
@@ -1920,7 +1710,8 @@ async def api_section_students(
         }
     
     except Exception as e:
-        logger.error(f"❌ Error getting students: {str(e)}", exc_info=True)
+        print(f"❌ Error getting students: {str(e)}")
+        traceback.print_exc()
         return {
             "success": False,
             "error": str(e)
@@ -1938,7 +1729,6 @@ async def api_transfer_student(
     API لنقل طالب إلى فصل آخر
     """
     try:
-        # جلب الطالب
         student_result = await db.execute(
             select(Student).where(Student.id == student_id)
         )
@@ -1947,7 +1737,6 @@ async def api_transfer_student(
         if not student:
             raise HTTPException(status_code=404, detail="الطالب غير موجود")
         
-        # جلب الفصل المستهدف
         section_result = await db.execute(
             select(Section).where(Section.id == target_section_id)
         )
@@ -1956,7 +1745,6 @@ async def api_transfer_student(
         if not target_section:
             raise HTTPException(status_code=404, detail="الفصل المستهدف غير موجود")
         
-        # تحديث فصل الطالب
         student.section_id = target_section_id
         
         await db.commit()
@@ -1971,14 +1759,7 @@ async def api_transfer_student(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"❌ Error transferring student: {str(e)}", exc_info=True)
+        print(f"❌ Error transferring student: {str(e)}")
+        traceback.print_exc()
         await db.rollback()
         raise HTTPException(status_code=500, detail=f"حدث خطأ: {str(e)}")
-
-
-# ============================================================================
-# القسم 6: صفحة Debug HTML (نموذج القالب)
-# ============================================================================
-
-# يمكن إضافة قالب debug.html في مجلد templates/deputy/
-# انظر التعليقات في نهاية الملف للحصول على محتوى القالب
