@@ -1,17 +1,19 @@
 """Deputy dashboard web route — الفصول مرتبة من اليمين لليسار + إحصائيات الحضور + الأضواء 🟢/🟠/🔴."""
-from datetime import date as _date
+from datetime import date as _date, datetime
 from fastapi import APIRouter, Depends, Request, HTTPException
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
+from sqlalchemy.orm import selectinload
 import logging
 from typing import Optional, Dict, Any, List
+import uuid
 
 from app.core.database import get_db
 from app.core.dependencies import CurrentUser, require_permission, template_context
-from app.models.attendance import  StudentAttendance,TeacherAttendance
+from app.models.attendance import StudentAttendance, TeacherAttendance
 from app.models.schools import School
-from app.models.academics import Section, Subject 
+from app.models.academics import Section, Subject, Grade, Stage
 from app.models.users import User 
 from app.models.students import Student 
 from app.models.teachers import Teacher
@@ -74,7 +76,6 @@ async def deputy_dashboard_by_date(
     """
     try:
         # التحقق من صحة التاريخ
-        from datetime import datetime
         try:
             datetime.strptime(date, "%Y-%m-%d")
         except ValueError:
@@ -120,9 +121,14 @@ async def deputy_section_detail(
     try:
         selected_date = target_date or _date.today().isoformat()
         
-        # جلب بيانات الفصل
+        # جلب بيانات الفصل مع العلاقات
         section_result = await db.execute(
-            select(Section).where(Section.id == section_id)
+            select(Section)
+            .options(
+                selectinload(Section.stage),
+                selectinload(Section.grade)
+            )
+            .where(Section.id == section_id)
         )
         section = section_result.scalar_one_or_none()
         
@@ -130,70 +136,55 @@ async def deputy_section_detail(
             raise HTTPException(status_code=404, detail="الفصل غير موجود")
         
         # جلب الحصص للفصل في التاريخ المحدد
-        periods_result = await db.execute(
-            select(ScheduleEntry)
-            .where(
-                ScheduleEntry.section_id == section_id,
-                ScheduleEntry.date == selected_date
+        try:
+            periods_result = await db.execute(
+                select(ScheduleEntry)
+                .where(
+                    ScheduleEntry.section_id == section_id,
+                    ScheduleEntry.schedule_date == selected_date
+                )
+                .order_by(ScheduleEntry.period_number)
             )
-            .order_by(ScheduleEntry.period_number)
-        )
-        periods = periods_result.scalars().all()
+            periods = periods_result.scalars().all()
+        except Exception as e:
+            logger.warning(f"⚠️ Could not query periods by schedule_date: {e}")
+            # محاولة باستخدام حقل date
+            try:
+                periods_result = await db.execute(
+                    select(ScheduleEntry)
+                    .where(
+                        ScheduleEntry.section_id == section_id,
+                        ScheduleEntry.date == selected_date
+                    )
+                    .order_by(ScheduleEntry.period_number)
+                )
+                periods = periods_result.scalars().all()
+            except Exception as e2:
+                logger.warning(f"⚠️ Could not query periods by date: {e2}")
+                periods = []
         
         # تجهيز بيانات الحصص مع تفاصيل الحضور
         periods_data = []
         for period in periods:
-            # جلب المادة
-            subject_name = "غير محدد"
-            if period.subject_id:
-                subject_result = await db.execute(
-                    select(Subject).where(Subject.id == period.subject_id)
-                )
-                subject = subject_result.scalar_one_or_none()
-                if subject:
-                    subject_name = subject.name
-            
-            # جلب المعلم
-            teacher_name = "غير محدد"
-            if period.teacher_id:
-                teacher_result = await db.execute(
-                    select(Teacher).where(Teacher.id == period.teacher_id)
-                )
-                teacher = teacher_result.scalar_one_or_none()
-                if teacher:
-                    teacher_name = teacher.full_name or teacher.name
-            
-            # جلب الحضور
-            attendance_result = await db.execute(
-                select(Attendance)
-                .where(Attendance.schedule_entry_id == period.id)
-            )
-            attendance = attendance_result.scalars().first()
-            
-            status = attendance.status if attendance else "unknown"
-            status_labels = {
-                "present": "✅ حضور",
-                "absent": "❌ غياب",
-                "late": "🟠 تأخير",
-                "excused": "📋 استئذان",
-                "late_arrival": "⏰ تأخير صباحي",
-                "unknown": "⏳ لم يسجل"
-            }
-            
-            periods_data.append({
-                "period_number": period.period_number,
-                "subject_name": subject_name,
-                "teacher_name": teacher_name,
-                "status": status,
-                "status_label": status_labels.get(status, "غير معروف"),
-                "attendance_count": 1 if attendance else 0
-            })
+            period_info = await process_period_data(db, period)
+            periods_data.append(period_info)
         
         # جلب عدد الطلاب في الفصل
         students_count = await db.scalar(
             select(func.count(Student.id))
             .where(Student.section_id == section_id)
         ) or 0
+        
+        # جلب قائمة الطلاب في الفصل
+        students_result = await db.execute(
+            select(Student)
+            .where(Student.section_id == section_id)
+            .order_by(Student.full_name)
+        )
+        students = students_result.scalars().all()
+        
+        # جلب إحصائيات الحضور للفصل
+        attendance_stats = await get_section_attendance_stats(db, section_id, selected_date)
         
         return templates.TemplateResponse(
             "deputy/section_detail.html",
@@ -202,7 +193,9 @@ async def deputy_section_detail(
                 "request": request,
                 "section": section,
                 "periods": periods_data,
+                "students": students,
                 "students_count": students_count,
+                "attendance_stats": attendance_stats,
                 "selected_date": selected_date,
                 "user": user,
             },
@@ -232,9 +225,6 @@ async def export_dashboard_pdf(
     try:
         selected_date = target_date or _date.today().isoformat()
         dashboard_data = await get_dashboard_data(db, user.school_id, selected_date)
-        
-        # هنا يمكنك إضافة منطق إنشاء PDF
-        # سنقوم بإرجاع HTML قابل للطباعة حالياً
         
         return templates.TemplateResponse(
             "deputy/dashboard_print.html",
@@ -272,6 +262,63 @@ def get_status_config(status: str) -> Dict[str, str]:
     return status_config.get(status, status_config["unknown"])
 
 
+async def get_section_attendance_stats(db: AsyncSession, section_id: str, target_date: str) -> Dict[str, int]:
+    """
+    جلب إحصائيات الحضور لفصل معين في تاريخ محدد
+    """
+    try:
+        from app.models.attendance import Attendance
+        
+        # جلب جميع سجلات الحضور للفصل في التاريخ المحدد
+        result = await db.execute(
+            select(Attendance.status, func.count(Attendance.id))
+            .join(ScheduleEntry, ScheduleEntry.id == Attendance.schedule_entry_id)
+            .where(
+                ScheduleEntry.section_id == section_id,
+                ScheduleEntry.schedule_date == target_date
+            )
+            .group_by(Attendance.status)
+        )
+        
+        stats = result.all()
+        
+        # تجهيز الإحصائيات
+        attendance_stats = {
+            "present": 0,
+            "absent": 0,
+            "late": 0,
+            "excused": 0,
+            "late_arrival": 0,
+            "teacher_absent": 0,
+            "substitute_required": 0,
+            "other": 0,
+            "total": 0
+        }
+        
+        for status, count in stats:
+            if status in attendance_stats:
+                attendance_stats[status] = count
+            else:
+                attendance_stats["other"] += count
+            attendance_stats["total"] += count
+        
+        return attendance_stats
+    
+    except Exception as e:
+        logger.error(f"❌ Error getting section attendance stats: {str(e)}")
+        return {
+            "present": 0,
+            "absent": 0,
+            "late": 0,
+            "excused": 0,
+            "late_arrival": 0,
+            "teacher_absent": 0,
+            "substitute_required": 0,
+            "other": 0,
+            "total": 0
+        }
+
+
 async def get_dashboard_data(db: AsyncSession, school_id: str, target_date: str) -> Dict[str, Any]:
     """
     جلب جميع بيانات الداشبورد من قاعدة البيانات
@@ -287,13 +334,23 @@ async def get_dashboard_data(db: AsyncSession, school_id: str, target_date: str)
             logger.warning(f"⚠️ School not found with ID: {school_id}")
             return get_empty_dashboard_data(target_date)
         
-        # 2. جلب جميع الفصول في المدرسة
+        # 2. جلب جميع الفصول في المدرسة مع تحميل العلاقات
         sections_result = await db.execute(
             select(Section)
+            .options(
+                selectinload(Section.stage),
+                selectinload(Section.grade)
+            )
             .where(Section.school_id == school_id)
-            .order_by(Section.stage_id, Section.grade_id, Section.name)
+            .order_by(
+                Section.stage_id,  # المرحلة أولاً
+                Section.grade_id,  # ثم الصف
+                Section.name       # ثم القسم
+            )
         )
         sections = sections_result.scalars().all()
+        
+        logger.info(f"✅ Found {len(sections)} sections for school: {school.name}")
         
         if not sections:
             logger.info(f"ℹ️ No sections found for school: {school.name}")
@@ -314,6 +371,7 @@ async def get_dashboard_data(db: AsyncSession, school_id: str, target_date: str)
         
         # 3. معالجة كل فصل
         for section in sections:
+            logger.info(f"📚 Processing section: {section.name} (ID: {section.id})")
             section_data = await process_section_data(db, section, target_date)
             dashboard_sections.append(section_data)
             
@@ -348,43 +406,87 @@ async def process_section_data(db: AsyncSession, section: Section, target_date: 
             .where(Student.section_id == section.id)
         ) or 0
         
+        logger.info(f"👥 Section {section.name} has {students_count} students")
+        
+        # جلب اسم المرحلة والصف
+        stage_name = section.stage.name if section.stage else "المرحلة"
+        grade_name = section.grade.name if section.grade else "الصف"
+        
+        logger.info(f"🏷️ Stage: {stage_name}, Grade: {grade_name}")
+        
         # جلب الحصص لهذا اليوم
-        periods_result = await db.execute(
-            select(ScheduleEntry)
-            .where(
-                ScheduleEntry.section_id == section.id,
-                ScheduleEntry.date == target_date
-            )
-            .order_by(ScheduleEntry.period_number)
-        )
-        periods = periods_result.scalars().all()
+        periods = await get_section_periods(db, section.id, target_date)
+        
+        logger.info(f"📖 Found {len(periods)} periods for section {section.name}")
         
         periods_data = []
         for period in periods:
             period_info = await process_period_data(db, period)
             periods_data.append(period_info)
         
-        # جلب اسم المرحلة والصف
-        stage_name = section.stage.name if hasattr(section, 'stage') and section.stage else "المرحلة"
-        grade_name = section.grade.name if hasattr(section, 'grade') and section.grade else "الصف"
+        # جلب إحصائيات الحضور للفصل
+        attendance_stats = await get_section_attendance_stats(db, section.id, target_date)
         
         return {
+            "section_id": section.id,
             "stage_name": stage_name,
             "grade_name": grade_name,
             "section_name": section.name or "فصل",
             "enrolled_count": students_count,
-            "periods_today": periods_data
+            "periods_today": periods_data,
+            "attendance_stats": attendance_stats
         }
     
     except Exception as e:
-        logger.error(f"❌ Error processing section {section.id}: {str(e)}")
+        logger.error(f"❌ Error processing section {section.id}: {str(e)}", exc_info=True)
         return {
+            "section_id": section.id,
             "stage_name": "خطأ",
             "grade_name": "خطأ",
             "section_name": section.name or "فصل",
             "enrolled_count": 0,
-            "periods_today": []
+            "periods_today": [],
+            "attendance_stats": {}
         }
+
+
+async def get_section_periods(db: AsyncSession, section_id: str, target_date: str) -> List[ScheduleEntry]:
+    """
+    جلب الحصص لفصل في تاريخ محدد مع محاولة حقول تاريخ مختلفة
+    """
+    # قائمة بأسماء الحقول المحتملة للتاريخ في نموذج ScheduleEntry
+    date_fields = ['schedule_date', 'date', 'day', 'period_date']
+    
+    for field in date_fields:
+        try:
+            # بناء الشرط ديناميكياً
+            query = select(ScheduleEntry).where(
+                ScheduleEntry.section_id == section_id,
+                getattr(ScheduleEntry, field) == target_date
+            ).order_by(ScheduleEntry.period_number)
+            
+            result = await db.execute(query)
+            periods = result.scalars().all()
+            
+            if periods:
+                logger.info(f"✅ Found {len(periods)} periods using field '{field}'")
+                return periods
+        except Exception as e:
+            logger.debug(f"Field '{field}' not found or error: {e}")
+            continue
+    
+    # إذا لم يعمل أي من الحقول، جلب جميع الحصص بدون فلتر تاريخ
+    logger.warning(f"⚠️ No date field found, returning all periods for section {section_id}")
+    try:
+        result = await db.execute(
+            select(ScheduleEntry)
+            .where(ScheduleEntry.section_id == section_id)
+            .order_by(ScheduleEntry.period_number)
+        )
+        return result.scalars().all()
+    except Exception as e:
+        logger.error(f"❌ Error getting periods: {e}")
+        return []
 
 
 async def process_period_data(db: AsyncSession, period: ScheduleEntry) -> Dict[str, Any]:
@@ -413,11 +515,7 @@ async def process_period_data(db: AsyncSession, period: ScheduleEntry) -> Dict[s
                 teacher_name = teacher.full_name or teacher.name or "معلم"
         
         # جلب الحضور
-        attendance_result = await db.execute(
-            select(Attendance)
-            .where(Attendance.schedule_entry_id == period.id)
-        )
-        attendance = attendance_result.scalars().first()
+        attendance = await get_period_attendance(db, period.id)
         
         # تحديد الحالة
         status = attendance.status if attendance else "unknown"
@@ -437,7 +535,7 @@ async def process_period_data(db: AsyncSession, period: ScheduleEntry) -> Dict[s
         }
     
     except Exception as e:
-        logger.error(f"❌ Error processing period {period.id}: {str(e)}")
+        logger.error(f"❌ Error processing period {period.id}: {str(e)}", exc_info=True)
         return {
             "subject_id": "",
             "subject_name": "خطأ",
@@ -450,6 +548,23 @@ async def process_period_data(db: AsyncSession, period: ScheduleEntry) -> Dict[s
             "attendance_id": None,
             "is_attendance_recorded": False
         }
+
+
+async def get_period_attendance(db: AsyncSession, schedule_entry_id: str):
+    """
+    جلب سجل الحضور لحصة معينة
+    """
+    try:
+        from app.models.attendance import Attendance
+        
+        result = await db.execute(
+            select(Attendance)
+            .where(Attendance.schedule_entry_id == schedule_entry_id)
+        )
+        return result.scalars().first()
+    except Exception as e:
+        logger.warning(f"⚠️ Could not query attendance for period {schedule_entry_id}: {e}")
+        return None
 
 
 def get_empty_dashboard_data(target_date: str) -> Dict[str, Any]:
@@ -520,6 +635,8 @@ async def api_update_attendance(
             raise HTTPException(status_code=400, detail="حالة غير صحيحة")
         
         # جلب سجل الحضور
+        from app.models.attendance import Attendance
+        
         attendance_result = await db.execute(
             select(Attendance).where(Attendance.schedule_entry_id == schedule_entry_id)
         )
@@ -529,25 +646,28 @@ async def api_update_attendance(
             # تحديث السجل الموجود
             attendance.status = status
             attendance.updated_by = user.id
+            attendance.updated_at = datetime.now()
         else:
             # إنشاء سجل جديد
-            from app.models import Attendance
-            import uuid
             attendance = Attendance(
                 id=str(uuid.uuid4()),
                 schedule_entry_id=schedule_entry_id,
                 status=status,
                 created_by=user.id,
-                updated_by=user.id
+                updated_by=user.id,
+                created_at=datetime.now(),
+                updated_at=datetime.now()
             )
             db.add(attendance)
         
         await db.commit()
+        await db.refresh(attendance)
         
         return {
             "success": True,
             "message": "تم تحديث الحضور بنجاح",
-            "status": status
+            "status": status,
+            "attendance_id": attendance.id
         }
     
     except HTTPException:
@@ -556,3 +676,41 @@ async def api_update_attendance(
         logger.error(f"❌ Error updating attendance: {str(e)}", exc_info=True)
         await db.rollback()
         raise HTTPException(status_code=500, detail=f"حدث خطأ: {str(e)}")
+
+
+@router.get("/api/section/{section_id}/students")
+async def api_section_students(
+    section_id: str,
+    user: CurrentUser = Depends(require_permission("session_lifecycle.view")),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    API لجلب قائمة الطلاب في فصل معين
+    """
+    try:
+        students_result = await db.execute(
+            select(Student)
+            .where(Student.section_id == section_id)
+            .order_by(Student.full_name)
+        )
+        students = students_result.scalars().all()
+        
+        return {
+            "success": True,
+            "students": [
+                {
+                    "id": student.id,
+                    "name": student.full_name,
+                    "code": student.code,
+                    "gender": student.gender
+                }
+                for student in students
+            ]
+        }
+    
+    except Exception as e:
+        logger.error(f"❌ Error getting students: {str(e)}", exc_info=True)
+        return {
+            "success": False,
+            "error": str(e)
+        }
