@@ -85,8 +85,10 @@ async def deputy_dashboard(
         # جلب أيام الأسبوع
         week_days = get_mock_week_days(selected_date)
         
-        # إعداد بيانات الرسم البياني - تأكد من وجودها دائماً
+        # ========== إعداد بيانات الرسم البياني ==========
         analytics = dashboard_data.get("analytics", {})
+        
+        # إنشاء chart_data بشكل منفصل
         chart_data = {
             "status": {
                 "present": analytics.get("present", 0),
@@ -106,9 +108,10 @@ async def deputy_dashboard(
             }
         }
         
-        # إضافة chart_data إلى dashboard
+        # إضافة chart_data إلى dashboard_data
         dashboard_data["chart_data"] = chart_data
         
+        # ========== عرض القالب ==========
         return templates.TemplateResponse(
             "deputy/dashboard.html",
             {
@@ -150,7 +153,7 @@ async def deputy_dashboard_by_date(
         selected_month = date[:7]
         week_days = get_mock_week_days(date)
         
-        # إعداد بيانات الرسم البياني
+        # ========== إعداد بيانات الرسم البياني ==========
         analytics = dashboard_data.get("analytics", {})
         chart_data = {
             "status": {
@@ -492,7 +495,7 @@ async def export_dashboard_pdf(
         selected_date = target_date or _date.today().isoformat()
         dashboard_data = await get_dashboard_data(db, user.school_id, selected_date)
         
-        # إعداد بيانات الرسم البياني
+        # ========== إعداد بيانات الرسم البياني ==========
         analytics = dashboard_data.get("analytics", {})
         chart_data = {
             "status": {
@@ -544,7 +547,7 @@ async def export_report(
         selected_date = target_date or _date.today().isoformat()
         dashboard_data = await get_dashboard_data(db, user.school_id, selected_date)
         
-        # إعداد بيانات الرسم البياني
+        # ========== إعداد بيانات الرسم البياني ==========
         analytics = dashboard_data.get("analytics", {})
         chart_data = {
             "status": {
@@ -611,7 +614,6 @@ async def get_section_attendance_stats(db: AsyncSession, section_id: str, target
     try:
         from app.models.attendance import Attendance
         
-        # جلب جميع سجلات الحضور للفصل في التاريخ المحدد
         result = await db.execute(
             select(Attendance.status, func.count(Attendance.id))
             .join(ScheduleEntry, ScheduleEntry.id == Attendance.schedule_entry_id)
@@ -624,7 +626,6 @@ async def get_section_attendance_stats(db: AsyncSession, section_id: str, target
         
         stats = result.all()
         
-        # تجهيز الإحصائيات
         attendance_stats = {
             "present": 0,
             "absent": 0,
@@ -771,13 +772,10 @@ async def get_dashboard_data(db: AsyncSession, school_id: str, target_date: str)
                 all_students.extend(section_data["students"])
             
             # تحديث الإحصائيات
-            for period in section_data.get("periods_today", []):
-                status = period.get("status", "unknown")
-                if status in analytics:
-                    analytics[status] += 1
-                else:
-                    analytics["other"] += 1
-                analytics["total_records"] += 1
+            if section_data.get("attendance_stats"):
+                for key in analytics:
+                    if key in section_data["attendance_stats"]:
+                        analytics[key] += section_data["attendance_stats"].get(key, 0)
         
         return {
             "date": target_date,
@@ -1216,24 +1214,6 @@ async def api_transfer_student(
         
         if not target_section:
             raise HTTPException(status_code=404, detail="الفصل المستهدف غير موجود")
-        
-        # تسجيل عملية النقل
-        try:
-            from app.models.transfers import TransferLog
-            transfer_log = TransferLog(
-                id=str(uuid.uuid4()),
-                student_id=student_id,
-                from_section_id=student.section_id,
-                to_section_id=target_section_id,
-                transfer_type="section",
-                transferred_by=user.id,
-                transferred_at=datetime.now(),
-                notes="نقل بواسطة الوكيل"
-            )
-            db.add(transfer_log)
-        except:
-            # إذا لم يكن نموذج TransferLog موجوداً
-            pass
         
         # تحديث فصل الطالب
         student.section_id = target_section_id
