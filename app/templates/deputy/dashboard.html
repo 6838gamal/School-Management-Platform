@@ -29,7 +29,7 @@
       
       <div class="flex items-center gap-3">
         <label class="text-sm font-semibold">📆 الشهر:</label>
-        <input type="month" id="selected_month" value="{{ selected_month }}" 
+        <input type="month" id="selected_month" value="{{ selected_month|default(selected_date[:7]) }}" 
                class="border border-gray-300 rounded px-3 py-1 text-sm"
                onchange="updateMonth()">
       </div>
@@ -121,7 +121,7 @@
                 <span class="text-xs bg-gray-100 rounded px-2 py-1 border border-gray-300">
                   {{ sec.enrolled_count }} طالب
                 </span>
-                {% if sec.has_data %}
+                {% if sec.periods_today and sec.periods_today|length > 0 %}
                   <span class="text-xs bg-green-100 text-green-700 rounded px-2 py-1 border border-green-300">
                     ✅ يوجد بيانات
                   </span>
@@ -200,62 +200,6 @@
                 <div class="text-yellow-600">⏰ تأخير صباحي: {{ sec.attendance_stats.late_arrival|default(0) }}</div>
               </div>
             {% endif %}
-
-            {# ============ حالة الطلاب في الفصل ============ #}
-            {% if sec.students and sec.students|length > 0 %}
-              <div class="mt-3 pt-3 border-t border-gray-200">
-                <details>
-                  <summary class="text-sm font-semibold text-gray-700 cursor-pointer hover:text-blue-600">
-                    👥 حالة الطلاب ({{ sec.students|length }} طالب)
-                  </summary>
-                  <div class="mt-2 overflow-x-auto max-h-60 overflow-y-auto">
-                    <table class="w-full text-sm border border-gray-200 rounded">
-                      <thead class="bg-gray-50 sticky top-0">
-                        <tr>
-                          <th class="p-2 text-right border-b border-gray-200">#</th>
-                          <th class="p-2 text-right border-b border-gray-200">الطالب</th>
-                          <th class="p-2 text-right border-b border-gray-200">الحالة</th>
-                          <th class="p-2 text-right border-b border-gray-200">الحضور</th>
-                          <th class="p-2 text-right border-b border-gray-200">الغياب</th>
-                          <th class="p-2 text-right border-b border-gray-200">تأخير</th>
-                          <th class="p-2 text-right border-b border-gray-200">استئذان</th>
-                          <th class="p-2 text-right border-b border-gray-200">حالة صحية</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {% for student in sec.students %}
-                        <tr class="border-t border-gray-200 hover:bg-gray-50">
-                          <td class="p-2 border-l border-gray-200">{{ loop.index }}</td>
-                          <td class="p-2 border-l border-gray-200">{{ student.name }}</td>
-                          <td class="p-2 border-l border-gray-200">
-                            <span class="px-2 py-1 rounded text-xs 
-                              {% if student.status == 'present' %}bg-green-100 text-green-700
-                              {% elif student.status == 'absent' %}bg-red-100 text-red-700
-                              {% elif student.status == 'late' %}bg-orange-100 text-orange-700
-                              {% elif student.status == 'excused' %}bg-blue-100 text-blue-700
-                              {% elif student.status == 'sick' %}bg-purple-100 text-purple-700
-                              {% elif student.status == 'late_arrival' %}bg-yellow-100 text-yellow-700
-                              {% else %}bg-gray-100 text-gray-700{% endif %}">
-                              {{ student.status_label }}
-                            </span>
-                          </td>
-                          <td class="p-2 border-l border-gray-200 text-center">{{ student.attendance.present|default(0) }}</td>
-                          <td class="p-2 border-l border-gray-200 text-center">{{ student.attendance.absent|default(0) }}</td>
-                          <td class="p-2 border-l border-gray-200 text-center">{{ student.attendance.late|default(0) }}</td>
-                          <td class="p-2 border-l border-gray-200 text-center">{{ student.attendance.excused|default(0) }}</td>
-                          <td class="p-2 text-center">{{ student.attendance.sick|default(0) }}</td>
-                        </tr>
-                        {% endfor %}
-                      </tbody>
-                    </table>
-                  </div>
-                </details>
-              </div>
-            {% else %}
-              <div class="mt-3 pt-3 border-t border-gray-200">
-                <p class="text-sm text-gray-500">👤 لا يوجد طلاب مسجلين في هذا الفصل</p>
-              </div>
-            {% endif %}
           </div>
         {% endfor %}
       </div>
@@ -269,6 +213,7 @@
   {% endif %}
 
   {# ============ أيام الأسبوع ============ #}
+  {% if week_days %}
   <div class="bg-white shadow rounded p-4 mt-4 border border-gray-200">
     <h3 class="text-lg font-bold mb-3">📅 أيام الأسبوع</h3>
     <div class="grid grid-cols-7 gap-2">
@@ -288,6 +233,7 @@
       {% endfor %}
     </div>
   </div>
+  {% endif %}
 
   {# ============ كافة الطلاب مع الرسوم البيانية ============ #}
   {% if dashboard.all_students and dashboard.all_students|length > 0 %}
@@ -356,6 +302,7 @@
   {% endif %}
 </div>
 
+{# ============ Chart.js ============ #}
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
 // تحديث التاريخ
@@ -395,9 +342,9 @@ function printReport() {
 
 // ============ الرسوم البيانية ============
 document.addEventListener('DOMContentLoaded', function() {
-  // بيانات من الخادم
-  const statusData = {{ dashboard.chart_data.status|default({})|tojson }};
-  const attendanceData = {{ dashboard.chart_data.attendance|default({})|tojson }};
+  // بيانات من الخادم - استخدام default لتجنب الأخطاء
+  const statusData = {{ dashboard.chart_data.status|default({"present":0,"absent":0,"late":0,"excused":0,"sick":0,"late_arrival":0})|tojson }};
+  const attendanceData = {{ dashboard.chart_data.attendance|default({"present":0,"absent":0,"late":0,"excused":0,"sick":0,"late_arrival":0})|tojson }};
 
   // رسم بياني 1: توزيع حالات الطلاب
   const ctx1 = document.getElementById('studentsStatusChart');
@@ -416,12 +363,12 @@ document.addEventListener('DOMContentLoaded', function() {
             statusData.late_arrival || 0
           ],
           backgroundColor: [
-            '#22c55e', // أخضر
-            '#ef4444', // أحمر
-            '#f97316', // برتقالي
-            '#3b82f6', // أزرق
-            '#a855f7', // بنفسجي
-            '#eab308'  // أصفر
+            '#22c55e',
+            '#ef4444',
+            '#f97316',
+            '#3b82f6',
+            '#a855f7',
+            '#eab308'
           ],
           borderWidth: 2
         }]
