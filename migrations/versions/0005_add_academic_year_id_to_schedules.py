@@ -12,8 +12,8 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = 'xxxxxxxxxxxx'  # استخدم الرقم الذي تم إنشاؤه
-down_revision: Union[str, None] = 'previous_revision_id'  # استخدم الـ revision السابق
+revision: str = '0005'  # استخدم الرقم الذي تم إنشاؤه
+down_revision: Union[str, None] = None  # استخدم الـ revision السابق
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
