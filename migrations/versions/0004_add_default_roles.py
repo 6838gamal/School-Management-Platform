@@ -1,7 +1,7 @@
 """Add default roles
 
-Revision ID: 003
-Revises: 002
+Revision ID: 0004
+Revises: 0003
 Create Date: 2024-01-01 00:00:02.000000
 
 """
@@ -33,8 +33,8 @@ def upgrade() -> None:
         # إنشاء مدرسة افتراضية إذا لم توجد
         connection.execute(
             text("""
-                INSERT INTO schools (id, name, code, onboarding_complete, is_active, created_at)
-                VALUES (UUID(), 'المدرسة الرئيسية', 'SCHOOL001', 1, 1, NOW())
+                INSERT INTO schools (id, name, code, onboarding_complete, is_active, created_at, updated_at)
+                VALUES (gen_random_uuid(), 'المدرسة الرئيسية', 'SCHOOL001', 1, 1, NOW(), NOW())
             """)
         )
         school_result = connection.execute(
@@ -86,8 +86,8 @@ def upgrade() -> None:
         if not existing:
             connection.execute(
                 text("""
-                    INSERT INTO roles (id, school_id, key, name_ar, name_en, description, is_system, created_at)
-                    VALUES (UUID(), :school_id, :key, :name_ar, :name_en, :description, :is_system, NOW())
+                    INSERT INTO roles (id, school_id, key, name_ar, name_en, description, is_system, created_at, updated_at)
+                    VALUES (gen_random_uuid(), :school_id, :key, :name_ar, :name_en, :description, :is_system, NOW(), NOW())
                 """),
                 {
                     "school_id": school_id,
@@ -172,8 +172,8 @@ def upgrade() -> None:
                     if not existing:
                         connection.execute(
                             text("""
-                                INSERT INTO role_permissions (id, role_id, permission_id, created_at)
-                                VALUES (UUID(), :role_id, :perm_id, NOW())
+                                INSERT INTO role_permissions (id, role_id, permission_id, created_at, updated_at)
+                                VALUES (gen_random_uuid(), :role_id, :perm_id, NOW(), NOW())
                             """),
                             {"role_id": role_id, "perm_id": perms_dict[perm_key]}
                         )
