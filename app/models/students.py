@@ -5,7 +5,8 @@ Student is the person record. StudentEnrollment tracks the history of
 which section/grade a student belongs to over time, enabling transfers
 without losing history.
 """
-from sqlalchemy import Boolean, Date, ForeignKey, Integer, String, UniqueConstraint, func
+from datetime import date
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, String, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.ext.hybrid import hybrid_property
 
@@ -16,51 +17,107 @@ from app.models._mixins import TimestampMixin, UUIDPkMixin
 class Student(UUIDPkMixin, TimestampMixin, Base):
     __tablename__ = "students"
 
+    # ============================================================
+    # المعرفات (بدون Foreign Keys)
+    # ============================================================
     school_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("schools.id", ondelete="CASCADE"), index=True
+        String(36), index=True, nullable=False
     )
-    student_number: Mapped[str] = mapped_column(String(50), index=True)
-    national_id: Mapped[str | None] = mapped_column(String(50))
+    user_id: Mapped[str | None] = mapped_column(
+        String(36), index=True, nullable=True
+    )
+    section_id: Mapped[str | None] = mapped_column(
+        String(36), index=True, nullable=True
+    )
+    
+    # ============================================================
+    # معلومات الطالب الأساسية
+    # ============================================================
+    student_number: Mapped[str] = mapped_column(
+        String(50), index=True, nullable=False
+    )
+    national_id: Mapped[str | None] = mapped_column(
+        String(50), nullable=True
+    )
+    
+    # الاسم
     first_name: Mapped[str] = mapped_column(String(100), nullable=False)
     last_name: Mapped[str] = mapped_column(String(100), nullable=False)
-    gender: Mapped[str | None] = mapped_column(String(10))  # male / female
-    birth_date: Mapped[str | None] = mapped_column(String(20))
-    guardian_name: Mapped[str | None] = mapped_column(String(255))
-    guardian_phone: Mapped[str | None] = mapped_column(String(50))
-    guardian_email: Mapped[str | None] = mapped_column(String(255))
-    address: Mapped[str | None] = mapped_column(String(500))
-    photo_url: Mapped[str | None] = mapped_column(String(500))
-    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    first_name_ar: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    last_name_ar: Mapped[str | None] = mapped_column(String(100), nullable=True)
     
-    # ✅ إضافة العمود الجديد
-    section_id: Mapped[str | None] = mapped_column(
-        String(36), ForeignKey("sections.id", ondelete="SET NULL"), index=True
-    )
-    #created_by: Mapped[str | None] = mapped_column(String(36))
-    #updated_by: Mapped[str | None] = mapped_column(String(36))
-
-    enrollments: Mapped[list["StudentEnrollment"]] = relationship(
-        "StudentEnrollment", back_populates="student", cascade="all, delete-orphan"
-    )
-
+    # المعلومات الشخصية
+    gender: Mapped[str | None] = mapped_column(String(10), nullable=True)  # male / female
+    birth_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    nationality: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    
+    # معلومات ولي الأمر
+    guardian_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    guardian_phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    guardian_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    guardian_relation: Mapped[str | None] = mapped_column(String(50), nullable=True)  # أب / أم / ولي
+    
+    # معلومات الاتصال
+    phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    address: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    photo_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    
     # ============================================================
-    # الخصائص المحسوبة
+    # الحالة والتفعيل
+    # ============================================================
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    enrollment_status: Mapped[str] = mapped_column(
+        String(20), default="active", nullable=False
+    )  # active / transferred / graduated / left
+    
+    # ============================================================
+    # الخصائص المحسوبة (Hybrid Properties)
     # ============================================================
     
     @hybrid_property
     def full_name(self) -> str:
-        """إرجاع الاسم الكامل للطالب"""
-        return f"{self.first_name} {self.last_name}".strip()
+        """إرجاع الاسم الكامل للطالب (بالإنجليزية)"""
+        if self.first_name and self.last_name:
+            return f"{self.first_name} {self.last_name}".strip()
+        return ""
     
     @full_name.expression
     def full_name(cls):
         """للاستخدام في استعلامات SQL - يسمح بالبحث والفرز باستخدام الاسم الكامل"""
         return func.concat(cls.first_name, " ", cls.last_name)
     
+    @hybrid_property
+    def full_name_ar(self) -> str:
+        """إرجاع الاسم الكامل للطالب (بالعربية)"""
+        if self.first_name_ar and self.last_name_ar:
+            return f"{self.first_name_ar} {self.last_name_ar}".strip()
+        return self.full_name  # fallback to English name
+    
+    @full_name_ar.expression
+    def full_name_ar(cls):
+        """للاستخدام في استعلامات SQL - الاسم الكامل بالعربية"""
+        return func.concat(cls.first_name_ar, " ", cls.last_name_ar)
+    
     @property
     def display_name(self) -> str:
         """اسم الطالب مع رقم الطالب للعرض"""
         return f"{self.full_name} ({self.student_number})"
+    
+    @property
+    def display_name_ar(self) -> str:
+        """اسم الطالب بالعربية مع رقم الطالب للعرض"""
+        name = self.full_name_ar or self.full_name
+        return f"{name} ({self.student_number})"
+    
+    @property
+    def age(self) -> int | None:
+        """حساب عمر الطالب بالسنة"""
+        if not self.birth_date:
+            return None
+        today = date.today()
+        return today.year - self.birth_date.year - (
+            (today.month, today.day) < (self.birth_date.month, self.birth_date.day)
+        )
     
     def __repr__(self) -> str:
         return f"<Student {self.full_name} ({self.student_number})>"
@@ -70,26 +127,64 @@ class StudentEnrollment(UUIDPkMixin, TimestampMixin, Base):
     """Tracks a student's placement in a section for a given academic year."""
     __tablename__ = "student_enrollments"
     __table_args__ = (
-        UniqueConstraint("student_id", "year_id", name="uq_enrollment_student_year"),
+        UniqueConstraint("student_id", "academic_year_id", name="uq_enrollment_student_year"),
     )
 
+    # ============================================================
+    # المعرفات (بدون Foreign Keys)
+    # ============================================================
     student_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("students.id", ondelete="CASCADE"), index=True
+        String(36), index=True, nullable=False
     )
     school_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("schools.id", ondelete="CASCADE"), index=True
+        String(36), index=True, nullable=False
     )
-    year_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("academic_years.id", ondelete="CASCADE"), index=True
+    academic_year_id: Mapped[str] = mapped_column(
+        String(36), index=True, nullable=False
     )
     section_id: Mapped[str | None] = mapped_column(
-        String(36), ForeignKey("sections.id", ondelete="SET NULL"), index=True
+        String(36), index=True, nullable=True
     )
-    status: Mapped[str] = mapped_column(String(20), default="active")  # active/transferred/graduated/left
-    enrolled_at: Mapped[str] = mapped_column(String(50))
-    ended_at: Mapped[str | None] = mapped_column(String(50))
+    class_id: Mapped[str | None] = mapped_column(
+        String(36), index=True, nullable=True
+    )
+    
+    # ============================================================
+    # معلومات التسجيل
+    # ============================================================
+    status: Mapped[str] = mapped_column(
+        String(20), default="active", nullable=False
+    )  # active / transferred / graduated / left / dropped
+    
+    enrolled_at: Mapped[date] = mapped_column(
+        Date, nullable=False, default=date.today
+    )
+    
+    ended_at: Mapped[date | None] = mapped_column(
+        Date, nullable=True
+    )
+    
+    notes: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
-    student: Mapped["Student"] = relationship("Student", back_populates="enrollments")
+    # ============================================================
+    # الخصائص المحسوبة
+    # ============================================================
+    
+    @property
+    def is_current(self) -> bool:
+        """هل هذا التسجيل هو التسجيل الحالي للطالب"""
+        return self.status == "active" and self.ended_at is None
+    
+    @property
+    def enrollment_duration(self) -> int | None:
+        """مدة التسجيل بالأيام"""
+        if not self.enrolled_at:
+            return None
+        end_date = self.ended_at or date.today()
+        return (end_date - self.enrolled_at).days
+    
+    def __repr__(self) -> str:
+        return f"<StudentEnrollment student={self.student_id} year={self.academic_year_id} status={self.status}>"
 
 
 __all__ = [
