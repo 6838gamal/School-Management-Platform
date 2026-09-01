@@ -14,7 +14,7 @@ from app.core.config import settings
 
 # استيراد جميع النماذج للتأكد من تسجيلها في Base.metadata
 from app.models.users import User, Role, Permission, UserRole, RolePermission
-from app.models.schools import School
+#from app.models.schools import School
 from app.models.academics import AcademicYear, Subject, Grade
 from app.models.activities import Activity, ActivityParticipant
 from app.models.attendance import StudentAttendance, TeacherAttendance
