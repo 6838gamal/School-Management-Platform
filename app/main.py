@@ -122,47 +122,69 @@ async def run_migrations():
     
     هذه الدالة تقوم بتشغيل جميع الترحيلات المعلقة لتحديث هيكل قاعدة البيانات
     إلى أحدث إصدار. يتم تشغيلها مرة واحدة عند بدء التطبيق.
+    
+    تم إصلاح المشكلة: تحويل DATABASE_URL من asyncpg إلى psycopg2
     """
     print("🔄 جاري تشغيل ترحيلات قاعدة البيانات...")
     
     try:
-        # الحصول على مسار المشروع (الدليل الذي يحتوي على ملف alembic.ini)
-        # نستخدم os.getcwd() للحصول على الدليل الحالي
-        project_dir = os.getcwd()
+        # الحصول على DATABASE_URL من متغيرات البيئة أو الإعدادات
+        db_url = os.environ.get("DATABASE_URL")
+        if not db_url:
+            db_url = settings.DATABASE_URL
         
-        # التأكد من وجود ملف alembic.ini
+        # تحويل URL من asyncpg إلى psycopg2 لـ Alembic
+        # Alembic لا يدعم asyncpg، لذلك نحتاج إلى استخدام psycopg2
+        sync_url = db_url.replace("postgresql+asyncpg://", "postgresql://")
+        
+        # طباعة معلومات للتتبع (مع إخفاء كلمة المرور)
+        if '@' in sync_url:
+            parts = sync_url.split('@')
+            if len(parts) > 1:
+                print(f"📊 استخدام قاعدة البيانات: {parts[1]}")
+        
+        # تعيين DATABASE_URL في متغيرات البيئة ليستخدمها alembic.ini
+        os.environ["DATABASE_URL"] = sync_url
+        
+        # الحصول على مسار المشروع
+        project_dir = os.getcwd()
         alembic_ini_path = os.path.join(project_dir, "alembic.ini")
+        
         if not os.path.exists(alembic_ini_path):
             print("⚠️ ملف alembic.ini غير موجود. تخطي تشغيل الترحيلات.")
             return False
         
-        # تشغيل alembic upgrade head
-        # نستخدم sys.executable للحصول على مسار Python الحالي
-        result = subprocess.run(
-            [sys.executable, "-m", "alembic", "upgrade", "head"],
-            capture_output=True,
-            text=True,
+        # تشغيل alembic upgrade head باستخدام subprocess غير متزامن
+        import asyncio
+        
+        # استخدام create_subprocess_exec لتشغيل alembic بشكل غير متزامن
+        process = await asyncio.create_subprocess_exec(
+            sys.executable, "-m", "alembic", "upgrade", "head",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
             cwd=project_dir,
             env=os.environ.copy()
         )
         
-        if result.returncode == 0:
+        stdout, stderr = await process.communicate()
+        
+        if process.returncode == 0:
             print("✅ تم تشغيل الترحيلات بنجاح")
-            if result.stdout:
-                # عرض مخرجات الترحيلات (مختصرة)
-                lines = result.stdout.strip().split('\n')
+            if stdout:
+                lines = stdout.decode().strip().split('\n')
                 for line in lines[-5:]:  # عرض آخر 5 أسطر فقط
                     if line.strip():
                         print(f"   {line}")
             return True
         else:
             # قد يكون الخطأ بسبب عدم وجود ترحيلات جديدة
-            error_msg = result.stderr.strip() if result.stderr else "خطأ غير معروف"
+            error_msg = stderr.decode().strip() if stderr else "خطأ غير معروف"
             if "No such revision" in error_msg or "target database is not up to date" in error_msg:
                 print("ℹ️ قاعدة البيانات محدثة بالفعل (لا توجد ترحيلات جديدة)")
                 return True
             else:
                 print(f"⚠️ فشل تشغيل الترحيلات: {error_msg}")
+                # لا نوقف التطبيق، نكمل بـ ensure_database_schema
                 return False
             
     except subprocess.CalledProcessError as e:
@@ -170,6 +192,7 @@ async def run_migrations():
         return False
     except Exception as e:
         print(f"⚠️ خطأ غير متوقع في تشغيل الترحيلات: {str(e)}")
+        # نكمل التطبيق ولا نوقفه
         return False
 
 
