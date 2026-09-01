@@ -19,9 +19,9 @@ from app.models.academics import AcademicYear, Subject, Grade
 from app.models.activities import Activity, ActivityParticipant
 from app.models.attendance import StudentAttendance, TeacherAttendance
 from app.models.homework import Homework, HomeworkSubmission
-from app.models.behavior import BehaviorRecord
-from app.models.notifications import Notification
-from app.models.reports import Report
+from app.models.behavior import BehaviorRecord, BehaviorCategory
+from app.models.notifications import Notification, NotificationRecipient
+from app.models.reports import ReportLink, AuditLog
 from app.models.teachers import Teacher
 from app.models.students import Student
 
