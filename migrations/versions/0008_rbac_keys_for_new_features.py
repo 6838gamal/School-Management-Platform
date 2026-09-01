@@ -11,9 +11,9 @@ from alembic import op
 from sqlalchemy import text
 
 revision: str = "0008"
-down_revision: '0007'
-branch_labels: None
-depends_on: None
+down_revision: str | None = '0007'
+branch_labels: str | None = None
+depends_on: str | None = None
 
 
 # (key, label_ar, label_en, group)
