@@ -67,24 +67,23 @@ def upgrade() -> None:
     ]
     
     for key, label_ar, label_en, group in permissions:
-        # ✅ استخدام gen_random_uuid() بدلاً من UUID()
-        # ✅ استخدام "group" بين علامتي اقتباس (كلمة محجوزة)
-        # ✅ استخدام ON CONFLICT (خاص بـ PostgreSQL)
         connection.execute(
             text("""
-                INSERT INTO permissions (id, key, label_ar, label_en, "group", created_at)
+                INSERT INTO permissions (id, key, label_ar, label_en, "group", created_at, updated_at)
                 VALUES (
                     gen_random_uuid(),
                     :key,
                     :label_ar,
                     :label_en,
                     :group,
+                    NOW(),
                     NOW()
                 )
                 ON CONFLICT (key) DO UPDATE SET 
                     label_ar = EXCLUDED.label_ar,
                     label_en = EXCLUDED.label_en,
-                    "group" = EXCLUDED."group"
+                    "group" = EXCLUDED."group",
+                    updated_at = NOW()
             """),
             {
                 "key": key,
@@ -109,7 +108,7 @@ def upgrade() -> None:
     for role in roles:
         connection.execute(
             text("""
-                INSERT INTO roles (id, key, name_ar, name_en, description, is_system, school_id, created_at)
+                INSERT INTO roles (id, key, name_ar, name_en, description, is_system, school_id, created_at, updated_at)
                 VALUES (
                     gen_random_uuid(),
                     :key,
@@ -118,13 +117,15 @@ def upgrade() -> None:
                     :description,
                     :is_system,
                     NULL,
+                    NOW(),
                     NOW()
                 )
                 ON CONFLICT (key, school_id) WHERE school_id IS NULL DO UPDATE SET
                     name_ar = EXCLUDED.name_ar,
                     name_en = EXCLUDED.name_en,
                     description = EXCLUDED.description,
-                    is_system = EXCLUDED.is_system
+                    is_system = EXCLUDED.is_system,
+                    updated_at = NOW()
             """),
             role
         )
@@ -207,8 +208,8 @@ def upgrade() -> None:
             # إضافة العلاقة إذا لم تكن موجودة
             result = connection.execute(
                 text("""
-                    INSERT INTO role_permissions (id, role_id, permission_id, created_at)
-                    VALUES (gen_random_uuid(), :role_id, :perm_id, NOW())
+                    INSERT INTO role_permissions (id, role_id, permission_id, created_at, updated_at)
+                    VALUES (gen_random_uuid(), :role_id, :perm_id, NOW(), NOW())
                     ON CONFLICT (role_id, permission_id) DO NOTHING
                 """),
                 {"role_id": role_id, "perm_id": perm_id}
