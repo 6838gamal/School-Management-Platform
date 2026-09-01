@@ -10,8 +10,8 @@ import sqlalchemy as sa
 from sqlalchemy import text
 
 # revision identifiers, used by Alembic.
-revision = 'xxxx'  # هذا الرقم سيتغير
-down_revision = 'yyyy'  # هذا الرقم سيتغير
+revision = '0006'  # هذا الرقم سيتغير
+down_revision = None  # هذا الرقم سيتغير
 branch_labels = None
 depends_on = None
 
