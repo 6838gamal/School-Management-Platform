@@ -15,14 +15,33 @@ connect_args = {}
 if settings.DATABASE_SSL:
     connect_args["ssl"] = True
 
-# التحقق من استخدام asyncpg
-if "asyncpg" not in settings.DATABASE_URL:
-    raise ValueError(
-        f"❌ DATABASE_URL must use asyncpg driver. Current: {settings.DATABASE_URL}"
-    )
+def get_database_url():
+    """
+    الحصول على URL قاعدة البيانات المناسب للتطبيق.
+    
+    إذا كان URL يستخدم psycopg2 (postgresql://)، قم بتحويله إلى asyncpg.
+    وإذا كان يستخدم asyncpg بالفعل، استخدمه كما هو.
+    """
+    url = settings.DATABASE_URL
+    
+    # التحقق من أن URL هو PostgreSQL
+    if "postgresql" not in url:
+        raise ValueError(
+            f"❌ DATABASE_URL must be a PostgreSQL URL. Current: {url}"
+        )
+    
+    # إذا كان URL يستخدم psycopg2 (بدون asyncpg)، قم بتحويله
+    if "postgresql://" in url and "+asyncpg" not in url:
+        url = url.replace("postgresql://", "postgresql+asyncpg://")
+    
+    return url
 
+# الحصول على URL المناسب
+DATABASE_URL = get_database_url()
+
+# إنشاء محرك قاعدة البيانات غير المتزامن
 engine = create_async_engine(
-    settings.DATABASE_URL,
+    DATABASE_URL,
     echo=settings.DATABASE_ECHO,
     pool_size=settings.DATABASE_POOL_SIZE,
     max_overflow=settings.DATABASE_MAX_OVERFLOW,
