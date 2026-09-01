@@ -8,7 +8,7 @@ import logging
 
 from app.core.database import get_db
 from app.core.dependencies import CurrentUser, require_any_permission, template_context
-from app.core.exceptions import NotFoundException, DuplicateException, ValidationException
+from app.core.exceptions import NotFoundException, ConflictException, ValidationException  # ✅ تصحيح الاستيراد
 from app.services.academic_service import AcademicService
 from app.schemas.academics import (
     AcademicYearCreate, StageCreate, GradeCreate, SectionCreate,
@@ -106,6 +106,8 @@ async def create_year_api(
     try:
         result = await service.create_year(user.school_id, req)
         return {"success": True, "id": result.id, "message": "تم إضافة العام الدراسي بنجاح"}
+    except ConflictException as e:  # ✅ استخدام ConflictException
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
     except Exception as e:
         logger.error(f"Error creating year: {str(e)}")
         raise HTTPException(
@@ -226,6 +228,8 @@ async def create_stage_api(
         return {"success": True, "id": result.id, "message": "تم إضافة المرحلة بنجاح"}
     except NotFoundException as e:
         raise HTTPException(status_code=404, detail=str(e))
+    except ConflictException as e:  # ✅ استخدام ConflictException
+        raise HTTPException(status_code=409, detail=str(e))
     except Exception as e:
         logger.error(f"Error creating stage: {str(e)}")
         raise HTTPException(
@@ -287,7 +291,7 @@ async def list_grades(
     user: CurrentUser = Depends(require_any_permission("academics.view")),
     db: AsyncSession = Depends(get_db),
     ctx: dict = Depends(template_context),
-    year_id: Optional[str] = None,  # ✅ فلترة حسب السنة
+    year_id: Optional[str] = None,
 ):
     """عرض قائمة الصفوف"""
     service = AcademicService(db)
@@ -321,7 +325,7 @@ async def create_grade_page(
     db: AsyncSession = Depends(get_db),
     ctx: dict = Depends(template_context),
 ):
-    """✅ صفحة إضافة صف جديد - مع دعم السنة الدراسية"""
+    """صفحة إضافة صف جديد - مع دعم السنة الدراسية"""
     service = AcademicService(db)
     
     # جلب السنوات الدراسية للمدرسة
@@ -349,7 +353,7 @@ async def edit_grade_page(
     db: AsyncSession = Depends(get_db),
     ctx: dict = Depends(template_context),
 ):
-    """✅ صفحة تعديل صف - مع دعم السنة الدراسية"""
+    """صفحة تعديل صف - مع دعم السنة الدراسية"""
     service = AcademicService(db)
     
     grade = await service.grades.get_by_id(grade_id)
@@ -377,7 +381,7 @@ async def create_grade_api(
     user: CurrentUser = Depends(require_any_permission("academics.create")),
     db: AsyncSession = Depends(get_db),
 ):
-    """✅ API: إنشاء صف جديد - مع دعم السنة الدراسية"""
+    """API: إنشاء صف جديد - مع دعم السنة الدراسية"""
     service = AcademicService(db)
     
     try:
@@ -397,7 +401,7 @@ async def create_grade_api(
                 detail="المرحلة غير موجودة"
             )
         
-        # ✅ التحقق من أن المرحلة تابعة للسنة المحددة
+        # التحقق من أن المرحلة تابعة للسنة المحددة
         if stage.year_id != req.year_id:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -415,7 +419,12 @@ async def create_grade_api(
         
     except HTTPException:
         raise
-    except DuplicateException as e:
+    except ConflictException as e:  # ✅ استخدام ConflictException
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except ValidationException as e:  # ✅ استخدام ValidationException
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
@@ -435,7 +444,7 @@ async def update_grade_api(
     user: CurrentUser = Depends(require_any_permission("academics.update")),
     db: AsyncSession = Depends(get_db),
 ):
-    """✅ API: تحديث صف - مع دعم السنة الدراسية"""
+    """API: تحديث صف - مع دعم السنة الدراسية"""
     service = AcademicService(db)
     
     try:
@@ -469,7 +478,9 @@ async def update_grade_api(
         
     except NotFoundException:
         raise HTTPException(status_code=404, detail="الصف غير موجود")
-    except DuplicateException as e:
+    except ConflictException as e:  # ✅ استخدام ConflictException
+        raise HTTPException(status_code=400, detail=str(e))
+    except ValidationException as e:  # ✅ استخدام ValidationException
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"Error updating grade: {str(e)}")
@@ -582,6 +593,8 @@ async def create_section_api(
     try:
         result = await service.create_section(user.school_id, req)
         return {"success": True, "id": result.id, "message": "تم إضافة الشعبة بنجاح"}
+    except NotFoundException as e:
+        raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         logger.error(f"Error creating section: {str(e)}")
         raise HTTPException(
@@ -696,6 +709,8 @@ async def create_subject_api(
     try:
         result = await service.create_subject(user.school_id, req)
         return {"success": True, "id": result.id, "message": "تم إضافة المادة بنجاح"}
+    except ConflictException as e:  # ✅ استخدام ConflictException
+        raise HTTPException(status_code=409, detail=str(e))
     except Exception as e:
         logger.error(f"Error creating subject: {str(e)}")
         raise HTTPException(
@@ -810,6 +825,8 @@ async def create_room_api(
     try:
         result = await service.create_room(user.school_id, req)
         return {"success": True, "id": result.id, "message": "تم إضافة القاعة بنجاح"}
+    except ConflictException as e:  # ✅ استخدام ConflictException
+        raise HTTPException(status_code=409, detail=str(e))
     except Exception as e:
         logger.error(f"Error creating room: {str(e)}")
         raise HTTPException(
@@ -924,6 +941,8 @@ async def create_period_api(
     try:
         result = await service.create_period(user.school_id, req)
         return {"success": True, "id": result.id, "message": "تم إضافة الفصل بنجاح"}
+    except ConflictException as e:  # ✅ استخدام ConflictException
+        raise HTTPException(status_code=409, detail=str(e))
     except Exception as e:
         logger.error(f"Error creating period: {str(e)}")
         raise HTTPException(
@@ -986,7 +1005,7 @@ async def academic_tree(
     db: AsyncSession = Depends(get_db),
     ctx: dict = Depends(template_context),
 ):
-    """✅ عرض الشجرة الأكاديمية مع دعم السنة الدراسية"""
+    """عرض الشجرة الأكاديمية مع دعم السنة الدراسية"""
     service = AcademicService(db)
     try:
         tree = await service.get_full_tree(user.school_id)
@@ -1018,7 +1037,7 @@ async def academic_tree(
 
 
 # ============================================================
-#  ✅ API إضافية للتصفية حسب السنة
+#  API إضافية للتصفية حسب السنة
 # ============================================================
 
 @router.get("/api/grades/by-year/{year_id}")
@@ -1027,7 +1046,7 @@ async def get_grades_by_year(
     user: CurrentUser = Depends(require_any_permission("academics.view")),
     db: AsyncSession = Depends(get_db),
 ):
-    """✅ API: جلب الصفوف حسب السنة الدراسية"""
+    """API: جلب الصفوف حسب السنة الدراسية"""
     service = AcademicService(db)
     
     try:
@@ -1072,7 +1091,7 @@ async def get_stages_by_year(
     user: CurrentUser = Depends(require_any_permission("academics.view")),
     db: AsyncSession = Depends(get_db),
 ):
-    """✅ API: جلب المراحل حسب السنة الدراسية"""
+    """API: جلب المراحل حسب السنة الدراسية"""
     service = AcademicService(db)
     
     try:
