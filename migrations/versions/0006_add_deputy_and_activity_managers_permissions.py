@@ -11,7 +11,7 @@ from sqlalchemy import text
 
 # revision identifiers, used by Alembic.
 revision = '0006'  # هذا الرقم سيتغير
-down_revision = None  # هذا الرقم سيتغير
+down_revision = '0005' # هذا الرقم سيتغير
 branch_labels = None
 depends_on = None
 
