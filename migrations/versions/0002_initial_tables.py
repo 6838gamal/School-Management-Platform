@@ -25,6 +25,14 @@ def table_exists(table_name: str) -> bool:
     return table_name in inspector.get_table_names()
 
 
+def column_exists(table_name: str, column_name: str) -> bool:
+    """التحقق من وجود عمود في جدول."""
+    conn = op.get_bind()
+    inspector = Inspector.from_engine(conn)
+    columns = inspector.get_columns(table_name)
+    return any(col['name'] == column_name for col in columns)
+
+
 def index_exists(table_name: str, index_name: str) -> bool:
     """التحقق من وجود فهرس في قاعدة البيانات."""
     conn = op.get_bind()
@@ -43,12 +51,33 @@ def create_table_if_not_exists(table_name: str, *columns, **kwargs) -> None:
 
 
 def create_index_if_not_exists(table_name: str, index_name: str, columns: list, unique: bool = False) -> None:
-    """إنشاء فهرس إذا لم يكن موجوداً."""
-    if table_exists(table_name) and not index_exists(table_name, index_name):
+    """إنشاء فهرس إذا لم يكن موجوداً والعمود موجود."""
+    if not table_exists(table_name):
+        return
+    
+    # التحقق من وجود جميع الأعمدة المطلوبة
+    for col in columns:
+        if not column_exists(table_name, col):
+            print(f"⚠️ العمود {col} غير موجود في جدول {table_name}، تخطي الفهرس {index_name}")
+            return
+    
+    if not index_exists(table_name, index_name):
         op.create_index(index_name, table_name, columns, unique=unique)
         print(f"✅ تم إنشاء فهرس: {index_name}")
     else:
         print(f"⏭️  فهرس موجود مسبقاً: {index_name}")
+
+
+def add_column_if_not_exists(table_name: str, column_name: str, column_type, **kwargs) -> None:
+    """إضافة عمود إذا لم يكن موجوداً."""
+    if not table_exists(table_name):
+        return
+    
+    if not column_exists(table_name, column_name):
+        op.add_column(table_name, sa.Column(column_name, column_type, **kwargs))
+        print(f"✅ تم إضافة عمود: {table_name}.{column_name}")
+    else:
+        print(f"⏭️  عمود موجود مسبقاً: {table_name}.{column_name}")
 
 
 def upgrade() -> None:
@@ -268,11 +297,12 @@ def upgrade() -> None:
     # ============================================================
     # 10. جدول الطلاب (students) - مع user_id
     # ============================================================
+    # إنشاء الجدول إذا لم يكن موجوداً
     create_table_if_not_exists(
         'students',
         sa.Column('id', sa.String(36), nullable=False),
         sa.Column('school_id', sa.String(36), nullable=False),
-        sa.Column('user_id', sa.String(36), nullable=True),  # ✅ مع user_id
+        sa.Column('user_id', sa.String(36), nullable=True),  # ✅ user_id موجود
         sa.Column('student_number', sa.String(50), nullable=False),
         sa.Column('national_id', sa.String(50), nullable=True),
         sa.Column('first_name', sa.String(100), nullable=False),
@@ -302,10 +332,13 @@ def upgrade() -> None:
         sa.UniqueConstraint('school_id', 'national_id', name='uq_student_school_national_id')
     )
     
-    # فهارس جدول الطلاب - مع user_id
+    # ✅ إضافة user_id إذا كان الجدول موجوداً ولكن العمود مفقود
+    add_column_if_not_exists('students', 'user_id', sa.String(36), nullable=True)
+    
+    # فهارس جدول الطلاب
     create_index_if_not_exists('students', 'ix_students_id', ['id'], unique=False)
     create_index_if_not_exists('students', 'ix_students_school_id', ['school_id'], unique=False)
-    create_index_if_not_exists('students', 'ix_students_user_id', ['user_id'], unique=False)  # ✅ مع user_id
+    create_index_if_not_exists('students', 'ix_students_user_id', ['user_id'], unique=False)  # ✅ فهرس user_id
     create_index_if_not_exists('students', 'ix_students_student_number', ['student_number'], unique=False)
     create_index_if_not_exists('students', 'ix_students_is_active', ['is_active'], unique=False)
     create_index_if_not_exists('students', 'ix_students_enrollment_status', ['enrollment_status'], unique=False)
@@ -318,11 +351,12 @@ def upgrade() -> None:
     # ============================================================
     # 11. جدول المعلمين (teachers) - مع user_id
     # ============================================================
+    # إنشاء الجدول إذا لم يكن موجوداً
     create_table_if_not_exists(
         'teachers',
         sa.Column('id', sa.String(36), nullable=False),
         sa.Column('school_id', sa.String(36), nullable=False),
-        sa.Column('user_id', sa.String(36), nullable=True),  # ✅ مع user_id
+        sa.Column('user_id', sa.String(36), nullable=True),  # ✅ user_id موجود
         sa.Column('teacher_code', sa.String(50), nullable=False),
         sa.Column('first_name', sa.String(100), nullable=False),
         sa.Column('last_name', sa.String(100), nullable=False),
@@ -345,10 +379,13 @@ def upgrade() -> None:
         sa.UniqueConstraint('school_id', 'national_id', name='uq_teacher_school_national_id')
     )
     
-    # فهارس جدول المعلمين - مع user_id
+    # ✅ إضافة user_id إذا كان الجدول موجوداً ولكن العمود مفقود
+    add_column_if_not_exists('teachers', 'user_id', sa.String(36), nullable=True)
+    
+    # فهارس جدول المعلمين
     create_index_if_not_exists('teachers', 'ix_teachers_id', ['id'], unique=False)
     create_index_if_not_exists('teachers', 'ix_teachers_school_id', ['school_id'], unique=False)
-    create_index_if_not_exists('teachers', 'ix_teachers_user_id', ['user_id'], unique=False)  # ✅ مع user_id
+    create_index_if_not_exists('teachers', 'ix_teachers_user_id', ['user_id'], unique=False)  # ✅ فهرس user_id
     create_index_if_not_exists('teachers', 'ix_teachers_teacher_code', ['teacher_code'], unique=False)
     create_index_if_not_exists('teachers', 'ix_teachers_is_active', ['is_active'], unique=False)
     create_index_if_not_exists('teachers', 'ix_teachers_school_code', ['school_id', 'teacher_code'], unique=True)
