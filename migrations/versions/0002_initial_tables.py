@@ -1,30 +1,63 @@
 """Initial tables for school management system
 
-Revision ID: 001
+Revision ID: 0001
 Revises: 
 Create Date: 2024-01-01 00:00:00.000000
 
 """
 from typing import Sequence, Union
-
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy.engine.reflection import Inspector
 
 
 # revision identifiers, used by Alembic.
-revision: str = '0002'
-down_revision: str | None = '0001'
+revision: str = '0001'
+down_revision: str | None = None
 branch_labels: str | None = None
 depends_on: str | None = None
 
 
+def table_exists(table_name: str) -> bool:
+    """التحقق من وجود جدول في قاعدة البيانات."""
+    conn = op.get_bind()
+    inspector = Inspector.from_engine(conn)
+    return table_name in inspector.get_table_names()
+
+
+def index_exists(table_name: str, index_name: str) -> bool:
+    """التحقق من وجود فهرس في قاعدة البيانات."""
+    conn = op.get_bind()
+    inspector = Inspector.from_engine(conn)
+    indexes = inspector.get_indexes(table_name)
+    return any(idx['name'] == index_name for idx in indexes)
+
+
+def create_table_if_not_exists(table_name: str, *columns, **kwargs) -> None:
+    """إنشاء جدول إذا لم يكن موجوداً."""
+    if not table_exists(table_name):
+        op.create_table(table_name, *columns, **kwargs)
+        print(f"✅ تم إنشاء جدول: {table_name}")
+    else:
+        print(f"⏭️  جدول موجود مسبقاً: {table_name}")
+
+
+def create_index_if_not_exists(table_name: str, index_name: str, columns: list, unique: bool = False) -> None:
+    """إنشاء فهرس إذا لم يكن موجوداً."""
+    if table_exists(table_name) and not index_exists(table_name, index_name):
+        op.create_index(index_name, table_name, columns, unique=unique)
+        print(f"✅ تم إنشاء فهرس: {index_name}")
+    else:
+        print(f"⏭️  فهرس موجود مسبقاً: {index_name}")
+
+
 def upgrade() -> None:
-    """إنشاء جميع الجداول الأساسية."""
+    """إنشاء جميع الجداول الأساسية - آمن للتكرار."""
     
     # ============================================================
     # 1. جدول المدارس (schools)
     # ============================================================
-    op.create_table(
+    create_table_if_not_exists(
         'schools',
         sa.Column('id', sa.String(36), nullable=False),
         sa.Column('name', sa.String(200), nullable=False),
@@ -37,13 +70,16 @@ def upgrade() -> None:
         sa.Column('updated_at', sa.DateTime(timezone=True), onupdate=sa.func.now()),
         sa.PrimaryKeyConstraint('id')
     )
-    op.create_index('ix_schools_code', 'schools', ['code'], unique=True)
-    op.create_index('ix_schools_id', 'schools', ['id'], unique=False)
+    
+    # فهارس جدول المدارس
+    create_index_if_not_exists('schools', 'ix_schools_code', ['code'], unique=True)
+    create_index_if_not_exists('schools', 'ix_schools_id', ['id'], unique=False)
+    create_index_if_not_exists('schools', 'ix_schools_is_active', ['is_active'], unique=False)
     
     # ============================================================
     # 2. جدول المستخدمين (users)
     # ============================================================
-    op.create_table(
+    create_table_if_not_exists(
         'users',
         sa.Column('id', sa.String(36), nullable=False),
         sa.Column('school_id', sa.String(36), nullable=True),
@@ -53,20 +89,23 @@ def upgrade() -> None:
         sa.Column('phone', sa.String(50), nullable=True),
         sa.Column('avatar_url', sa.String(500), nullable=True),
         sa.Column('is_active', sa.Boolean(), nullable=False, server_default='1'),
-        sa.Column('last_login_at', sa.String(50), nullable=True),
+        sa.Column('last_login_at', sa.DateTime(timezone=True), nullable=True),
         sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.func.now()),
         sa.Column('updated_at', sa.DateTime(timezone=True), onupdate=sa.func.now()),
         sa.ForeignKeyConstraint(['school_id'], ['schools.id'], ondelete='CASCADE'),
         sa.PrimaryKeyConstraint('id')
     )
-    op.create_index('ix_users_email', 'users', ['email'], unique=True)
-    op.create_index('ix_users_id', 'users', ['id'], unique=False)
-    op.create_index('ix_users_school_id', 'users', ['school_id'], unique=False)
+    
+    # فهارس جدول المستخدمين
+    create_index_if_not_exists('users', 'ix_users_email', ['email'], unique=True)
+    create_index_if_not_exists('users', 'ix_users_id', ['id'], unique=False)
+    create_index_if_not_exists('users', 'ix_users_school_id', ['school_id'], unique=False)
+    create_index_if_not_exists('users', 'ix_users_is_active', ['is_active'], unique=False)
     
     # ============================================================
     # 3. جدول الأدوار (roles)
     # ============================================================
-    op.create_table(
+    create_table_if_not_exists(
         'roles',
         sa.Column('id', sa.String(36), nullable=False),
         sa.Column('school_id', sa.String(36), nullable=True),
@@ -80,13 +119,18 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(['school_id'], ['schools.id'], ondelete='CASCADE'),
         sa.PrimaryKeyConstraint('id')
     )
-    op.create_index('ix_roles_id', 'roles', ['id'], unique=False)
-    op.create_index('ix_roles_school_id', 'roles', ['school_id'], unique=False)
+    
+    # فهارس جدول الأدوار
+    create_index_if_not_exists('roles', 'ix_roles_id', ['id'], unique=False)
+    create_index_if_not_exists('roles', 'ix_roles_school_id', ['school_id'], unique=False)
+    create_index_if_not_exists('roles', 'ix_roles_key', ['key'], unique=False)
+    create_index_if_not_exists('roles', 'ix_roles_school_key', ['school_id', 'key'], unique=True)
+    create_index_if_not_exists('roles', 'ix_roles_is_system', ['is_system'], unique=False)
     
     # ============================================================
     # 4. جدول الصلاحيات (permissions)
     # ============================================================
-    op.create_table(
+    create_table_if_not_exists(
         'permissions',
         sa.Column('id', sa.String(36), nullable=False),
         sa.Column('key', sa.String(100), nullable=False),
@@ -97,13 +141,16 @@ def upgrade() -> None:
         sa.Column('updated_at', sa.DateTime(timezone=True), onupdate=sa.func.now()),
         sa.PrimaryKeyConstraint('id')
     )
-    op.create_index('ix_permissions_id', 'permissions', ['id'], unique=False)
-    op.create_index('ix_permissions_key', 'permissions', ['key'], unique=True)
+    
+    # فهارس جدول الصلاحيات
+    create_index_if_not_exists('permissions', 'ix_permissions_id', ['id'], unique=False)
+    create_index_if_not_exists('permissions', 'ix_permissions_key', ['key'], unique=True)
+    create_index_if_not_exists('permissions', 'ix_permissions_group', ['group'], unique=False)
     
     # ============================================================
     # 5. جدول ربط الأدوار بالصلاحيات (role_permissions)
     # ============================================================
-    op.create_table(
+    create_table_if_not_exists(
         'role_permissions',
         sa.Column('id', sa.String(36), nullable=False),
         sa.Column('role_id', sa.String(36), nullable=False),
@@ -114,13 +161,17 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(['role_id'], ['roles.id'], ondelete='CASCADE'),
         sa.PrimaryKeyConstraint('id')
     )
-    op.create_index('ix_role_permissions_id', 'role_permissions', ['id'], unique=False)
-    op.create_index('ix_role_permissions_role_id', 'role_permissions', ['role_id'], unique=False)
+    
+    # فهارس جدول ربط الأدوار بالصلاحيات
+    create_index_if_not_exists('role_permissions', 'ix_role_permissions_id', ['id'], unique=False)
+    create_index_if_not_exists('role_permissions', 'ix_role_permissions_role_id', ['role_id'], unique=False)
+    create_index_if_not_exists('role_permissions', 'ix_role_permissions_permission_id', ['permission_id'], unique=False)
+    create_index_if_not_exists('role_permissions', 'ix_role_permissions_unique', ['role_id', 'permission_id'], unique=True)
     
     # ============================================================
     # 6. جدول ربط المستخدمين بالأدوار (user_roles)
     # ============================================================
-    op.create_table(
+    create_table_if_not_exists(
         'user_roles',
         sa.Column('id', sa.String(36), nullable=False),
         sa.Column('user_id', sa.String(36), nullable=False),
@@ -131,19 +182,23 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
         sa.PrimaryKeyConstraint('id')
     )
-    op.create_index('ix_user_roles_id', 'user_roles', ['id'], unique=False)
-    op.create_index('ix_user_roles_user_id', 'user_roles', ['user_id'], unique=False)
+    
+    # فهارس جدول ربط المستخدمين بالأدوار
+    create_index_if_not_exists('user_roles', 'ix_user_roles_id', ['id'], unique=False)
+    create_index_if_not_exists('user_roles', 'ix_user_roles_user_id', ['user_id'], unique=False)
+    create_index_if_not_exists('user_roles', 'ix_user_roles_role_id', ['role_id'], unique=False)
+    create_index_if_not_exists('user_roles', 'ix_user_roles_unique', ['user_id', 'role_id'], unique=True)
     
     # ============================================================
     # 7. جدول السنوات الدراسية (academic_years)
     # ============================================================
-    op.create_table(
+    create_table_if_not_exists(
         'academic_years',
         sa.Column('id', sa.String(36), nullable=False),
         sa.Column('school_id', sa.String(36), nullable=False),
         sa.Column('name', sa.String(100), nullable=False),
-        sa.Column('start_date', sa.String(50), nullable=False),
-        sa.Column('end_date', sa.String(50), nullable=False),
+        sa.Column('start_date', sa.Date(), nullable=False),
+        sa.Column('end_date', sa.Date(), nullable=False),
         sa.Column('is_current', sa.Boolean(), nullable=False, server_default='0'),
         sa.Column('is_active', sa.Boolean(), nullable=False, server_default='1'),
         sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.func.now()),
@@ -151,13 +206,18 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(['school_id'], ['schools.id'], ondelete='CASCADE'),
         sa.PrimaryKeyConstraint('id')
     )
-    op.create_index('ix_academic_years_id', 'academic_years', ['id'], unique=False)
-    op.create_index('ix_academic_years_school_id', 'academic_years', ['school_id'], unique=False)
+    
+    # فهارس جدول السنوات الدراسية
+    create_index_if_not_exists('academic_years', 'ix_academic_years_id', ['id'], unique=False)
+    create_index_if_not_exists('academic_years', 'ix_academic_years_school_id', ['school_id'], unique=False)
+    create_index_if_not_exists('academic_years', 'ix_academic_years_is_current', ['is_current'], unique=False)
+    create_index_if_not_exists('academic_years', 'ix_academic_years_is_active', ['is_active'], unique=False)
+    create_index_if_not_exists('academic_years', 'ix_academic_years_school_current', ['school_id', 'is_current'], unique=False)
     
     # ============================================================
     # 8. جدول الصفوف (classes)
     # ============================================================
-    op.create_table(
+    create_table_if_not_exists(
         'classes',
         sa.Column('id', sa.String(36), nullable=False),
         sa.Column('school_id', sa.String(36), nullable=False),
@@ -171,17 +231,211 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(['school_id'], ['schools.id'], ondelete='CASCADE'),
         sa.PrimaryKeyConstraint('id')
     )
-    op.create_index('ix_classes_id', 'classes', ['id'], unique=False)
-    op.create_index('ix_classes_school_id', 'classes', ['school_id'], unique=False)
+    
+    # فهارس جدول الصفوف
+    create_index_if_not_exists('classes', 'ix_classes_id', ['id'], unique=False)
+    create_index_if_not_exists('classes', 'ix_classes_school_id', ['school_id'], unique=False)
+    create_index_if_not_exists('classes', 'ix_classes_academic_year_id', ['academic_year_id'], unique=False)
+    create_index_if_not_exists('classes', 'ix_classes_grade_level', ['grade_level'], unique=False)
+    create_index_if_not_exists('classes', 'ix_classes_is_active', ['is_active'], unique=False)
+    create_index_if_not_exists('classes', 'ix_classes_unique_name', ['academic_year_id', 'name'], unique=True)
+    
+    # ============================================================
+    # 9. جدول المواد الدراسية (subjects) - إضافة جديدة
+    # ============================================================
+    create_table_if_not_exists(
+        'subjects',
+        sa.Column('id', sa.String(36), nullable=False),
+        sa.Column('school_id', sa.String(36), nullable=False),
+        sa.Column('name_ar', sa.String(200), nullable=False),
+        sa.Column('name_en', sa.String(200), nullable=True),
+        sa.Column('code', sa.String(50), nullable=True),
+        sa.Column('description', sa.String(500), nullable=True),
+        sa.Column('is_active', sa.Boolean(), nullable=False, server_default='1'),
+        sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.func.now()),
+        sa.Column('updated_at', sa.DateTime(timezone=True), onupdate=sa.func.now()),
+        sa.ForeignKeyConstraint(['school_id'], ['schools.id'], ondelete='CASCADE'),
+        sa.PrimaryKeyConstraint('id')
+    )
+    
+    # فهارس جدول المواد الدراسية
+    create_index_if_not_exists('subjects', 'ix_subjects_id', ['id'], unique=False)
+    create_index_if_not_exists('subjects', 'ix_subjects_school_id', ['school_id'], unique=False)
+    create_index_if_not_exists('subjects', 'ix_subjects_code', ['code'], unique=False)
+    create_index_if_not_exists('subjects', 'ix_subjects_is_active', ['is_active'], unique=False)
+    create_index_if_not_exists('subjects', 'ix_subjects_school_code', ['school_id', 'code'], unique=True)
+    
+    # ============================================================
+    # 10. جدول الطلاب (students) - إضافة جديدة
+    # ============================================================
+    create_table_if_not_exists(
+        'students',
+        sa.Column('id', sa.String(36), nullable=False),
+        sa.Column('school_id', sa.String(36), nullable=False),
+        sa.Column('user_id', sa.String(36), nullable=True),
+        sa.Column('student_code', sa.String(50), nullable=False),
+        sa.Column('first_name_ar', sa.String(100), nullable=False),
+        sa.Column('last_name_ar', sa.String(100), nullable=False),
+        sa.Column('first_name_en', sa.String(100), nullable=True),
+        sa.Column('last_name_en', sa.String(100), nullable=True),
+        sa.Column('date_of_birth', sa.Date(), nullable=True),
+        sa.Column('gender', sa.String(10), nullable=True),
+        sa.Column('nationality', sa.String(50), nullable=True),
+        sa.Column('national_id', sa.String(20), nullable=True),
+        sa.Column('phone', sa.String(50), nullable=True),
+        sa.Column('address', sa.String(500), nullable=True),
+        sa.Column('guardian_name', sa.String(200), nullable=True),
+        sa.Column('guardian_phone', sa.String(50), nullable=True),
+        sa.Column('guardian_relation', sa.String(50), nullable=True),
+        sa.Column('is_active', sa.Boolean(), nullable=False, server_default='1'),
+        sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.func.now()),
+        sa.Column('updated_at', sa.DateTime(timezone=True), onupdate=sa.func.now()),
+        sa.ForeignKeyConstraint(['school_id'], ['schools.id'], ondelete='CASCADE'),
+        sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='SET NULL'),
+        sa.PrimaryKeyConstraint('id')
+    )
+    
+    # فهارس جدول الطلاب
+    create_index_if_not_exists('students', 'ix_students_id', ['id'], unique=False)
+    create_index_if_not_exists('students', 'ix_students_school_id', ['school_id'], unique=False)
+    create_index_if_not_exists('students', 'ix_students_user_id', ['user_id'], unique=False)
+    create_index_if_not_exists('students', 'ix_students_student_code', ['student_code'], unique=False)
+    create_index_if_not_exists('students', 'ix_students_is_active', ['is_active'], unique=False)
+    create_index_if_not_exists('students', 'ix_students_school_code', ['school_id', 'student_code'], unique=True)
+    
+    # ============================================================
+    # 11. جدول المعلمين (teachers) - إضافة جديدة
+    # ============================================================
+    create_table_if_not_exists(
+        'teachers',
+        sa.Column('id', sa.String(36), nullable=False),
+        sa.Column('school_id', sa.String(36), nullable=False),
+        sa.Column('user_id', sa.String(36), nullable=True),
+        sa.Column('teacher_code', sa.String(50), nullable=False),
+        sa.Column('first_name_ar', sa.String(100), nullable=False),
+        sa.Column('last_name_ar', sa.String(100), nullable=False),
+        sa.Column('first_name_en', sa.String(100), nullable=True),
+        sa.Column('last_name_en', sa.String(100), nullable=True),
+        sa.Column('date_of_birth', sa.Date(), nullable=True),
+        sa.Column('gender', sa.String(10), nullable=True),
+        sa.Column('nationality', sa.String(50), nullable=True),
+        sa.Column('national_id', sa.String(20), nullable=True),
+        sa.Column('phone', sa.String(50), nullable=True),
+        sa.Column('address', sa.String(500), nullable=True),
+        sa.Column('qualification', sa.String(200), nullable=True),
+        sa.Column('specialization', sa.String(200), nullable=True),
+        sa.Column('hire_date', sa.Date(), nullable=True),
+        sa.Column('is_active', sa.Boolean(), nullable=False, server_default='1'),
+        sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.func.now()),
+        sa.Column('updated_at', sa.DateTime(timezone=True), onupdate=sa.func.now()),
+        sa.ForeignKeyConstraint(['school_id'], ['schools.id'], ondelete='CASCADE'),
+        sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='SET NULL'),
+        sa.PrimaryKeyConstraint('id')
+    )
+    
+    # فهارس جدول المعلمين
+    create_index_if_not_exists('teachers', 'ix_teachers_id', ['id'], unique=False)
+    create_index_if_not_exists('teachers', 'ix_teachers_school_id', ['school_id'], unique=False)
+    create_index_if_not_exists('teachers', 'ix_teachers_user_id', ['user_id'], unique=False)
+    create_index_if_not_exists('teachers', 'ix_teachers_teacher_code', ['teacher_code'], unique=False)
+    create_index_if_not_exists('teachers', 'ix_teachers_is_active', ['is_active'], unique=False)
+    create_index_if_not_exists('teachers', 'ix_teachers_school_code', ['school_id', 'teacher_code'], unique=True)
+    
+    # ============================================================
+    # 12. جدول تسجيل الطلاب في الصفوف (student_enrollments) - إضافة جديدة
+    # ============================================================
+    create_table_if_not_exists(
+        'student_enrollments',
+        sa.Column('id', sa.String(36), nullable=False),
+        sa.Column('student_id', sa.String(36), nullable=False),
+        sa.Column('class_id', sa.String(36), nullable=False),
+        sa.Column('academic_year_id', sa.String(36), nullable=False),
+        sa.Column('enrollment_date', sa.Date(), nullable=False),
+        sa.Column('status', sa.String(20), nullable=False, server_default='active'),
+        sa.Column('notes', sa.String(500), nullable=True),
+        sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.func.now()),
+        sa.Column('updated_at', sa.DateTime(timezone=True), onupdate=sa.func.now()),
+        sa.ForeignKeyConstraint(['student_id'], ['students.id'], ondelete='CASCADE'),
+        sa.ForeignKeyConstraint(['class_id'], ['classes.id'], ondelete='CASCADE'),
+        sa.ForeignKeyConstraint(['academic_year_id'], ['academic_years.id'], ondelete='CASCADE'),
+        sa.PrimaryKeyConstraint('id')
+    )
+    
+    # فهارس جدول تسجيل الطلاب
+    create_index_if_not_exists('student_enrollments', 'ix_student_enrollments_id', ['id'], unique=False)
+    create_index_if_not_exists('student_enrollments', 'ix_student_enrollments_student_id', ['student_id'], unique=False)
+    create_index_if_not_exists('student_enrollments', 'ix_student_enrollments_class_id', ['class_id'], unique=False)
+    create_index_if_not_exists('student_enrollments', 'ix_student_enrollments_academic_year_id', ['academic_year_id'], unique=False)
+    create_index_if_not_exists('student_enrollments', 'ix_student_enrollments_status', ['status'], unique=False)
+    create_index_if_not_exists('student_enrollments', 'ix_student_enrollments_unique', ['student_id', 'academic_year_id', 'class_id'], unique=True)
+    
+    # ============================================================
+    # 13. جدول توزيع المواد على الصفوف (class_subjects) - إضافة جديدة
+    # ============================================================
+    create_table_if_not_exists(
+        'class_subjects',
+        sa.Column('id', sa.String(36), nullable=False),
+        sa.Column('class_id', sa.String(36), nullable=False),
+        sa.Column('subject_id', sa.String(36), nullable=False),
+        sa.Column('teacher_id', sa.String(36), nullable=True),
+        sa.Column('academic_year_id', sa.String(36), nullable=False),
+        sa.Column('is_active', sa.Boolean(), nullable=False, server_default='1'),
+        sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.func.now()),
+        sa.Column('updated_at', sa.DateTime(timezone=True), onupdate=sa.func.now()),
+        sa.ForeignKeyConstraint(['class_id'], ['classes.id'], ondelete='CASCADE'),
+        sa.ForeignKeyConstraint(['subject_id'], ['subjects.id'], ondelete='CASCADE'),
+        sa.ForeignKeyConstraint(['teacher_id'], ['teachers.id'], ondelete='SET NULL'),
+        sa.ForeignKeyConstraint(['academic_year_id'], ['academic_years.id'], ondelete='CASCADE'),
+        sa.PrimaryKeyConstraint('id')
+    )
+    
+    # فهارس جدول توزيع المواد
+    create_index_if_not_exists('class_subjects', 'ix_class_subjects_id', ['id'], unique=False)
+    create_index_if_not_exists('class_subjects', 'ix_class_subjects_class_id', ['class_id'], unique=False)
+    create_index_if_not_exists('class_subjects', 'ix_class_subjects_subject_id', ['subject_id'], unique=False)
+    create_index_if_not_exists('class_subjects', 'ix_class_subjects_teacher_id', ['teacher_id'], unique=False)
+    create_index_if_not_exists('class_subjects', 'ix_class_subjects_academic_year_id', ['academic_year_id'], unique=False)
+    create_index_if_not_exists('class_subjects', 'ix_class_subjects_is_active', ['is_active'], unique=False)
+    create_index_if_not_exists('class_subjects', 'ix_class_subjects_unique', ['class_id', 'subject_id', 'academic_year_id'], unique=True)
+    
+    print("=" * 60)
+    print("✅ تم الانتهاء من إنشاء جميع الجداول (13 جدول) بنجاح!")
+    print("=" * 60)
 
 
 def downgrade() -> None:
-    """التراجع - حذف جميع الجداول."""
-    op.drop_table('classes')
-    op.drop_table('academic_years')
-    op.drop_table('user_roles')
-    op.drop_table('role_permissions')
-    op.drop_table('permissions')
-    op.drop_table('roles')
-    op.drop_table('users')
-    op.drop_table('schools')
+    """التراجع - حذف جميع الجداول مع التحقق من الوجود."""
+    # ترتيب الحذف معكوس لترتيب الإنشاء (مراعاة العلاقات)
+    tables = [
+        'class_subjects',
+        'student_enrollments',
+        'teachers',
+        'students',
+        'subjects',
+        'classes',
+        'academic_years',
+        'user_roles',
+        'role_permissions',
+        'permissions',
+        'roles',
+        'users',
+        'schools'
+    ]
+    
+    print("=" * 60)
+    print("🔄 بدء عملية حذف الجداول...")
+    print("=" * 60)
+    
+    for table in tables:
+        if table_exists(table):
+            try:
+                op.drop_table(table)
+                print(f"🗑️  تم حذف جدول: {table}")
+            except Exception as e:
+                print(f"❌ فشل حذف جدول {table}: {str(e)}")
+        else:
+            print(f"⏭️  جدول غير موجود: {table}")
+    
+    print("=" * 60)
+    print("✅ تم الانتهاء من حذف جميع الجداول!")
+    print("=" * 60)
