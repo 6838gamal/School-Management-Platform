@@ -15,9 +15,9 @@ import uuid
 
 # revision identifiers, used by Alembic.
 revision = '0010'
-down_revision = str | None = '0009'
-branch_labels = str | None = None
-depends_on = str | None = None
+down_revision : str | None = '0009'
+branch_labels : str | None = None
+depends_on : str | None = None
 
 
 def upgrade() -> None:
