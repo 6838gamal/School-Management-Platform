@@ -4,6 +4,10 @@ substitute assignments, session lifecycle, web alerts & attachments.
 The teacher role MUST NOT receive excused_leaves.create (so deleting
 the button alone is not enough — backend refuses).
 """
+revision: str = '0008'
+down_revision: Union[str, None] = None
+
+
 from typing import Sequence, Union
 
 from alembic import op
