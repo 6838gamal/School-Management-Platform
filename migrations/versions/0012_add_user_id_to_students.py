@@ -8,10 +8,10 @@ Create Date: 2024-01-01 00:00:00.000000
 from alembic import op
 import sqlalchemy as sa
 
-revision = '0012'
-down_revision : '0011'
-branch_labels : None
-depends_on : None
+revision: str = '0012'
+down_revision: str | None = '0011'  # <-- هذا السطر كان مفقوداً
+branch_labels: str | None = None
+depends_on: str | None = None
 
 def upgrade() -> None:
     # إضافة عمود user_id
