@@ -12,8 +12,8 @@ from sqlalchemy.engine.reflection import Inspector
 
 
 # revision identifiers, used by Alembic.
-revision: str = '0001'
-down_revision: str | None = None
+revision: str = '0002'
+down_revision: str | None = '0001'
 branch_labels: str | None = None
 depends_on: str | None = None
 
