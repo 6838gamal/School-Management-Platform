@@ -241,7 +241,7 @@ def upgrade() -> None:
     create_index_if_not_exists('classes', 'ix_classes_unique_name', ['academic_year_id', 'name'], unique=True)
     
     # ============================================================
-    # 9. جدول المواد الدراسية (subjects) - إضافة جديدة
+    # 9. جدول المواد الدراسية (subjects)
     # ============================================================
     create_table_if_not_exists(
         'subjects',
@@ -266,56 +266,68 @@ def upgrade() -> None:
     create_index_if_not_exists('subjects', 'ix_subjects_school_code', ['school_id', 'code'], unique=True)
     
     # ============================================================
-    # 10. جدول الطلاب (students) - إضافة جديدة
+    # 10. جدول الطلاب (students) - مع user_id
     # ============================================================
     create_table_if_not_exists(
         'students',
         sa.Column('id', sa.String(36), nullable=False),
         sa.Column('school_id', sa.String(36), nullable=False),
-        sa.Column('user_id', sa.String(36), nullable=True),
-        sa.Column('student_code', sa.String(50), nullable=False),
-        sa.Column('first_name_ar', sa.String(100), nullable=False),
-        sa.Column('last_name_ar', sa.String(100), nullable=False),
-        sa.Column('first_name_en', sa.String(100), nullable=True),
-        sa.Column('last_name_en', sa.String(100), nullable=True),
-        sa.Column('date_of_birth', sa.Date(), nullable=True),
+        sa.Column('user_id', sa.String(36), nullable=True),  # ✅ مع user_id
+        sa.Column('student_number', sa.String(50), nullable=False),
+        sa.Column('national_id', sa.String(50), nullable=True),
+        sa.Column('first_name', sa.String(100), nullable=False),
+        sa.Column('last_name', sa.String(100), nullable=False),
+        sa.Column('first_name_ar', sa.String(100), nullable=True),
+        sa.Column('last_name_ar', sa.String(100), nullable=True),
         sa.Column('gender', sa.String(10), nullable=True),
+        sa.Column('birth_date', sa.Date(), nullable=True),
         sa.Column('nationality', sa.String(50), nullable=True),
-        sa.Column('national_id', sa.String(20), nullable=True),
+        sa.Column('guardian_name', sa.String(255), nullable=True),
+        sa.Column('guardian_phone', sa.String(50), nullable=True),
+        sa.Column('guardian_email', sa.String(255), nullable=True),
+        sa.Column('guardian_relation', sa.String(50), nullable=True),
         sa.Column('phone', sa.String(50), nullable=True),
         sa.Column('address', sa.String(500), nullable=True),
-        sa.Column('guardian_name', sa.String(200), nullable=True),
-        sa.Column('guardian_phone', sa.String(50), nullable=True),
-        sa.Column('guardian_relation', sa.String(50), nullable=True),
+        sa.Column('photo_url', sa.String(500), nullable=True),
         sa.Column('is_active', sa.Boolean(), nullable=False, server_default='1'),
+        sa.Column('enrollment_status', sa.String(20), nullable=False, server_default='active'),
+        sa.Column('notes', sa.String(1000), nullable=True),
+        sa.Column('enrolled_date', sa.Date(), nullable=True),
+        sa.Column('graduation_date', sa.Date(), nullable=True),
+        sa.Column('section_id', sa.String(36), nullable=True),
         sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.func.now()),
         sa.Column('updated_at', sa.DateTime(timezone=True), onupdate=sa.func.now()),
-        sa.ForeignKeyConstraint(['school_id'], ['schools.id'], ondelete='CASCADE'),
-        sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='SET NULL'),
-        sa.PrimaryKeyConstraint('id')
+        sa.PrimaryKeyConstraint('id'),
+        sa.UniqueConstraint('school_id', 'student_number', name='uq_student_school_number'),
+        sa.UniqueConstraint('school_id', 'national_id', name='uq_student_school_national_id')
     )
     
-    # فهارس جدول الطلاب
+    # فهارس جدول الطلاب - مع user_id
     create_index_if_not_exists('students', 'ix_students_id', ['id'], unique=False)
     create_index_if_not_exists('students', 'ix_students_school_id', ['school_id'], unique=False)
-    create_index_if_not_exists('students', 'ix_students_user_id', ['user_id'], unique=False)
-    create_index_if_not_exists('students', 'ix_students_student_code', ['student_code'], unique=False)
+    create_index_if_not_exists('students', 'ix_students_user_id', ['user_id'], unique=False)  # ✅ مع user_id
+    create_index_if_not_exists('students', 'ix_students_student_number', ['student_number'], unique=False)
     create_index_if_not_exists('students', 'ix_students_is_active', ['is_active'], unique=False)
-    create_index_if_not_exists('students', 'ix_students_school_code', ['school_id', 'student_code'], unique=True)
+    create_index_if_not_exists('students', 'ix_students_enrollment_status', ['enrollment_status'], unique=False)
+    create_index_if_not_exists('students', 'ix_students_section_id', ['section_id'], unique=False)
+    create_index_if_not_exists('students', 'ix_students_school_active', ['school_id', 'is_active'], unique=False)
+    create_index_if_not_exists('students', 'ix_students_name_search', ['first_name', 'last_name'], unique=False)
+    create_index_if_not_exists('students', 'ix_students_name_ar_search', ['first_name_ar', 'last_name_ar'], unique=False)
+    create_index_if_not_exists('students', 'ix_students_school_number', ['school_id', 'student_number'], unique=True)
     
     # ============================================================
-    # 11. جدول المعلمين (teachers) - إضافة جديدة
+    # 11. جدول المعلمين (teachers) - مع user_id
     # ============================================================
     create_table_if_not_exists(
         'teachers',
         sa.Column('id', sa.String(36), nullable=False),
         sa.Column('school_id', sa.String(36), nullable=False),
-        sa.Column('user_id', sa.String(36), nullable=True),
+        sa.Column('user_id', sa.String(36), nullable=True),  # ✅ مع user_id
         sa.Column('teacher_code', sa.String(50), nullable=False),
-        sa.Column('first_name_ar', sa.String(100), nullable=False),
-        sa.Column('last_name_ar', sa.String(100), nullable=False),
-        sa.Column('first_name_en', sa.String(100), nullable=True),
-        sa.Column('last_name_en', sa.String(100), nullable=True),
+        sa.Column('first_name', sa.String(100), nullable=False),
+        sa.Column('last_name', sa.String(100), nullable=False),
+        sa.Column('first_name_ar', sa.String(100), nullable=True),
+        sa.Column('last_name_ar', sa.String(100), nullable=True),
         sa.Column('date_of_birth', sa.Date(), nullable=True),
         sa.Column('gender', sa.String(10), nullable=True),
         sa.Column('nationality', sa.String(50), nullable=True),
@@ -328,49 +340,55 @@ def upgrade() -> None:
         sa.Column('is_active', sa.Boolean(), nullable=False, server_default='1'),
         sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.func.now()),
         sa.Column('updated_at', sa.DateTime(timezone=True), onupdate=sa.func.now()),
-        sa.ForeignKeyConstraint(['school_id'], ['schools.id'], ondelete='CASCADE'),
-        sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='SET NULL'),
-        sa.PrimaryKeyConstraint('id')
+        sa.PrimaryKeyConstraint('id'),
+        sa.UniqueConstraint('school_id', 'teacher_code', name='uq_teacher_school_code'),
+        sa.UniqueConstraint('school_id', 'national_id', name='uq_teacher_school_national_id')
     )
     
-    # فهارس جدول المعلمين
+    # فهارس جدول المعلمين - مع user_id
     create_index_if_not_exists('teachers', 'ix_teachers_id', ['id'], unique=False)
     create_index_if_not_exists('teachers', 'ix_teachers_school_id', ['school_id'], unique=False)
-    create_index_if_not_exists('teachers', 'ix_teachers_user_id', ['user_id'], unique=False)
+    create_index_if_not_exists('teachers', 'ix_teachers_user_id', ['user_id'], unique=False)  # ✅ مع user_id
     create_index_if_not_exists('teachers', 'ix_teachers_teacher_code', ['teacher_code'], unique=False)
     create_index_if_not_exists('teachers', 'ix_teachers_is_active', ['is_active'], unique=False)
     create_index_if_not_exists('teachers', 'ix_teachers_school_code', ['school_id', 'teacher_code'], unique=True)
     
     # ============================================================
-    # 12. جدول تسجيل الطلاب في الصفوف (student_enrollments) - إضافة جديدة
+    # 12. جدول تسجيل الطلاب في الصفوف (student_enrollments)
     # ============================================================
     create_table_if_not_exists(
         'student_enrollments',
         sa.Column('id', sa.String(36), nullable=False),
         sa.Column('student_id', sa.String(36), nullable=False),
-        sa.Column('class_id', sa.String(36), nullable=False),
+        sa.Column('school_id', sa.String(36), nullable=False),
         sa.Column('academic_year_id', sa.String(36), nullable=False),
-        sa.Column('enrollment_date', sa.Date(), nullable=False),
+        sa.Column('section_id', sa.String(36), nullable=True),
+        sa.Column('class_id', sa.String(36), nullable=True),
+        sa.Column('grade_level', sa.String(50), nullable=True),
         sa.Column('status', sa.String(20), nullable=False, server_default='active'),
+        sa.Column('enrolled_at', sa.Date(), nullable=False),
+        sa.Column('ended_at', sa.Date(), nullable=True),
         sa.Column('notes', sa.String(500), nullable=True),
         sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.func.now()),
         sa.Column('updated_at', sa.DateTime(timezone=True), onupdate=sa.func.now()),
-        sa.ForeignKeyConstraint(['student_id'], ['students.id'], ondelete='CASCADE'),
-        sa.ForeignKeyConstraint(['class_id'], ['classes.id'], ondelete='CASCADE'),
-        sa.ForeignKeyConstraint(['academic_year_id'], ['academic_years.id'], ondelete='CASCADE'),
-        sa.PrimaryKeyConstraint('id')
+        sa.PrimaryKeyConstraint('id'),
+        sa.UniqueConstraint('student_id', 'academic_year_id', name='uq_enrollment_student_year'),
+        sa.UniqueConstraint('student_id', 'academic_year_id', 'section_id', name='uq_enrollment_student_year_section')
     )
     
     # فهارس جدول تسجيل الطلاب
     create_index_if_not_exists('student_enrollments', 'ix_student_enrollments_id', ['id'], unique=False)
     create_index_if_not_exists('student_enrollments', 'ix_student_enrollments_student_id', ['student_id'], unique=False)
-    create_index_if_not_exists('student_enrollments', 'ix_student_enrollments_class_id', ['class_id'], unique=False)
+    create_index_if_not_exists('student_enrollments', 'ix_student_enrollments_school_id', ['school_id'], unique=False)
     create_index_if_not_exists('student_enrollments', 'ix_student_enrollments_academic_year_id', ['academic_year_id'], unique=False)
+    create_index_if_not_exists('student_enrollments', 'ix_student_enrollments_section_id', ['section_id'], unique=False)
+    create_index_if_not_exists('student_enrollments', 'ix_student_enrollments_class_id', ['class_id'], unique=False)
     create_index_if_not_exists('student_enrollments', 'ix_student_enrollments_status', ['status'], unique=False)
-    create_index_if_not_exists('student_enrollments', 'ix_student_enrollments_unique', ['student_id', 'academic_year_id', 'class_id'], unique=True)
+    create_index_if_not_exists('student_enrollments', 'ix_student_enrollments_student_status', ['student_id', 'status'], unique=False)
+    create_index_if_not_exists('student_enrollments', 'ix_student_enrollments_year_status', ['academic_year_id', 'status'], unique=False)
     
     # ============================================================
-    # 13. جدول توزيع المواد على الصفوف (class_subjects) - إضافة جديدة
+    # 13. جدول توزيع المواد على الصفوف (class_subjects)
     # ============================================================
     create_table_if_not_exists(
         'class_subjects',
@@ -382,11 +400,8 @@ def upgrade() -> None:
         sa.Column('is_active', sa.Boolean(), nullable=False, server_default='1'),
         sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.func.now()),
         sa.Column('updated_at', sa.DateTime(timezone=True), onupdate=sa.func.now()),
-        sa.ForeignKeyConstraint(['class_id'], ['classes.id'], ondelete='CASCADE'),
-        sa.ForeignKeyConstraint(['subject_id'], ['subjects.id'], ondelete='CASCADE'),
-        sa.ForeignKeyConstraint(['teacher_id'], ['teachers.id'], ondelete='SET NULL'),
-        sa.ForeignKeyConstraint(['academic_year_id'], ['academic_years.id'], ondelete='CASCADE'),
-        sa.PrimaryKeyConstraint('id')
+        sa.PrimaryKeyConstraint('id'),
+        sa.UniqueConstraint('class_id', 'subject_id', 'academic_year_id', name='uq_class_subject_year')
     )
     
     # فهارس جدول توزيع المواد
