@@ -125,9 +125,12 @@ async def run_migrations():
     """
     print("🔄 جاري تشغيل ترحيلات قاعدة البيانات...")
     
+    # حفظ URL الأصلي
+    original_db_url = os.environ.get("DATABASE_URL")
+    
     try:
         # الحصول على DATABASE_URL من متغيرات البيئة أو الإعدادات
-        db_url = os.environ.get("DATABASE_URL")
+        db_url = original_db_url
         if not db_url:
             db_url = settings.DATABASE_URL
         
@@ -139,7 +142,7 @@ async def run_migrations():
         if '@' in sync_url:
             parts = sync_url.split('@')
             if len(parts) > 1:
-                print(f"📊 استخدام قاعدة البيانات: {parts[1]}")
+                print(f"📊 استخدام قاعدة البيانات (لـ Alembic): {parts[1]}")
         
         # تعيين DATABASE_URL في متغيرات البيئة ليستخدمها alembic.ini
         os.environ["DATABASE_URL"] = sync_url
@@ -151,6 +154,9 @@ async def run_migrations():
         # التحقق من وجود ملف alembic.ini
         if not os.path.exists(alembic_ini_path):
             print("⚠️ ملف alembic.ini غير موجود. تخطي تشغيل الترحيلات.")
+            # استعادة URL الأصلي
+            if original_db_url:
+                os.environ["DATABASE_URL"] = original_db_url
             return False
         
         # تشغيل alembic upgrade head باستخدام subprocess
@@ -161,6 +167,10 @@ async def run_migrations():
             cwd=project_dir,
             env=os.environ.copy()
         )
+        
+        # استعادة URL الأصلي
+        if original_db_url:
+            os.environ["DATABASE_URL"] = original_db_url
         
         if result.returncode == 0:
             print("✅ تم تشغيل الترحيلات بنجاح")
@@ -191,9 +201,15 @@ async def run_migrations():
             
     except subprocess.CalledProcessError as e:
         print(f"⚠️ خطأ في تشغيل الترحيلات (قد تكون الترحيلات مطبقة بالفعل): {e.stderr if e.stderr else str(e)}")
+        # استعادة URL الأصلي
+        if original_db_url:
+            os.environ["DATABASE_URL"] = original_db_url
         return False
     except Exception as e:
         print(f"⚠️ خطأ غير متوقع في تشغيل الترحيلات: {str(e)}")
+        # استعادة URL الأصلي
+        if original_db_url:
+            os.environ["DATABASE_URL"] = original_db_url
         # نكمل التطبيق ولا نوقفه
         return False
 
