@@ -15,8 +15,8 @@ from sqlalchemy import text
 
 revision: str = "0008"
 down_revision: str | None = None
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+branch_labels: None
+depends_on: None
 
 
 # (key, label_ar, label_en, group)
