@@ -1,0 +1,4 @@
+buildCommand: |
+  pip install -r requirements.txt
+  alembic upgrade head
+  python init_db.py
