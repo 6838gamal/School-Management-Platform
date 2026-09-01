@@ -13,9 +13,9 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = '0005'  # استخدم الرقم الذي تم إنشاؤه
-down_revision: '0004' # استخدم الـ revision السابق
-branch_labels: None
-depends_on: None
+down_revision: str | None = '0004' # استخدم الـ revision السابق
+branch_labels: str | None = None
+depends_on: str | None = None
 
 
 def upgrade() -> None:
