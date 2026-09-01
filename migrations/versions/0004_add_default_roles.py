@@ -34,7 +34,7 @@ def upgrade() -> None:
         connection.execute(
             text("""
                 INSERT INTO schools (id, name, code, onboarding_complete, is_active, created_at, updated_at)
-                VALUES (gen_random_uuid(), 'المدرسة الرئيسية', 'SCHOOL001', 1, 1, NOW(), NOW())
+                VALUES (gen_random_uuid(), 'المدرسة الرئيسية', 'SCHOOL001', True, True, NOW(), NOW())
             """)
         )
         school_result = connection.execute(
@@ -51,28 +51,28 @@ def upgrade() -> None:
             "name_ar": "مدير",
             "name_en": "Director",
             "description": "مدير المدرسة - صلاحيات كاملة",
-            "is_system": 1
+            "is_system": True
         },
         {
             "key": "deputy",
             "name_ar": "وكيل",
             "name_en": "Deputy",
             "description": "وكيل المدرسة - إدارة أكاديمية",
-            "is_system": 1
+            "is_system": True
         },
         {
             "key": "activities",
             "name_ar": "مسؤول أنشطة",
             "name_en": "Activities Officer",
             "description": "مسؤول الأنشطة والفعاليات",
-            "is_system": 1
+            "is_system": True
         },
         {
             "key": "teacher",
             "name_ar": "معلم",
             "name_en": "Teacher",
             "description": "معلم - تدريس وإدارة صف",
-            "is_system": 1
+            "is_system": True
         }
     ]
     
