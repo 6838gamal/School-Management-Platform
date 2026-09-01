@@ -10,9 +10,9 @@ from typing import Sequence, Union
 from alembic import op
 
 revision: str = "0001"
-down_revision: None
-branch_labels: None
-depends_on: None
+down_revision: str | None = None
+branch_labels: str | None = None
+depends_on: str | None = None
 
 
 def upgrade() -> None:
