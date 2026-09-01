@@ -14,7 +14,7 @@ from sqlalchemy import text
 import uuid
 
 # revision identifiers, used by Alembic.
-revision = '20240831_0001'
+revision = '0010'
 down_revision = None
 branch_labels = None
 depends_on = None
