@@ -10,9 +10,9 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = '0011'
-down_revision = str | None = '0010'
-branch_labels = str | None = None
-depends_on = str | None = None
+down_revision : str | None = '0010'
+branch_labels : str | None = None
+depends_on : str | None = None
 
 def upgrade() -> None:
     # إضافة العمود
