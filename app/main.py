@@ -122,8 +122,6 @@ async def run_migrations():
     
     هذه الدالة تقوم بتشغيل جميع الترحيلات المعلقة لتحديث هيكل قاعدة البيانات
     إلى أحدث إصدار. يتم تشغيلها مرة واحدة عند بدء التطبيق.
-    
-    تم إصلاح المشكلة: تحويل DATABASE_URL من asyncpg إلى psycopg2
     """
     print("🔄 جاري تشغيل ترحيلات قاعدة البيانات...")
     
@@ -150,37 +148,41 @@ async def run_migrations():
         project_dir = os.getcwd()
         alembic_ini_path = os.path.join(project_dir, "alembic.ini")
         
+        # التحقق من وجود ملف alembic.ini
         if not os.path.exists(alembic_ini_path):
             print("⚠️ ملف alembic.ini غير موجود. تخطي تشغيل الترحيلات.")
             return False
         
-        # تشغيل alembic upgrade head باستخدام subprocess غير متزامن
-        import asyncio
-        
-        # استخدام create_subprocess_exec لتشغيل alembic بشكل غير متزامن
-        process = await asyncio.create_subprocess_exec(
-            sys.executable, "-m", "alembic", "upgrade", "head",
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
+        # تشغيل alembic upgrade head باستخدام subprocess
+        result = subprocess.run(
+            [sys.executable, "-m", "alembic", "upgrade", "head"],
+            capture_output=True,
+            text=True,
             cwd=project_dir,
             env=os.environ.copy()
         )
         
-        stdout, stderr = await process.communicate()
-        
-        if process.returncode == 0:
+        if result.returncode == 0:
             print("✅ تم تشغيل الترحيلات بنجاح")
-            if stdout:
-                lines = stdout.decode().strip().split('\n')
+            if result.stdout:
+                lines = result.stdout.strip().split('\n')
                 for line in lines[-5:]:  # عرض آخر 5 أسطر فقط
                     if line.strip():
                         print(f"   {line}")
             return True
         else:
             # قد يكون الخطأ بسبب عدم وجود ترحيلات جديدة
-            error_msg = stderr.decode().strip() if stderr else "خطأ غير معروف"
-            if "No such revision" in error_msg or "target database is not up to date" in error_msg:
+            error_msg = result.stderr.strip() if result.stderr else "خطأ غير معروف"
+            
+            # أخطاء شائعة غير حرجة
+            if "No such revision" in error_msg:
                 print("ℹ️ قاعدة البيانات محدثة بالفعل (لا توجد ترحيلات جديدة)")
+                return True
+            elif "target database is not up to date" in error_msg:
+                print("ℹ️ قاعدة البيانات محدثة بالفعل")
+                return True
+            elif "No migration" in error_msg:
+                print("ℹ️ لا توجد ترحيلات جديدة")
                 return True
             else:
                 print(f"⚠️ فشل تشغيل الترحيلات: {error_msg}")
@@ -342,6 +344,38 @@ async def ensure_database_schema():
                         RAISE NOTICE '✅ تم إضافة العمود code إلى جدول students';
                     ELSE
                         RAISE NOTICE 'ℹ️ العمود code موجود بالفعل في جدول students';
+                    END IF;
+                END $$;
+            """))
+            
+            # 7. التحقق من وجود عمود parent_phone في جدول students
+            await db.execute(text("""
+                DO $$
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.columns 
+                        WHERE table_name = 'students' AND column_name = 'parent_phone'
+                    ) THEN
+                        ALTER TABLE students ADD COLUMN parent_phone VARCHAR(20) NULL;
+                        RAISE NOTICE '✅ تم إضافة العمود parent_phone إلى جدول students';
+                    ELSE
+                        RAISE NOTICE 'ℹ️ العمود parent_phone موجود بالفعل في جدول students';
+                    END IF;
+                END $$;
+            """))
+            
+            # 8. التحقق من وجود عمود address في جدول students
+            await db.execute(text("""
+                DO $$
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.columns 
+                        WHERE table_name = 'students' AND column_name = 'address'
+                    ) THEN
+                        ALTER TABLE students ADD COLUMN address TEXT NULL;
+                        RAISE NOTICE '✅ تم إضافة العمود address إلى جدول students';
+                    ELSE
+                        RAISE NOTICE 'ℹ️ العمود address موجود بالفعل في جدول students';
                     END IF;
                 END $$;
             """))
