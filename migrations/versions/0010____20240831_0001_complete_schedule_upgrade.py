@@ -9,15 +9,56 @@
 
 from alembic import op
 import sqlalchemy as sa
-from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy import text
-import uuid
+from sqlalchemy.engine.reflection import Inspector
+
 
 # revision identifiers, used by Alembic.
 revision = '0010'
-down_revision : str | None = '0009'
-branch_labels : str | None = None
-depends_on : str | None = None
+down_revision: str | None = '0009'
+branch_labels: str | None = None
+depends_on: str | None = None
+
+
+def table_exists(table_name: str) -> bool:
+    """التحقق من وجود جدول في قاعدة البيانات."""
+    conn = op.get_bind()
+    inspector = Inspector.from_engine(conn)
+    return table_name in inspector.get_table_names()
+
+
+def type_exists(type_name: str) -> bool:
+    """التحقق من وجود نوع (Type) في قاعدة البيانات."""
+    conn = op.get_bind()
+    result = conn.execute(
+        text("SELECT 1 FROM pg_type WHERE typname = :type_name"),
+        {"type_name": type_name}
+    )
+    return result.fetchone() is not None
+
+
+def column_exists(table_name: str, column_name: str) -> bool:
+    """التحقق من وجود عمود في جدول."""
+    conn = op.get_bind()
+    inspector = Inspector.from_engine(conn)
+    columns = inspector.get_columns(table_name)
+    return any(col['name'] == column_name for col in columns)
+
+
+def index_exists(table_name: str, index_name: str) -> bool:
+    """التحقق من وجود فهرس في قاعدة البيانات."""
+    conn = op.get_bind()
+    inspector = Inspector.from_engine(conn)
+    indexes = inspector.get_indexes(table_name)
+    return any(idx['name'] == index_name for idx in indexes)
+
+
+def constraint_exists(table_name: str, constraint_name: str) -> bool:
+    """التحقق من وجود قيد (Constraint) في قاعدة البيانات."""
+    conn = op.get_bind()
+    inspector = Inspector.from_engine(conn)
+    constraints = inspector.get_foreign_keys(table_name)
+    return any(c['name'] == constraint_name for c in constraints)
 
 
 def upgrade() -> None:
@@ -26,356 +67,204 @@ def upgrade() -> None:
     conn = op.get_bind()
     
     # ============================================================
-    # الجزء 1: إنشاء الجداول الأساسية
+    # الجزء 1: إنشاء Enum للحالات (بدون IF NOT EXISTS)
     # ============================================================
-    
-    # 1.1 إنشاء Enum للحالات
-    op.execute("""
-        CREATE TYPE IF NOT EXISTS schedulestatus AS ENUM (
-            'draft', 'published', 'archived', 'cancelled'
+    if not type_exists('schedulestatus'):
+        conn.execute(
+            text("""
+                CREATE TYPE schedulestatus AS ENUM (
+                    'draft', 'published', 'archived', 'cancelled'
+                )
+            """)
         )
-    """)
-    
-    # 1.2 إنشاء جدول schedules
-    op.create_table(
-        'schedules',
-        sa.Column('id', UUID(as_uuid=True), primary_key=True, default=uuid.uuid4),
-        sa.Column('school_id', UUID(as_uuid=True), nullable=False, index=True),
-        sa.Column('name', sa.String(100), nullable=False),
-        sa.Column('description', sa.Text, nullable=True),
-        sa.Column('section_id', UUID(as_uuid=True), nullable=False, index=True),
-        sa.Column('year_id', UUID(as_uuid=True), nullable=False, index=True),
-        sa.Column('status', sa.Enum('draft', 'published', 'archived', 'cancelled', name='schedulestatus'), 
-                  nullable=False, server_default='draft'),
-        sa.Column('is_active', sa.Boolean, nullable=False, server_default=sa.text('true')),
-        sa.Column('is_default', sa.Boolean, nullable=False, server_default=sa.text('false')),
-        sa.Column('start_date', sa.Date, nullable=True),
-        sa.Column('end_date', sa.Date, nullable=True),
-        sa.Column('created_at', sa.DateTime, nullable=False, server_default=sa.func.now()),
-        sa.Column('updated_at', sa.DateTime, nullable=False, server_default=sa.func.now(), 
-                  onupdate=sa.func.now()),
-    )
-    
-    # 1.3 إضافة القيود الأجنبية لجدول schedules
-    op.create_foreign_key(
-        'fk_schedules_school', 'schedules', 'schools',
-        ['school_id'], ['id'], ondelete='CASCADE'
-    )
-    op.create_foreign_key(
-        'fk_schedules_section', 'schedules', 'sections',
-        ['section_id'], ['id'], ondelete='CASCADE'
-    )
-    op.create_foreign_key(
-        'fk_schedules_year', 'schedules', 'academic_years',
-        ['year_id'], ['id'], ondelete='CASCADE'
-    )
-    
-    # 1.4 إنشاء جدول schedule_entries
-    op.create_table(
-        'schedule_entries',
-        sa.Column('id', UUID(as_uuid=True), primary_key=True, default=uuid.uuid4),
-        sa.Column('schedule_id', UUID(as_uuid=True), nullable=False, index=True),
-        sa.Column('day_of_week', sa.Integer, nullable=False),
-        sa.Column('period_id', UUID(as_uuid=True), nullable=False, index=True),
-        sa.Column('subject_id', UUID(as_uuid=True), nullable=False, index=True),
-        sa.Column('teacher_id', UUID(as_uuid=True), nullable=False, index=True),
-        sa.Column('room_id', UUID(as_uuid=True), nullable=True, index=True),
-        sa.Column('notes', sa.Text, nullable=True),
-        sa.Column('created_at', sa.DateTime, nullable=False, server_default=sa.func.now()),
-        sa.Column('updated_at', sa.DateTime, nullable=False, server_default=sa.func.now(), 
-                  onupdate=sa.func.now()),
-    )
-    
-    # 1.5 إضافة القيود الأجنبية لجدول schedule_entries
-    op.create_foreign_key(
-        'fk_schedule_entries_schedule', 'schedule_entries', 'schedules',
-        ['schedule_id'], ['id'], ondelete='CASCADE'
-    )
-    op.create_foreign_key(
-        'fk_schedule_entries_period', 'schedule_entries', 'periods',
-        ['period_id'], ['id'], ondelete='CASCADE'
-    )
-    op.create_foreign_key(
-        'fk_schedule_entries_subject', 'schedule_entries', 'subjects',
-        ['subject_id'], ['id'], ondelete='CASCADE'
-    )
-    op.create_foreign_key(
-        'fk_schedule_entries_teacher', 'schedule_entries', 'teachers',
-        ['teacher_id'], ['id'], ondelete='CASCADE'
-    )
-    op.create_foreign_key(
-        'fk_schedule_entries_room', 'schedule_entries', 'rooms',
-        ['room_id'], ['id'], ondelete='SET NULL'
-    )
+        print("✅ تم إنشاء نوع schedulestatus")
+    else:
+        print("⏭️ نوع schedulestatus موجود بالفعل")
     
     # ============================================================
-    # الجزء 2: إضافة القيود والمؤشرات
+    # الجزء 2: إنشاء جدول schedules إذا لم يكن موجوداً
     # ============================================================
-    
-    # 2.1 قيود جدول schedules
-    op.create_unique_constraint(
-        'uq_schedule_section_year',
-        'schedules',
-        ['school_id', 'section_id', 'year_id']
-    )
-    
-    op.create_unique_constraint(
-        'uq_schedule_school_name',
-        'schedules',
-        ['school_id', 'name']
-    )
-    
-    # 2.2 مؤشرات جدول schedules
-    op.create_index('idx_schedules_status', 'schedules', ['status'])
-    op.create_index('idx_schedules_is_active', 'schedules', ['is_active'])
-    op.create_index('idx_schedules_start_date', 'schedules', ['start_date'])
-    op.create_index('idx_schedules_end_date', 'schedules', ['end_date'])
-    op.create_index('idx_schedules_section_active', 'schedules', ['section_id', 'is_active'])
-    
-    # 2.3 قيود جدول schedule_entries
-    op.create_unique_constraint(
-        'uq_schedule_day_period',
-        'schedule_entries',
-        ['schedule_id', 'day_of_week', 'period_id']
-    )
-    
-    op.create_unique_constraint(
-        'uq_schedule_day_subject',
-        'schedule_entries',
-        ['schedule_id', 'day_of_week', 'subject_id']
-    )
-    
-    op.create_unique_constraint(
-        'uq_schedule_day_period_teacher',
-        'schedule_entries',
-        ['schedule_id', 'day_of_week', 'period_id', 'teacher_id']
-    )
-    
-    # 2.4 مؤشرات جدول schedule_entries
-    op.create_index('idx_entries_day_of_week', 'schedule_entries', ['day_of_week'])
-    op.create_index('idx_entries_schedule_day', 'schedule_entries', ['schedule_id', 'day_of_week'])
-    op.create_index('idx_entries_teacher_day', 'schedule_entries', ['teacher_id', 'day_of_week'])
-    
-    # 2.5 قيد التحقق من day_of_week (0-6)
-    op.create_check_constraint(
-        'ck_schedule_entries_day_of_week',
-        'schedule_entries',
-        'day_of_week BETWEEN 0 AND 6'
-    )
-    
-    # ============================================================
-    # الجزء 3: إنشاء قوالب الجداول
-    # ============================================================
-    
-    # 3.1 إنشاء جدول schedule_templates
-    op.create_table(
-        'schedule_templates',
-        sa.Column('id', UUID(as_uuid=True), primary_key=True, default=uuid.uuid4),
-        sa.Column('school_id', UUID(as_uuid=True), nullable=False, index=True),
-        sa.Column('name', sa.String(100), nullable=False),
-        sa.Column('description', sa.Text, nullable=True),
-        sa.Column('days_count', sa.Integer, nullable=False, server_default='5'),
-        sa.Column('periods_per_day', sa.Integer, nullable=False, server_default='5'),
-        sa.Column('is_active', sa.Boolean, nullable=False, server_default=sa.text('true')),
-        sa.Column('created_at', sa.DateTime, nullable=False, server_default=sa.func.now()),
-        sa.Column('updated_at', sa.DateTime, nullable=False, server_default=sa.func.now(), 
-                  onupdate=sa.func.now()),
-    )
-    
-    # 3.2 إضافة القيود لجدول schedule_templates
-    op.create_foreign_key(
-        'fk_templates_school', 'schedule_templates', 'schools',
-        ['school_id'], ['id'], ondelete='CASCADE'
-    )
-    
-    op.create_unique_constraint(
-        'uq_template_school_name',
-        'schedule_templates',
-        ['school_id', 'name']
-    )
-    
-    # 3.3 إنشاء جدول schedule_template_entries
-    op.create_table(
-        'schedule_template_entries',
-        sa.Column('id', UUID(as_uuid=True), primary_key=True, default=uuid.uuid4),
-        sa.Column('template_id', UUID(as_uuid=True), nullable=False, index=True),
-        sa.Column('day_of_week', sa.Integer, nullable=False),
-        sa.Column('period_id', UUID(as_uuid=True), nullable=False, index=True),
-        sa.Column('subject_id', UUID(as_uuid=True), nullable=False, index=True),
-        sa.Column('created_at', sa.DateTime, nullable=False, server_default=sa.func.now()),
-        sa.Column('updated_at', sa.DateTime, nullable=False, server_default=sa.func.now(), 
-                  onupdate=sa.func.now()),
-    )
-    
-    # 3.4 إضافة القيود لجدول schedule_template_entries
-    op.create_foreign_key(
-        'fk_template_entries_template', 'schedule_template_entries', 'schedule_templates',
-        ['template_id'], ['id'], ondelete='CASCADE'
-    )
-    op.create_foreign_key(
-        'fk_template_entries_period', 'schedule_template_entries', 'periods',
-        ['period_id'], ['id'], ondelete='CASCADE'
-    )
-    op.create_foreign_key(
-        'fk_template_entries_subject', 'schedule_template_entries', 'subjects',
-        ['subject_id'], ['id'], ondelete='CASCADE'
-    )
-    
-    op.create_unique_constraint(
-        'uq_template_day_period',
-        'schedule_template_entries',
-        ['template_id', 'day_of_week', 'period_id']
-    )
-    
-    op.create_check_constraint(
-        'ck_template_entries_day_of_week',
-        'schedule_template_entries',
-        'day_of_week BETWEEN 0 AND 6'
-    )
-    
-    # ============================================================
-    # الجزء 4: ترقية البيانات الموجودة
-    # ============================================================
-    
-    # 4.1 التحقق من وجود جداول قديمة وترقيتها
-    try:
-        # التحقق من وجود عمود academic_year_id في schedules
-        inspector = sa.inspect(conn)
-        columns = [col['name'] for col in inspector.get_columns('schedules')]
+    if not table_exists('schedules'):
+        op.create_table(
+            'schedules',
+            sa.Column('id', sa.String(36), nullable=False),
+            sa.Column('school_id', sa.String(36), nullable=False, index=True),
+            sa.Column('name', sa.String(100), nullable=False),
+            sa.Column('description', sa.Text, nullable=True),
+            sa.Column('section_id', sa.String(36), nullable=False, index=True),
+            sa.Column('year_id', sa.String(36), nullable=False, index=True),
+            sa.Column('status', sa.Enum('draft', 'published', 'archived', 'cancelled', name='schedulestatus'), 
+                      nullable=False, server_default='draft'),
+            sa.Column('is_active', sa.Boolean, nullable=False, server_default=sa.text('true')),
+            sa.Column('is_default', sa.Boolean, nullable=False, server_default=sa.text('false')),
+            sa.Column('start_date', sa.Date, nullable=True),
+            sa.Column('end_date', sa.Date, nullable=True),
+            sa.Column('created_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+            sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now(), 
+                      onupdate=sa.func.now()),
+            sa.PrimaryKeyConstraint('id'),
+            sa.UniqueConstraint('school_id', 'section_id', 'year_id', name='uq_schedule_section_year'),
+            sa.UniqueConstraint('school_id', 'name', name='uq_schedule_school_name')
+        )
+        print("✅ تم إنشاء جدول schedules")
         
-        if 'academic_year_id' in columns:
-            # نقل البيانات من academic_year_id إلى year_id
+        # إضافة الفهارس
+        op.create_index('idx_schedules_status', 'schedules', ['status'])
+        op.create_index('idx_schedules_is_active', 'schedules', ['is_active'])
+        op.create_index('idx_schedules_start_date', 'schedules', ['start_date'])
+        op.create_index('idx_schedules_end_date', 'schedules', ['end_date'])
+        op.create_index('idx_schedules_section_active', 'schedules', ['section_id', 'is_active'])
+        print("✅ تم إنشاء فهارس جدول schedules")
+    else:
+        print("⏭️ جدول schedules موجود بالفعل")
+        
+        # إضافة الأعمدة المفقودة إذا كانت موجودة
+        if not column_exists('schedules', 'year_id') and column_exists('schedules', 'academic_year_id'):
+            op.alter_column('schedules', 'academic_year_id', new_column_name='year_id')
+            print("✅ تم إعادة تسمية academic_year_id إلى year_id")
+        
+        if not column_exists('schedules', 'status'):
+            op.add_column('schedules', sa.Column('status', sa.Enum('draft', 'published', 'archived', 'cancelled', name='schedulestatus'), nullable=False, server_default='draft'))
+            print("✅ تم إضافة عمود status")
+        
+        if not column_exists('schedules', 'is_default'):
+            op.add_column('schedules', sa.Column('is_default', sa.Boolean, nullable=False, server_default=sa.text('false')))
+            print("✅ تم إضافة عمود is_default")
+        
+        if not column_exists('schedules', 'start_date'):
+            op.add_column('schedules', sa.Column('start_date', sa.Date, nullable=True))
+            print("✅ تم إضافة عمود start_date")
+        
+        if not column_exists('schedules', 'end_date'):
+            op.add_column('schedules', sa.Column('end_date', sa.Date, nullable=True))
+            print("✅ تم إضافة عمود end_date")
+        
+        # إضافة الفهارس المفقودة
+        if not index_exists('schedules', 'idx_schedules_status'):
+            op.create_index('idx_schedules_status', 'schedules', ['status'])
+        
+        if not index_exists('schedules', 'idx_schedules_is_active'):
+            op.create_index('idx_schedules_is_active', 'schedules', ['is_active'])
+        
+        if not index_exists('schedules', 'idx_schedules_start_date'):
+            op.create_index('idx_schedules_start_date', 'schedules', ['start_date'])
+        
+        if not index_exists('schedules', 'idx_schedules_end_date'):
+            op.create_index('idx_schedules_end_date', 'schedules', ['end_date'])
+        
+        if not index_exists('schedules', 'idx_schedules_section_active'):
+            op.create_index('idx_schedules_section_active', 'schedules', ['section_id', 'is_active'])
+    
+    # ============================================================
+    # الجزء 3: إنشاء جدول schedule_entries
+    # ============================================================
+    if not table_exists('schedule_entries'):
+        op.create_table(
+            'schedule_entries',
+            sa.Column('id', sa.String(36), nullable=False),
+            sa.Column('schedule_id', sa.String(36), nullable=False, index=True),
+            sa.Column('day_of_week', sa.Integer, nullable=False),
+            sa.Column('period_id', sa.String(36), nullable=False, index=True),
+            sa.Column('subject_id', sa.String(36), nullable=False, index=True),
+            sa.Column('teacher_id', sa.String(36), nullable=False, index=True),
+            sa.Column('room_id', sa.String(36), nullable=True, index=True),
+            sa.Column('notes', sa.Text, nullable=True),
+            sa.Column('created_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+            sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now(), 
+                      onupdate=sa.func.now()),
+            sa.PrimaryKeyConstraint('id'),
+            sa.UniqueConstraint('schedule_id', 'day_of_week', 'period_id', name='uq_schedule_day_period'),
+            sa.UniqueConstraint('schedule_id', 'day_of_week', 'subject_id', name='uq_schedule_day_subject'),
+            sa.UniqueConstraint('schedule_id', 'day_of_week', 'period_id', 'teacher_id', name='uq_schedule_day_period_teacher'),
+            sa.CheckConstraint('day_of_week BETWEEN 0 AND 6', name='ck_schedule_entries_day_of_week')
+        )
+        print("✅ تم إنشاء جدول schedule_entries")
+        
+        # إضافة الفهارس
+        op.create_index('idx_entries_day_of_week', 'schedule_entries', ['day_of_week'])
+        op.create_index('idx_entries_schedule_day', 'schedule_entries', ['schedule_id', 'day_of_week'])
+        op.create_index('idx_entries_teacher_day', 'schedule_entries', ['teacher_id', 'day_of_week'])
+        print("✅ تم إنشاء فهارس جدول schedule_entries")
+    else:
+        print("⏭️ جدول schedule_entries موجود بالفعل")
+    
+    # ============================================================
+    # الجزء 4: إنشاء قوالب الجداول
+    # ============================================================
+    if not table_exists('schedule_templates'):
+        op.create_table(
+            'schedule_templates',
+            sa.Column('id', sa.String(36), nullable=False),
+            sa.Column('school_id', sa.String(36), nullable=False, index=True),
+            sa.Column('name', sa.String(100), nullable=False),
+            sa.Column('description', sa.Text, nullable=True),
+            sa.Column('days_count', sa.Integer, nullable=False, server_default='5'),
+            sa.Column('periods_per_day', sa.Integer, nullable=False, server_default='5'),
+            sa.Column('is_active', sa.Boolean, nullable=False, server_default=sa.text('true')),
+            sa.Column('created_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+            sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now(), 
+                      onupdate=sa.func.now()),
+            sa.PrimaryKeyConstraint('id'),
+            sa.UniqueConstraint('school_id', 'name', name='uq_template_school_name')
+        )
+        print("✅ تم إنشاء جدول schedule_templates")
+    else:
+        print("⏭️ جدول schedule_templates موجود بالفعل")
+    
+    # ============================================================
+    # الجزء 5: إنشاء جدول schedule_template_entries
+    # ============================================================
+    if not table_exists('schedule_template_entries'):
+        op.create_table(
+            'schedule_template_entries',
+            sa.Column('id', sa.String(36), nullable=False),
+            sa.Column('template_id', sa.String(36), nullable=False, index=True),
+            sa.Column('day_of_week', sa.Integer, nullable=False),
+            sa.Column('period_id', sa.String(36), nullable=False, index=True),
+            sa.Column('subject_id', sa.String(36), nullable=False, index=True),
+            sa.Column('created_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+            sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now(), 
+                      onupdate=sa.func.now()),
+            sa.PrimaryKeyConstraint('id'),
+            sa.UniqueConstraint('template_id', 'day_of_week', 'period_id', name='uq_template_day_period'),
+            sa.CheckConstraint('day_of_week BETWEEN 0 AND 6', name='ck_template_entries_day_of_week')
+        )
+        print("✅ تم إنشاء جدول schedule_template_entries")
+    else:
+        print("⏭️ جدول schedule_template_entries موجود بالفعل")
+    
+    # ============================================================
+    # الجزء 6: ترقية البيانات الموجودة
+    # ============================================================
+    if table_exists('schedules'):
+        try:
+            # تحديث status للجداول الموجودة
             conn.execute(text("""
                 UPDATE schedules 
-                SET year_id = academic_year_id 
-                WHERE year_id IS NULL AND academic_year_id IS NOT NULL
+                SET status = 'published' 
+                WHERE status IS NULL OR status = ''
             """))
+            print("✅ تم تحديث حالة الجداول")
             
-            # حذف العمود القديم
-            op.drop_column('schedules', 'academic_year_id')
-        
-        # تحديث status للجداول الموجودة
-        conn.execute(text("""
-            UPDATE schedules 
-            SET status = 'published' 
-            WHERE status IS NULL OR status = ''
-        """))
-        
-        # تحديث is_default للجدول الأول لكل شعبة
-        conn.execute(text("""
-            WITH first_schedule AS (
-                SELECT DISTINCT ON (section_id) id, section_id 
-                FROM schedules 
-                WHERE is_active = true 
-                ORDER BY section_id, created_at
-            )
-            UPDATE schedules 
-            SET is_default = true 
-            FROM first_schedule 
-            WHERE schedules.id = first_schedule.id
-        """))
-        
-        # 4.2 ترقية schedule_entries إذا كانت موجودة مسبقاً
-        if 'schedule_id' in columns:
-            # إضافة عمود notes إذا لم يكن موجوداً
-            if 'notes' not in columns:
-                op.add_column('schedule_entries', sa.Column('notes', sa.Text, nullable=True))
-            
-            # إضافة عمود room_id إذا لم يكن موجوداً
-            if 'room_id' not in columns:
-                op.add_column('schedule_entries', sa.Column('room_id', UUID(as_uuid=True), nullable=True))
-                op.create_foreign_key(
-                    'fk_schedule_entries_room', 'schedule_entries', 'rooms',
-                    ['room_id'], ['id'], ondelete='SET NULL'
+            # تحديث is_default للجدول الأول لكل شعبة
+            conn.execute(text("""
+                WITH first_schedule AS (
+                    SELECT DISTINCT ON (section_id) id, section_id 
+                    FROM schedules 
+                    WHERE is_active = true 
+                    ORDER BY section_id, created_at
                 )
-                
-    except Exception as e:
-        # تجاهل الأخطاء إذا كانت الجداول غير موجودة
-        print(f"⚠️ تنبيه: {e}")
-        pass
-    
-    # ============================================================
-    # الجزء 5: دوال مساعدة (Functions)
-    # ============================================================
-    
-    # 5.1 دالة للحصول على عدد الحصص في الجدول
-    conn.execute(text("""
-        CREATE OR REPLACE FUNCTION get_schedule_entry_count(schedule_id UUID)
-        RETURNS INTEGER AS $$
-        BEGIN
-            RETURN (SELECT COUNT(*) FROM schedule_entries WHERE schedule_id = $1);
-        END;
-        $$ LANGUAGE plpgsql;
-    """))
-    
-    # 5.2 دالة للحصول على عدد الأيام في الجدول
-    conn.execute(text("""
-        CREATE OR REPLACE FUNCTION get_schedule_days_count(schedule_id UUID)
-        RETURNS INTEGER AS $$
-        BEGIN
-            RETURN (SELECT COUNT(DISTINCT day_of_week) FROM schedule_entries WHERE schedule_id = $1);
-        END;
-        $$ LANGUAGE plpgsql;
-    """))
-    
-    # 5.3 دالة للحصول على إجمالي الحصص في الأسبوع
-    conn.execute(text("""
-        CREATE OR REPLACE FUNCTION get_schedule_total_periods(schedule_id UUID)
-        RETURNS INTEGER AS $$
-        DECLARE
-            total INTEGER;
-        BEGIN
-            SELECT COUNT(*) INTO total 
-            FROM schedule_entries 
-            WHERE schedule_id = $1;
-            RETURN total;
-        END;
-        $$ LANGUAGE plpgsql;
-    """))
-    
-    # 5.4 دالة للتحقق من صحة الجدول
-    conn.execute(text("""
-        CREATE OR REPLACE FUNCTION validate_schedule(schedule_id UUID)
-        RETURNS TABLE(
-            is_valid BOOLEAN,
-            error_message TEXT
-        ) AS $$
-        DECLARE
-            entry_count INTEGER;
-            day_count INTEGER;
-        BEGIN
-            -- التحقق من وجود حصص
-            SELECT COUNT(*) INTO entry_count FROM schedule_entries WHERE schedule_id = $1;
+                UPDATE schedules 
+                SET is_default = true 
+                FROM first_schedule 
+                WHERE schedules.id = first_schedule.id
+            """))
+            print("✅ تم تحديث الجدول الافتراضي لكل شعبة")
             
-            IF entry_count = 0 THEN
-                RETURN QUERY SELECT false, 'الجدول لا يحتوي على أي حصص';
-                RETURN;
-            END IF;
-            
-            -- التحقق من وجود أيام
-            SELECT COUNT(DISTINCT day_of_week) INTO day_count FROM schedule_entries WHERE schedule_id = $1;
-            
-            IF day_count = 0 THEN
-                RETURN QUERY SELECT false, 'الجدول لا يحتوي على أي أيام';
-                RETURN;
-            END IF;
-            
-            -- التحقق من عدم وجود حصص مكررة
-            IF EXISTS (
-                SELECT 1 
-                FROM schedule_entries 
-                WHERE schedule_id = $1 
-                GROUP BY day_of_week, period_id 
-                HAVING COUNT(*) > 1
-            ) THEN
-                RETURN QUERY SELECT false, 'يوجد حصص مكررة في نفس اليوم والفترة';
-                RETURN;
-            END IF;
-            
-            RETURN QUERY SELECT true, 'الجدول صحيح';
-        END;
-        $$ LANGUAGE plpgsql;
-    """))
+        except Exception as e:
+            print(f"⚠️ تنبيه أثناء ترقية البيانات: {e}")
+    
+    print("✅ تم الانتهاء من الترقية الشاملة لجداول الجداول الدراسية")
 
 
 def downgrade() -> None:
@@ -384,119 +273,35 @@ def downgrade() -> None:
     conn = op.get_bind()
     
     # ============================================================
-    # 1. حذف الدوال المساعدة
+    # 1. حذف جداول القوالب
     # ============================================================
-    try:
-        conn.execute(text("DROP FUNCTION IF EXISTS validate_schedule(UUID)"))
-        conn.execute(text("DROP FUNCTION IF EXISTS get_schedule_total_periods(UUID)"))
-        conn.execute(text("DROP FUNCTION IF EXISTS get_schedule_days_count(UUID)"))
-        conn.execute(text("DROP FUNCTION IF EXISTS get_schedule_entry_count(UUID)"))
-    except Exception:
-        pass
-    
-    # ============================================================
-    # 2. حذف جداول القوالب
-    # ============================================================
-    try:
+    if table_exists('schedule_template_entries'):
         op.drop_table('schedule_template_entries')
-    except Exception:
-        pass
+        print("🗑️ تم حذف جدول schedule_template_entries")
     
-    try:
+    if table_exists('schedule_templates'):
         op.drop_table('schedule_templates')
-    except Exception:
-        pass
+        print("🗑️ تم حذف جدول schedule_templates")
     
     # ============================================================
-    # 3. حذف جدول schedule_entries
+    # 2. حذف جدول schedule_entries
     # ============================================================
-    try:
-        op.drop_constraint('ck_schedule_entries_day_of_week', 'schedule_entries')
-    except Exception:
-        pass
-    
-    try:
-        op.drop_constraint('uq_schedule_day_period_teacher', 'schedule_entries')
-    except Exception:
-        pass
-    
-    try:
-        op.drop_constraint('uq_schedule_day_subject', 'schedule_entries')
-    except Exception:
-        pass
-    
-    try:
-        op.drop_constraint('uq_schedule_day_period', 'schedule_entries')
-    except Exception:
-        pass
-    
-    try:
-        op.drop_index('idx_entries_teacher_day', 'schedule_entries')
-    except Exception:
-        pass
-    
-    try:
-        op.drop_index('idx_entries_schedule_day', 'schedule_entries')
-    except Exception:
-        pass
-    
-    try:
-        op.drop_index('idx_entries_day_of_week', 'schedule_entries')
-    except Exception:
-        pass
-    
-    try:
+    if table_exists('schedule_entries'):
         op.drop_table('schedule_entries')
-    except Exception:
-        pass
+        print("🗑️ تم حذف جدول schedule_entries")
     
     # ============================================================
-    # 4. حذف جدول schedules
+    # 3. حذف جدول schedules
     # ============================================================
-    try:
-        op.drop_constraint('uq_schedule_school_name', 'schedules')
-    except Exception:
-        pass
-    
-    try:
-        op.drop_constraint('uq_schedule_section_year', 'schedules')
-    except Exception:
-        pass
-    
-    try:
-        op.drop_index('idx_schedules_section_active', 'schedules')
-    except Exception:
-        pass
-    
-    try:
-        op.drop_index('idx_schedules_end_date', 'schedules')
-    except Exception:
-        pass
-    
-    try:
-        op.drop_index('idx_schedules_start_date', 'schedules')
-    except Exception:
-        pass
-    
-    try:
-        op.drop_index('idx_schedules_is_active', 'schedules')
-    except Exception:
-        pass
-    
-    try:
-        op.drop_index('idx_schedules_status', 'schedules')
-    except Exception:
-        pass
-    
-    try:
+    if table_exists('schedules'):
         op.drop_table('schedules')
-    except Exception:
-        pass
+        print("🗑️ تم حذف جدول schedules")
     
     # ============================================================
-    # 5. حذف الـ Enum
+    # 4. حذف الـ Enum
     # ============================================================
-    try:
-        op.execute('DROP TYPE IF EXISTS schedulestatus')
-    except Exception:
-        pass
+    if type_exists('schedulestatus'):
+        conn.execute(text("DROP TYPE schedulestatus"))
+        print("🗑️ تم حذف نوع schedulestatus")
+    
+    print("✅ تم الانتهاء من التراجع عن الترقية")
