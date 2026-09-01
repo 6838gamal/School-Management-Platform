@@ -23,13 +23,26 @@ class AcademicYear(UUIDPkMixin, TimestampMixin, Base):
     is_current: Mapped[bool] = mapped_column(Boolean, default=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 
-    stages: Mapped[list["Stage"]] = relationship("Stage", back_populates="year", cascade="all, delete-orphan")
+    # Relationships
+    stages: Mapped[list["Stage"]] = relationship(
+        "Stage", 
+        back_populates="year", 
+        cascade="all, delete-orphan"
+    )
+    # ✅ إضافة علاقة عكسية مع Grade
+    grades: Mapped[list["Grade"]] = relationship(
+        "Grade",
+        back_populates="year",
+        cascade="all, delete-orphan"
+    )
 
 
 class Stage(UUIDPkMixin, TimestampMixin, Base):
     """Educational stage, e.g. Primary, Middle, Secondary."""
     __tablename__ = "stages"
-    __table_args__ = (UniqueConstraint("school_id", "year_id", "name", name="uq_stage_school_year_name"),)
+    __table_args__ = (
+        UniqueConstraint("school_id", "year_id", "name", name="uq_stage_school_year_name"),
+    )
 
     school_id: Mapped[str] = mapped_column(
         String(36), ForeignKey("schools.id", ondelete="CASCADE"), index=True
@@ -41,14 +54,22 @@ class Stage(UUIDPkMixin, TimestampMixin, Base):
     name_en: Mapped[str | None] = mapped_column(String(100))
     order: Mapped[int] = mapped_column(Integer, default=0)
 
+    # Relationships
     year: Mapped["AcademicYear"] = relationship("AcademicYear", back_populates="stages")
-    grades: Mapped[list["Grade"]] = relationship("Grade", back_populates="stage", cascade="all, delete-orphan")
+    grades: Mapped[list["Grade"]] = relationship(
+        "Grade", 
+        back_populates="stage", 
+        cascade="all, delete-orphan"
+    )
 
 
 class Grade(UUIDPkMixin, TimestampMixin, Base):
-    """Grade level within a stage, e.g. Grade 1, Grade 2."""
+    """✅ Grade level within a stage, e.g. Grade 1, Grade 2."""
     __tablename__ = "grades"
-    __table_args__ = (UniqueConstraint("stage_id", "name", name="uq_grade_stage_name"),)
+    __table_args__ = (
+        # ✅ تحديث الـ UniqueConstraint ليشمل year_id
+        UniqueConstraint("stage_id", "year_id", "name", name="uq_grade_stage_year_name"),
+    )
 
     school_id: Mapped[str] = mapped_column(
         String(36), ForeignKey("schools.id", ondelete="CASCADE"), index=True
@@ -56,18 +77,31 @@ class Grade(UUIDPkMixin, TimestampMixin, Base):
     stage_id: Mapped[str] = mapped_column(
         String(36), ForeignKey("stages.id", ondelete="CASCADE"), index=True
     )
+    # ✅ إضافة year_id كـ ForeignKey
+    year_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("academic_years.id", ondelete="CASCADE"), index=True
+    )
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     name_en: Mapped[str | None] = mapped_column(String(100))
     order: Mapped[int] = mapped_column(Integer, default=0)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 
+    # ✅ Relationships
     stage: Mapped["Stage"] = relationship("Stage", back_populates="grades")
-    sections: Mapped[list["Section"]] = relationship("Section", back_populates="grade", cascade="all, delete-orphan")
+    year: Mapped["AcademicYear"] = relationship("AcademicYear", back_populates="grades")
+    sections: Mapped[list["Section"]] = relationship(
+        "Section", 
+        back_populates="grade", 
+        cascade="all, delete-orphan"
+    )
 
 
 class Section(UUIDPkMixin, TimestampMixin, Base):
     """Section within a grade, e.g. 1-A, 1-B."""
     __tablename__ = "sections"
-    __table_args__ = (UniqueConstraint("grade_id", "name", name="uq_section_grade_name"),)
+    __table_args__ = (
+        UniqueConstraint("grade_id", "name", name="uq_section_grade_name"),
+    )
 
     school_id: Mapped[str] = mapped_column(
         String(36), ForeignKey("schools.id", ondelete="CASCADE"), index=True
@@ -79,12 +113,15 @@ class Section(UUIDPkMixin, TimestampMixin, Base):
     capacity: Mapped[int] = mapped_column(Integer, default=30)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 
+    # Relationships
     grade: Mapped["Grade"] = relationship("Grade", back_populates="sections")
 
 
 class Subject(UUIDPkMixin, TimestampMixin, Base):
     __tablename__ = "subjects"
-    __table_args__ = (UniqueConstraint("school_id", "name", name="uq_subject_school_name"),)
+    __table_args__ = (
+        UniqueConstraint("school_id", "name", name="uq_subject_school_name"),
+    )
 
     school_id: Mapped[str] = mapped_column(
         String(36), ForeignKey("schools.id", ondelete="CASCADE"), index=True
@@ -98,7 +135,9 @@ class Subject(UUIDPkMixin, TimestampMixin, Base):
 
 class Room(UUIDPkMixin, TimestampMixin, Base):
     __tablename__ = "rooms"
-    __table_args__ = (UniqueConstraint("school_id", "name", name="uq_room_school_name"),)
+    __table_args__ = (
+        UniqueConstraint("school_id", "name", name="uq_room_school_name"),
+    )
 
     school_id: Mapped[str] = mapped_column(
         String(36), ForeignKey("schools.id", ondelete="CASCADE"), index=True
@@ -113,7 +152,9 @@ class Room(UUIDPkMixin, TimestampMixin, Base):
 class Period(UUIDPkMixin, TimestampMixin, Base):
     """A time slot in the school day, e.g. Period 1: 07:00-07:45."""
     __tablename__ = "periods"
-    __table_args__ = (UniqueConstraint("school_id", "order", name="uq_period_school_order"),)
+    __table_args__ = (
+        UniqueConstraint("school_id", "order", name="uq_period_school_order"),
+    )
 
     school_id: Mapped[str] = mapped_column(
         String(36), ForeignKey("schools.id", ondelete="CASCADE"), index=True
@@ -125,7 +166,6 @@ class Period(UUIDPkMixin, TimestampMixin, Base):
     is_break: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
-
 # ✅ تحديث __all__
 __all__ = [
     "AcademicYear",
@@ -135,5 +175,4 @@ __all__ = [
     "Subject",
     "Room",
     "Period",
-    
 ]
