@@ -1,6 +1,6 @@
 """Academic structure schemas."""
 from pydantic import BaseModel, Field, validator
-from typing import Optional
+from typing import Optional, List
 
 from app.schemas.common import ORMBase
 
@@ -8,26 +8,26 @@ from app.schemas.common import ORMBase
 class SchoolOut(ORMBase):
     id: str
     name: str
-    name_en: str | None = None
+    name_en: Optional[str] = None
     code: str
-    address: str | None = None
-    phone: str | None = None
-    email: str | None = None
-    logo_url: str | None = None
+    address: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    logo_url: Optional[str] = None
     language: str
     onboarding_complete: bool
-    onboarding_step: str | None = None
+    onboarding_step: Optional[str] = None
     is_active: bool
 
 
 class SchoolUpdate(BaseModel):
-    name: str | None = None
-    name_en: str | None = None
-    address: str | None = None
-    phone: str | None = None
-    email: str | None = None
-    logo_url: str | None = None
-    language: str | None = None
+    name: Optional[str] = None
+    name_en: Optional[str] = None
+    address: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    logo_url: Optional[str] = None
+    language: Optional[str] = None
 
 
 # ============= Academic Year =============
@@ -54,11 +54,11 @@ class AcademicYearCreate(BaseModel):
 
 
 class AcademicYearUpdate(BaseModel):
-    name: str | None = None
-    start_date: str | None = None
-    end_date: str | None = None
-    is_current: bool | None = None
-    is_active: bool | None = None
+    name: Optional[str] = None
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    is_current: Optional[bool] = None
+    is_active: Optional[bool] = None
 
 
 class AcademicYearOut(ORMBase):
@@ -75,7 +75,7 @@ class AcademicYearOut(ORMBase):
 class StageCreate(BaseModel):
     year_id: str
     name: str = Field(..., min_length=2, max_length=100)
-    name_en: str | None = Field(None, max_length=100)
+    name_en: Optional[str] = Field(None, max_length=100)
     order: int = 0
     
     @validator('name')
@@ -86,10 +86,10 @@ class StageCreate(BaseModel):
 
 
 class StageUpdate(BaseModel):
-    year_id: str | None = None
-    name: str | None = None
-    name_en: str | None = None
-    order: int | None = None
+    year_id: Optional[str] = None
+    name: Optional[str] = None
+    name_en: Optional[str] = None
+    order: Optional[int] = None
 
 
 class StageOut(ORMBase):
@@ -97,17 +97,17 @@ class StageOut(ORMBase):
     school_id: str
     year_id: str
     name: str
-    name_en: str | None = None
+    name_en: Optional[str] = None
     order: int
 
 
 # ============= Grade =============
 class GradeCreate(BaseModel):
-    """✅ نموذج إنشاء صف جديد - مع دعم السنة الدراسية"""
+    """نموذج إنشاء صف جديد - مع دعم السنة الدراسية"""
     stage_id: str = Field(..., description="معرف المرحلة")
-    year_id: str = Field(..., description="معرف السنة الدراسية")  # ✅ حقل جديد
+    year_id: str = Field(..., description="معرف السنة الدراسية")
     name: str = Field(..., min_length=2, max_length=100, description="اسم الصف")
-    name_en: str | None = Field(None, max_length=100, description="اسم الصف بالإنجليزية")
+    name_en: Optional[str] = Field(None, max_length=100, description="اسم الصف بالإنجليزية")
     order: int = Field(0, ge=0, description="ترتيب الصف")
     
     @validator('name')
@@ -130,29 +130,29 @@ class GradeCreate(BaseModel):
 
 
 class GradeUpdate(BaseModel):
-    """✅ نموذج تحديث صف - مع دعم السنة الدراسية"""
-    stage_id: str | None = Field(None, description="معرف المرحلة")
-    year_id: str | None = Field(None, description="معرف السنة الدراسية")  # ✅ حقل جديد
-    name: str | None = Field(None, min_length=2, max_length=100, description="اسم الصف")
-    name_en: str | None = Field(None, max_length=100, description="اسم الصف بالإنجليزية")
-    order: int | None = Field(None, ge=0, description="ترتيب الصف")
-    is_active: bool | None = Field(None, description="حالة التفعيل")
+    """نموذج تحديث صف - مع دعم السنة الدراسية"""
+    stage_id: Optional[str] = Field(None, description="معرف المرحلة")
+    year_id: Optional[str] = Field(None, description="معرف السنة الدراسية")
+    name: Optional[str] = Field(None, min_length=2, max_length=100, description="اسم الصف")
+    name_en: Optional[str] = Field(None, max_length=100, description="اسم الصف بالإنجليزية")
+    order: Optional[int] = Field(None, ge=0, description="ترتيب الصف")
+    is_active: Optional[bool] = Field(None, description="حالة التفعيل")
 
 
 class GradeOut(ORMBase):
-    """✅ نموذج عرض الصف - مع دعم السنة الدراسية"""
+    """نموذج عرض الصف - مع دعم السنة الدراسية"""
     id: str
     school_id: str
     stage_id: str
-    year_id: str  # ✅ حقل جديد
+    year_id: str
     name: str
-    name_en: str | None = None
+    name_en: Optional[str] = None
     order: int
     is_active: bool
     
     # حقول إضافية للعرض (من JOIN)
-    stage_name: str | None = None
-    year_name: str | None = None
+    stage_name: Optional[str] = None
+    year_name: Optional[str] = None
 
 
 # ============= Section =============
@@ -169,10 +169,10 @@ class SectionCreate(BaseModel):
 
 
 class SectionUpdate(BaseModel):
-    grade_id: str | None = None
-    name: str | None = None
-    capacity: int | None = None
-    is_active: bool | None = None
+    grade_id: Optional[str] = None
+    name: Optional[str] = None
+    capacity: Optional[int] = None
+    is_active: Optional[bool] = None
 
 
 class SectionOut(ORMBase):
@@ -184,15 +184,15 @@ class SectionOut(ORMBase):
     is_active: bool
     
     # حقول إضافية للعرض
-    grade_name: str | None = None
+    grade_name: Optional[str] = None
 
 
 # ============= Subject =============
 class SubjectCreate(BaseModel):
     name: str = Field(..., min_length=2, max_length=100)
-    name_en: str | None = Field(None, max_length=100)
-    code: str | None = Field(None, max_length=20)
-    color: str | None = Field(None, max_length=20)
+    name_en: Optional[str] = Field(None, max_length=100)
+    code: Optional[str] = Field(None, max_length=20)
+    color: Optional[str] = Field(None, max_length=20)
     
     @validator('name')
     def validate_name(cls, v):
@@ -202,45 +202,45 @@ class SubjectCreate(BaseModel):
 
 
 class SubjectUpdate(BaseModel):
-    name: str | None = None
-    name_en: str | None = None
-    code: str | None = None
-    color: str | None = None
-    is_active: bool | None = None
+    name: Optional[str] = None
+    name_en: Optional[str] = None
+    code: Optional[str] = None
+    color: Optional[str] = None
+    is_active: Optional[bool] = None
 
 
 class SubjectOut(ORMBase):
     id: str
     school_id: str
     name: str
-    name_en: str | None = None
-    code: str | None = None
-    color: str | None = None
+    name_en: Optional[str] = None
+    code: Optional[str] = None
+    color: Optional[str] = None
     is_active: bool
 
 
 # ============= Room =============
 class RoomCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=50)
-    building: str | None = Field(None, max_length=100)
-    floor: str | None = Field(None, max_length=20)
+    building: Optional[str] = Field(None, max_length=100)
+    floor: Optional[str] = Field(None, max_length=20)
     capacity: int = Field(30, ge=1, le=500)
 
 
 class RoomUpdate(BaseModel):
-    name: str | None = None
-    building: str | None = None
-    floor: str | None = None
-    capacity: int | None = None
-    is_active: bool | None = None
+    name: Optional[str] = None
+    building: Optional[str] = None
+    floor: Optional[str] = None
+    capacity: Optional[int] = None
+    is_active: Optional[bool] = None
 
 
 class RoomOut(ORMBase):
     id: str
     school_id: str
     name: str
-    building: str | None = None
-    floor: str | None = None
+    building: Optional[str] = None
+    floor: Optional[str] = None
     capacity: int
     is_active: bool
 
@@ -261,11 +261,11 @@ class PeriodCreate(BaseModel):
 
 
 class PeriodUpdate(BaseModel):
-    name: str | None = None
-    order: int | None = None
-    start_time: str | None = None
-    end_time: str | None = None
-    is_break: bool | None = None
+    name: Optional[str] = None
+    order: Optional[int] = None
+    start_time: Optional[str] = None
+    end_time: Optional[str] = None
+    is_break: Optional[bool] = None
 
 
 class PeriodOut(ORMBase):
@@ -279,34 +279,6 @@ class PeriodOut(ORMBase):
 
 
 # ============= Academic Tree =============
-class AcademicTreeYear(BaseModel):
-    """نموذج السنة في الشجرة الأكاديمية"""
-    id: str
-    name: str
-    name_en: str | None = None
-    is_current: bool
-    stages: list["AcademicTreeStage"] = []
-
-
-class AcademicTreeStage(BaseModel):
-    """نموذج المرحلة في الشجرة الأكاديمية"""
-    id: str
-    name: str
-    name_en: str | None = None
-    order: int
-    grades: list["AcademicTreeGrade"] = []
-
-
-class AcademicTreeGrade(BaseModel):
-    """✅ نموذج الصف في الشجرة الأكاديمية - مع year_id"""
-    id: str
-    name: str
-    name_en: str | None = None
-    order: int
-    year_id: str  # ✅ حقل جديد
-    sections: list["AcademicTreeSection"] = []
-
-
 class AcademicTreeSection(BaseModel):
     """نموذج الشعبة في الشجرة الأكاديمية"""
     id: str
@@ -315,9 +287,38 @@ class AcademicTreeSection(BaseModel):
     is_active: bool
 
 
+class AcademicTreeGrade(BaseModel):
+    """نموذج الصف في الشجرة الأكاديمية"""
+    id: str
+    name: str
+    name_en: Optional[str] = None
+    order: int
+    year_id: str
+    sections: List[AcademicTreeSection] = []
+
+
+class AcademicTreeStage(BaseModel):
+    """نموذج المرحلة في الشجرة الأكاديمية"""
+    id: str
+    name: str
+    name_en: Optional[str] = None
+    order: int
+    year_id: str
+    grades: List[AcademicTreeGrade] = []
+
+
+class AcademicTreeYear(BaseModel):
+    """نموذج السنة في الشجرة الأكاديمية"""
+    id: str
+    name: str
+    name_en: Optional[str] = None
+    is_current: bool
+    stages: List[AcademicTreeStage] = []
+
+
 class AcademicTree(BaseModel):
     """نموذج الشجرة الأكاديمية الكامل"""
-    years: list[AcademicTreeYear] = []
+    years: List[AcademicTreeYear] = []
 
 
 # ============= Assessment (التقييمات) =============
@@ -325,31 +326,31 @@ class AssessmentCreate(BaseModel):
     """نموذج إنشاء تقييم جديد"""
     section_id: str
     subject_id: str
-    teacher_id: str | None = None
+    teacher_id: Optional[str] = None
     title: str = Field(..., min_length=2, max_length=200)
     assessment_type: str = Field(..., pattern="^(exam|quiz|assignment|homework|activity|participation)$")
     max_score: float = Field(100.0, gt=0)
-    passing_score: float | None = Field(50.0, ge=0)
+    passing_score: Optional[float] = Field(50.0, ge=0)
     weight: float = Field(1.0, gt=0)
-    date: str | None = None
-    description: str | None = None
-    school_id: str | None = None
-    year_id: str | None = None
+    date: Optional[str] = None
+    description: Optional[str] = None
+    school_id: Optional[str] = None
+    year_id: Optional[str] = None
 
 
 class AssessmentUpdate(BaseModel):
     """نموذج تحديث تقييم"""
-    section_id: str | None = None
-    subject_id: str | None = None
-    teacher_id: str | None = None
-    title: str | None = None
-    assessment_type: str | None = Field(None, pattern="^(exam|quiz|assignment|homework|activity|participation)$")
-    max_score: float | None = None
-    passing_score: float | None = None
-    weight: float | None = None
-    date: str | None = None
-    description: str | None = None
-    year_id: str | None = None
+    section_id: Optional[str] = None
+    subject_id: Optional[str] = None
+    teacher_id: Optional[str] = None
+    title: Optional[str] = None
+    assessment_type: Optional[str] = Field(None, pattern="^(exam|quiz|assignment|homework|activity|participation)$")
+    max_score: Optional[float] = None
+    passing_score: Optional[float] = None
+    weight: Optional[float] = None
+    date: Optional[str] = None
+    description: Optional[str] = None
+    year_id: Optional[str] = None
 
 
 class AssessmentOut(ORMBase):
@@ -358,25 +359,25 @@ class AssessmentOut(ORMBase):
     school_id: str
     section_id: str
     subject_id: str
-    teacher_id: str | None = None
-    year_id: str | None = None
+    teacher_id: Optional[str] = None
+    year_id: Optional[str] = None
     title: str
-    description: str | None = None
+    description: Optional[str] = None
     assessment_type: str
     max_score: float
-    passing_score: float | None = None
+    passing_score: Optional[float] = None
     weight: float
-    date: str | None = None
+    date: Optional[str] = None
     
     # حقول إضافية للعرض (من JOIN)
-    section_name: str | None = None
-    subject_name: str | None = None
-    teacher_name: str | None = None
+    section_name: Optional[str] = None
+    subject_name: Optional[str] = None
+    teacher_name: Optional[str] = None
 
 
 class AssessmentListResponse(BaseModel):
     """رد قائمة التقييمات"""
-    items: list[AssessmentOut]
+    items: List[AssessmentOut]
     total: int
     page: int = 1
     page_size: int = 10
@@ -387,35 +388,75 @@ class AssessmentListResponse(BaseModel):
 # ============================================================
 
 class GradeWithRelations(GradeOut):
-    """✅ الصف مع العلاقات الكاملة"""
-    stage: "StageOut" | None = None
-    year: "AcademicYearOut" | None = None
+    """الصف مع العلاقات الكاملة"""
+    stage: Optional["StageOut"] = None
+    year: Optional["AcademicYearOut"] = None
     sections_count: int = 0
 
 
 class StageWithRelations(StageOut):
     """المرحلة مع العلاقات الكاملة"""
-    year: "AcademicYearOut" | None = None
-    grades: list[GradeOut] = []
+    year: Optional["AcademicYearOut"] = None
+    grades: List[GradeOut] = []
     grades_count: int = 0
 
 
 class AcademicYearWithRelations(AcademicYearOut):
     """السنة الدراسية مع العلاقات الكاملة"""
-    stages: list[StageOut] = []
-    grades: list[GradeOut] = []  # ✅ علاقة مباشرة مع الصفوف
+    stages: List[StageOut] = []
+    grades: List[GradeOut] = []
     stages_count: int = 0
     grades_count: int = 0
 
 
 # ============================================================
-# ✅ تحديث Forward References
+# ✅ تحديث __all__
 # ============================================================
 
-# تحديث المراجع الأمامية لـ Pydantic
-AcademicTreeGrade.model_rebuild()
-AcademicTreeStage.model_rebuild()
-AcademicTreeYear.model_rebuild()
-GradeWithRelations.model_rebuild()
-StageWithRelations.model_rebuild()
-AcademicYearWithRelations.model_rebuild()
+__all__ = [
+    # School
+    "SchoolOut",
+    "SchoolUpdate",
+    # Academic Year
+    "AcademicYearCreate",
+    "AcademicYearUpdate",
+    "AcademicYearOut",
+    "AcademicYearWithRelations",
+    # Stage
+    "StageCreate",
+    "StageUpdate",
+    "StageOut",
+    "StageWithRelations",
+    # Grade
+    "GradeCreate",
+    "GradeUpdate",
+    "GradeOut",
+    "GradeWithRelations",
+    # Section
+    "SectionCreate",
+    "SectionUpdate",
+    "SectionOut",
+    # Subject
+    "SubjectCreate",
+    "SubjectUpdate",
+    "SubjectOut",
+    # Room
+    "RoomCreate",
+    "RoomUpdate",
+    "RoomOut",
+    # Period
+    "PeriodCreate",
+    "PeriodUpdate",
+    "PeriodOut",
+    # Academic Tree
+    "AcademicTree",
+    "AcademicTreeYear",
+    "AcademicTreeStage",
+    "AcademicTreeGrade",
+    "AcademicTreeSection",
+    # Assessment
+    "AssessmentCreate",
+    "AssessmentUpdate",
+    "AssessmentOut",
+    "AssessmentListResponse",
+]
