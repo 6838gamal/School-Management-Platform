@@ -183,7 +183,7 @@ async def get_subjects(db: AsyncSession, school_id: str) -> List[Dict]:
 
 
 async def get_teachers(db: AsyncSession, school_id: str) -> List[Dict]:
-    """جلب المعلمين"""
+    """جلب المعلمين مع المواد التي يدرسونها"""
     try:
         result = await db.execute(
             select(Teacher)
@@ -196,16 +196,43 @@ async def get_teachers(db: AsyncSession, school_id: str) -> List[Dict]:
         if not teachers:
             return []
         
-        return [
-            {
+        teachers_data = []
+        for teacher in teachers:
+            # جلب المواد التي يدرسها المعلم
+            subject_ids = []
+            subject_names = []
+            
+            # محاولة جلب المواد من علاقة teacher_subjects إذا كانت موجودة
+            try:
+                # إذا كان هناك جدول وسيط TeacherSubject
+                from app.models.teacher_subject import TeacherSubject
+                subject_result = await db.execute(
+                    select(Subject)
+                    .join(TeacherSubject, TeacherSubject.subject_id == Subject.id)
+                    .where(TeacherSubject.teacher_id == teacher.id)
+                    .where(Subject.is_active == True)
+                )
+                subjects = subject_result.scalars().all()
+                subject_ids = [str(s.id) for s in subjects]
+                subject_names = [s.name for s in subjects]
+            except Exception:
+                # إذا لم يكن هناك جدول وسيط، نستخدم التخصص
+                if teacher.specialization:
+                    subject_ids = [teacher.specialization]
+                    subject_names = [teacher.specialization]
+            
+            teachers_data.append({
                 "id": str(teacher.id),
                 "name": f"{teacher.first_name} {teacher.last_name}".strip() or teacher.full_name,
                 "employee_number": teacher.employee_number,
                 "email": teacher.email,
-                "specialization": teacher.specialization
-            }
-            for teacher in teachers
-        ]
+                "specialization": teacher.specialization,
+                "subject_ids": subject_ids,
+                "subject_names": subject_names,
+                "subject_id": subject_ids[0] if subject_ids else None,  # للمعالجة السريعة
+            })
+        
+        return teachers_data
     except Exception as e:
         print(f"⚠️ Error in get_teachers: {str(e)}")
         return []
@@ -321,6 +348,11 @@ async def create_schedule_page(
         print(f"✅ تم جلب {len(subjects)} مادة")
         print(f"✅ تم جلب {len(teachers)} معلم")
         
+        # تحويل البيانات إلى JSON للاستخدام في JavaScript
+        import json
+        teachers_json = json.dumps(teachers, ensure_ascii=False)
+        subjects_json = json.dumps(subjects, ensure_ascii=False)
+        
         return templates.TemplateResponse(
             "schedules/create.html",
             {
@@ -332,6 +364,8 @@ async def create_schedule_page(
                 "sections": sections,
                 "subjects": subjects,
                 "teachers": teachers,
+                "teachers_json": teachers_json,
+                "subjects_json": subjects_json,
                 "error": None
             }
         )
@@ -349,6 +383,8 @@ async def create_schedule_page(
                 "sections": [],
                 "subjects": [],
                 "teachers": [],
+                "teachers_json": "[]",
+                "subjects_json": "[]",
                 "error": f"حدث خطأ: {str(e)}"
             },
             status_code=400
@@ -447,6 +483,11 @@ async def edit_schedule_page(
         subjects = await get_subjects(db, user.school_id)
         teachers = await get_teachers(db, user.school_id)
         
+        # تحويل البيانات إلى JSON
+        import json
+        teachers_json = json.dumps(teachers, ensure_ascii=False)
+        subjects_json = json.dumps(subjects, ensure_ascii=False)
+        
         return templates.TemplateResponse(
             "schedules/edit.html",
             {
@@ -459,6 +500,8 @@ async def edit_schedule_page(
                 "sections": sections,
                 "subjects": subjects,
                 "teachers": teachers,
+                "teachers_json": teachers_json,
+                "subjects_json": subjects_json,
                 "days": ["الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس"],
                 "periods": ["الحصة الأولى", "الحصة الثانية", "الحصة الثالثة", "الحصة الرابعة", "الحصة الخامسة", "الحصة السادسة"],
                 "error": None
@@ -716,6 +759,34 @@ async def debug_schedule_data(
         
     except Exception as e:
         print(f"❌ Error in debug_schedule_data: {str(e)}")
+        traceback.print_exc()
+        return JSONResponse(
+            {
+                "error": str(e),
+                "traceback": traceback.format_exc()
+            },
+            status_code=500
+        )
+
+
+@router.get("/debug/teachers")
+async def debug_teachers(
+    request: Request,
+    user: CurrentUser = Depends(require_any_permission("schedules.view")),
+    db: AsyncSession = Depends(get_db),
+):
+    """عرض بيانات المعلمين للتصحيح"""
+    try:
+        teachers = await get_teachers(db, user.school_id)
+        
+        return JSONResponse({
+            "total": len(teachers),
+            "teachers": teachers,
+            "school_id": str(user.school_id)
+        })
+        
+    except Exception as e:
+        print(f"❌ Error in debug_teachers: {str(e)}")
         traceback.print_exc()
         return JSONResponse(
             {
