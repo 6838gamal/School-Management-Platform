@@ -75,7 +75,7 @@ class StudentService:
             first_name_ar=data.first_name_ar,
             last_name_ar=data.last_name_ar,
             gender=data.gender,
-            birth_date=data.birth_date.isoformat() if data.birth_date else None,
+            birth_date = data.birth_date if data.birth_date else None,
             nationality=data.nationality,
             guardian_name=data.guardian_name,
             guardian_phone=data.guardian_phone,
