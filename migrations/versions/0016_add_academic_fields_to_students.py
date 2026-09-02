@@ -226,26 +226,7 @@ def upgrade() -> None:
     else:
         logger.info("Column 'section_id' already exists, skipping")
     
-    # ========== 4. إضافة period_id ==========
-    if not column_exists('students', 'period_id'):
-        logger.info("Adding column 'period_id' to 'students'")
-        
-        op.add_column(
-            'students',
-            sa.Column(
-                'period_id',
-                sa.String(36),
-                nullable=True,
-                comment='معرف الفصل/الحصة'
-            )
-        )
-        
-        if not index_exists('students', 'ix_students_period_id'):
-            op.create_index('ix_students_period_id', 'students', ['period_id'])
-            logger.info("Created index on period_id")
-    else:
-        logger.info("Column 'period_id' already exists, skipping")
-
+    
 
 def downgrade() -> None:
     """حذف الحقول المضافة (التراجع) مع التحقق الكامل"""
@@ -253,19 +234,7 @@ def downgrade() -> None:
     if not table_exists('students'):
         return
     
-    # ========== 1. حذف period_id ==========
-    if column_exists('students', 'period_id'):
-        logger.info("Dropping column 'period_id'")
-        
-        if index_exists('students', 'ix_students_period_id'):
-            try:
-                op.drop_index('ix_students_period_id', table_name='students')
-                logger.info("Dropped index on period_id")
-            except Exception as e:
-                logger.warning(f"Could not drop index: {e}")
-        
-        op.drop_column('students', 'period_id')
-        logger.info("Column 'period_id' dropped")
+    
     
     # ========== 2. حذف grade_id ==========
     if column_exists('students', 'grade_id'):
@@ -323,7 +292,7 @@ def upgrade_full() -> None:
             year_id VARCHAR(36),
             grade_id VARCHAR(36),
             section_id VARCHAR(36),
-            period_id VARCHAR(36),
+            
             student_number VARCHAR(50) NOT NULL,
             national_id VARCHAR(50),
             first_name VARCHAR(100) NOT NULL,
@@ -380,5 +349,5 @@ def upgrade_full() -> None:
     op.create_index('ix_students_year_id', 'students', ['year_id'])
     op.create_index('ix_students_grade_id', 'students', ['grade_id'])
     op.create_index('ix_students_section_id', 'students', ['section_id'])
-    op.create_index('ix_students_period_id', 'students', ['period_id'])
+    
     op.create_index('ix_students_student_number', 'students', ['student_number'])
