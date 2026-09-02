@@ -68,19 +68,13 @@ async def get_onboarding_data(db: AsyncSession, school_id: str):
         )
         sections = sections_result.scalars().all()
         
-        # 4. جلب الفترات (الحصص)
-        periods_result = await db.execute(
-            select(Period)
-            .where(Period.school_id == school_id)
-            .order_by(Period.order)
-        )
-        periods = periods_result.scalars().all()
+        
         
         return {
             "years": years,
             "grades": grades,
             "sections": sections,
-            "periods": periods
+            
         }
     except Exception as e:
         print(f"⚠️ Error in get_onboarding_data: {str(e)}")
@@ -118,7 +112,7 @@ async def student_new(
                 "sections": sections_data, 
                 "years": data.get("years", []),
                 "grades": data.get("grades", []),
-                "periods": data.get("periods", []),
+        
                 "student": None,
                 "error": None
             },
@@ -134,7 +128,7 @@ async def student_new(
                 "sections": [], 
                 "years": [],
                 "grades": [],
-                "periods": [],
+                
                 "student": None,
                 "error": f"حدث خطأ: {str(e)}"
             },
@@ -161,7 +155,7 @@ async def student_create(
     year_id: Optional[str] = Form(None),
     grade_id: Optional[str] = Form(None),
     section_id: Optional[str] = Form(None),
-    period_id: Optional[str] = Form(None),
+    
 ):
     service = StudentService(db)
     ctx = await template_context(request)
@@ -200,7 +194,7 @@ async def student_create(
                 "sections": sections_data, 
                 "years": data.get("years", []),
                 "grades": data.get("grades", []),
-                "periods": data.get("periods", []),
+                
                 "student": None,
                 "error": "الرجاء تصحيح الأخطاء التالية:<br>• " + "<br>• ".join(errors.values())
             },
@@ -221,7 +215,7 @@ async def student_create(
         year_id=year_id,
         grade_id=grade_id,
         section_id=section_id,
-        period_id=period_id,
+    
     )
     
     try:
@@ -247,7 +241,7 @@ async def student_create(
                 "sections": sections_data, 
                 "years": data.get("years", []),
                 "grades": data.get("grades", []),
-                "periods": data.get("periods", []),
+                
                 "student": None,
                 "error": str(e)
             },
@@ -273,7 +267,7 @@ async def student_create(
                 "sections": sections_data, 
                 "years": data.get("years", []),
                 "grades": data.get("grades", []),
-                "periods": data.get("periods", []),
+                
                 "student": None,
                 "error": str(e)
             },
@@ -299,7 +293,7 @@ async def student_create(
                 "sections": sections_data, 
                 "years": data.get("years", []),
                 "grades": data.get("grades", []),
-                "periods": data.get("periods", []),
+                
                 "student": None,
                 "error": str(e)
             },
@@ -326,7 +320,7 @@ async def student_create(
                 "sections": sections_data, 
                 "years": data.get("years", []),
                 "grades": data.get("grades", []),
-                "periods": data.get("periods", []),
+            
                 "student": None,
                 "error": f"حدث خطأ غير متوقع: {str(e)}"
             },
@@ -411,7 +405,7 @@ async def student_edit(
                 "sections": sections_data, 
                 "years": data.get("years", []),
                 "grades": data.get("grades", []),
-                "periods": data.get("periods", []),
+                
                 "error": None
             },
         )
@@ -449,7 +443,7 @@ async def student_update(
     year_id: Optional[str] = Form(None),
     grade_id: Optional[str] = Form(None),
     section_id: Optional[str] = Form(None),
-    period_id: Optional[str] = Form(None),
+    
     is_active: Optional[bool] = Form(None),
 ):
     service = StudentService(db)
@@ -487,7 +481,7 @@ async def student_update(
                     "sections": sections_data, 
                     "years": data.get("years", []),
                     "grades": data.get("grades", []),
-                    "periods": data.get("periods", []),
+                    
                     "error": "الرجاء تصحيح الأخطاء التالية:<br>• " + "<br>• ".join(errors.values())
                 },
                 status_code=422
@@ -512,7 +506,7 @@ async def student_update(
         year_id=year_id,
         grade_id=grade_id,
         section_id=section_id,
-        period_id=period_id,
+    
         is_active=is_active,
     )
     
@@ -548,7 +542,7 @@ async def student_update(
                     "sections": sections_data, 
                     "years": data.get("years", []),
                     "grades": data.get("grades", []),
-                    "periods": data.get("periods", []),
+                    
                     "error": str(e)
                 },
                 status_code=409
@@ -582,7 +576,7 @@ async def student_update(
                     "sections": sections_data, 
                     "years": data.get("years", []),
                     "grades": data.get("grades", []),
-                    "periods": data.get("periods", []),
+                
                     "error": str(e)
                 },
                 status_code=422
@@ -617,7 +611,7 @@ async def student_update(
                     "sections": sections_data, 
                     "years": data.get("years", []),
                     "grades": data.get("grades", []),
-                    "periods": data.get("periods", []),
+                    
                     "error": f"حدث خطأ غير متوقع: {str(e)}"
                 },
                 status_code=500
