@@ -783,11 +783,7 @@ class StudentService:
         result = await self.db.execute(stmt)
         return result.scalar_one_or_none()
 
-    async def _get_period(self, period_id: str) -> Optional[Period]:
-        """جلب الفصل/الحصة من قاعدة البيانات."""
-        stmt = select(Period).where(Period.id == period_id)
-        result = await self.db.execute(stmt)
-        return result.scalar_one_or_none()
+    
 
     async def _get_years(self, school_id: str) -> List[AcademicYear]:
         """جلب جميع السنوات الدراسية للمدرسة."""
