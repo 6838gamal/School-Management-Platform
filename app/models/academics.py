@@ -29,7 +29,6 @@ class AcademicYear(UUIDPkMixin, TimestampMixin, Base):
         back_populates="year", 
         cascade="all, delete-orphan"
     )
-    # ✅ إضافة علاقة عكسية مع Grade
     grades: Mapped[list["Grade"]] = relationship(
         "Grade",
         back_populates="year",
@@ -64,10 +63,9 @@ class Stage(UUIDPkMixin, TimestampMixin, Base):
 
 
 class Grade(UUIDPkMixin, TimestampMixin, Base):
-    """✅ Grade level within a stage, e.g. Grade 1, Grade 2."""
+    """Grade level within a stage, e.g. Grade 1, Grade 2."""
     __tablename__ = "grades"
     __table_args__ = (
-        # ✅ تحديث الـ UniqueConstraint ليشمل year_id
         UniqueConstraint("stage_id", "year_id", "name", name="uq_grade_stage_year_name"),
     )
 
@@ -77,7 +75,6 @@ class Grade(UUIDPkMixin, TimestampMixin, Base):
     stage_id: Mapped[str] = mapped_column(
         String(36), ForeignKey("stages.id", ondelete="CASCADE"), index=True
     )
-    # ✅ إضافة year_id كـ ForeignKey
     year_id: Mapped[str] = mapped_column(
         String(36), ForeignKey("academic_years.id", ondelete="CASCADE"), index=True
     )
@@ -86,7 +83,7 @@ class Grade(UUIDPkMixin, TimestampMixin, Base):
     order: Mapped[int] = mapped_column(Integer, default=0)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 
-    # ✅ Relationships
+    # Relationships
     stage: Mapped["Stage"] = relationship("Stage", back_populates="grades")
     year: Mapped["AcademicYear"] = relationship("AcademicYear", back_populates="grades")
     sections: Mapped[list["Section"]] = relationship(
@@ -112,6 +109,16 @@ class Section(UUIDPkMixin, TimestampMixin, Base):
     name: Mapped[str] = mapped_column(String(50), nullable=False)
     capacity: Mapped[int] = mapped_column(Integer, default=30)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    
+    # ✅ حقل السنة الدراسية (بدون مفتاح خارجي)
+    year_id: Mapped[str] = mapped_column(
+        String(36), nullable=False, index=True, comment="معرف السنة الدراسية"
+    )
+    
+    # ✅ حقل المعلمين رؤساء الفصل (بدون مفتاح خارجي)
+    class_teacher_ids: Mapped[str | None] = mapped_column(
+        String(500), nullable=True, comment="معرفات المعلمين رؤساء الفصل مفصولة بفواصل"
+    )
 
     # Relationships
     grade: Mapped["Grade"] = relationship("Grade", back_populates="sections")
@@ -166,7 +173,6 @@ class Period(UUIDPkMixin, TimestampMixin, Base):
     is_break: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
-# ✅ تحديث __all__
 __all__ = [
     "AcademicYear",
     "Stage",
