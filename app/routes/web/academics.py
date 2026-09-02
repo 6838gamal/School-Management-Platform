@@ -1,3 +1,5 @@
+# app/routes/academic_structure_web.py
+
 """Academic structure web routes."""
 from fastapi import APIRouter, Depends, Request, HTTPException, status
 from fastapi.responses import RedirectResponse
@@ -8,8 +10,9 @@ import logging
 
 from app.core.database import get_db
 from app.core.dependencies import CurrentUser, require_any_permission, template_context
-from app.core.exceptions import NotFoundException, ConflictException, ValidationException  # ✅ تصحيح الاستيراد
+from app.core.exceptions import NotFoundException, ConflictException, ValidationException
 from app.services.academic_service import AcademicService
+from app.services.teacher_service import TeacherService
 from app.schemas.academics import (
     AcademicYearCreate, StageCreate, GradeCreate, SectionCreate,
     SubjectCreate, RoomCreate, PeriodCreate,
@@ -106,7 +109,7 @@ async def create_year_api(
     try:
         result = await service.create_year(user.school_id, req)
         return {"success": True, "id": result.id, "message": "تم إضافة العام الدراسي بنجاح"}
-    except ConflictException as e:  # ✅ استخدام ConflictException
+    except ConflictException as e:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
     except Exception as e:
         logger.error(f"Error creating year: {str(e)}")
@@ -228,7 +231,7 @@ async def create_stage_api(
         return {"success": True, "id": result.id, "message": "تم إضافة المرحلة بنجاح"}
     except NotFoundException as e:
         raise HTTPException(status_code=404, detail=str(e))
-    except ConflictException as e:  # ✅ استخدام ConflictException
+    except ConflictException as e:
         raise HTTPException(status_code=409, detail=str(e))
     except Exception as e:
         logger.error(f"Error creating stage: {str(e)}")
@@ -375,7 +378,7 @@ async def edit_grade_page(
     )
 
 
-@router.post("/academics/grades/create")
+@router.post("/api/grades/create")
 async def create_grade_api(
     req: GradeCreate,
     user: CurrentUser = Depends(require_any_permission("academics.create")),
@@ -419,12 +422,12 @@ async def create_grade_api(
         
     except HTTPException:
         raise
-    except ConflictException as e:  # ✅ استخدام ConflictException
+    except ConflictException as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
         )
-    except ValidationException as e:  # ✅ استخدام ValidationException
+    except ValidationException as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
@@ -437,7 +440,7 @@ async def create_grade_api(
         )
 
 
-@router.put("/academics/grades/{grade_id}")
+@router.put("/api/grades/{grade_id}")
 async def update_grade_api(
     grade_id: str,
     req: GradeUpdate,
@@ -478,9 +481,9 @@ async def update_grade_api(
         
     except NotFoundException:
         raise HTTPException(status_code=404, detail="الصف غير موجود")
-    except ConflictException as e:  # ✅ استخدام ConflictException
+    except ConflictException as e:
         raise HTTPException(status_code=400, detail=str(e))
-    except ValidationException as e:  # ✅ استخدام ValidationException
+    except ValidationException as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"Error updating grade: {str(e)}")
@@ -490,7 +493,7 @@ async def update_grade_api(
         )
 
 
-@router.delete("/academics/grades/{grade_id}")
+@router.delete("/api/grades/{grade_id}")
 async def delete_grade_api(
     grade_id: str,
     user: CurrentUser = Depends(require_any_permission("academics.delete")),
@@ -512,7 +515,7 @@ async def delete_grade_api(
 
 
 # ============================================================
-#  الشعب - Sections
+#  الشعب - Sections (مع دعم السنة والمعلمين)
 # ============================================================
 
 @router.get("/sections/list")
@@ -522,16 +525,20 @@ async def list_sections(
     db: AsyncSession = Depends(get_db),
     ctx: dict = Depends(template_context),
     grade_id: Optional[str] = None,
+    year_id: Optional[str] = None,
 ):
     """عرض قائمة الشعب"""
     service = AcademicService(db)
     
     if grade_id:
         sections = await service.sections.list_by_grade(grade_id)
+    elif year_id:
+        sections = await service.sections.list_by_school_and_year(user.school_id, year_id)
     else:
         sections = await service.sections.list_by_school(user.school_id)
     
     grades = await service.grades.list_by_school(user.school_id)
+    years = await service.years.list_by_school(user.school_id)
     
     return templates.TemplateResponse(
         "academics/sections/list.html",
@@ -541,7 +548,9 @@ async def list_sections(
             "items": sections,
             "type": "sections",
             "grades": grades,
-            "selected_grade": grade_id
+            "years": years,
+            "selected_grade": grade_id,
+            "selected_year": year_id
         }
     )
 
@@ -553,12 +562,29 @@ async def create_section_page(
     db: AsyncSession = Depends(get_db),
     ctx: dict = Depends(template_context),
 ):
-    """صفحة إضافة شعبة"""
+    """صفحة إضافة شعبة مع دعم السنة والمعلمين"""
     service = AcademicService(db)
+    
+    # جلب السنوات الدراسية
+    years = await service.years.list_by_school(user.school_id)
+    
+    # جلب الصفوف
     grades = await service.grades.list_by_school(user.school_id)
+    
+    # جلب المعلمين النشطين
+    teacher_service = TeacherService(db)
+    teachers_result = await teacher_service.list_teachers(user.school_id, 1, 1000, None)
+    teachers = teachers_result.get("items", [])
+    
     return templates.TemplateResponse(
         "academics/sections/create.html",
-        {**ctx, "title": "إضافة شعبة", "grades": grades}
+        {
+            **ctx, 
+            "title": "إضافة شعبة", 
+            "grades": grades,
+            "years": years,
+            "teachers": teachers
+        }
     )
 
 
@@ -575,10 +601,32 @@ async def edit_section_page(
     section = await service.sections.get_by_id(section_id)
     if not section:
         raise HTTPException(status_code=404, detail="الشعبة غير موجودة")
+    
+    # جلب البيانات المطلوبة
     grades = await service.grades.list_by_school(user.school_id)
+    years = await service.years.list_by_school(user.school_id)
+    
+    # جلب المعلمين النشطين
+    teacher_service = TeacherService(db)
+    teachers_result = await teacher_service.list_teachers(user.school_id, 1, 1000, None)
+    teachers = teachers_result.get("items", [])
+    
+    # جلب المعلمين المرتبطين بالشعبة كرؤساء فصل
+    class_teachers = []
+    if hasattr(section, 'class_teachers'):
+        class_teachers = [t.id for t in section.class_teachers]
+    
     return templates.TemplateResponse(
         "academics/sections/update.html",
-        {**ctx, "title": "تعديل شعبة", "item": section, "grades": grades}
+        {
+            **ctx, 
+            "title": "تعديل شعبة", 
+            "item": section, 
+            "grades": grades,
+            "years": years,
+            "teachers": teachers,
+            "class_teachers": class_teachers
+        }
     )
 
 
@@ -588,13 +636,21 @@ async def create_section_api(
     user: CurrentUser = Depends(require_any_permission("academics.create")),
     db: AsyncSession = Depends(get_db),
 ):
-    """API: إنشاء شعبة جديدة"""
+    """API: إنشاء شعبة جديدة مع دعم السنة والمعلمين"""
     service = AcademicService(db)
     try:
         result = await service.create_section(user.school_id, req)
-        return {"success": True, "id": result.id, "message": "تم إضافة الشعبة بنجاح"}
+        return {
+            "success": True, 
+            "id": result.id, 
+            "message": "تم إضافة الشعبة بنجاح"
+        }
     except NotFoundException as e:
         raise HTTPException(status_code=404, detail=str(e))
+    except ConflictException as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    except ValidationException as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"Error creating section: {str(e)}")
         raise HTTPException(
@@ -610,13 +666,17 @@ async def update_section_api(
     user: CurrentUser = Depends(require_any_permission("academics.update")),
     db: AsyncSession = Depends(get_db),
 ):
-    """API: تحديث شعبة"""
+    """API: تحديث شعبة مع دعم السنة والمعلمين"""
     service = AcademicService(db)
     try:
         await service.update_section(section_id, req)
         return {"success": True, "message": "تم تحديث الشعبة بنجاح"}
     except NotFoundException:
         raise HTTPException(status_code=404, detail="الشعبة غير موجودة")
+    except ConflictException as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    except ValidationException as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"Error updating section: {str(e)}")
         raise HTTPException(
@@ -709,7 +769,7 @@ async def create_subject_api(
     try:
         result = await service.create_subject(user.school_id, req)
         return {"success": True, "id": result.id, "message": "تم إضافة المادة بنجاح"}
-    except ConflictException as e:  # ✅ استخدام ConflictException
+    except ConflictException as e:
         raise HTTPException(status_code=409, detail=str(e))
     except Exception as e:
         logger.error(f"Error creating subject: {str(e)}")
@@ -825,7 +885,7 @@ async def create_room_api(
     try:
         result = await service.create_room(user.school_id, req)
         return {"success": True, "id": result.id, "message": "تم إضافة القاعة بنجاح"}
-    except ConflictException as e:  # ✅ استخدام ConflictException
+    except ConflictException as e:
         raise HTTPException(status_code=409, detail=str(e))
     except Exception as e:
         logger.error(f"Error creating room: {str(e)}")
@@ -941,7 +1001,7 @@ async def create_period_api(
     try:
         result = await service.create_period(user.school_id, req)
         return {"success": True, "id": result.id, "message": "تم إضافة الفصل بنجاح"}
-    except ConflictException as e:  # ✅ استخدام ConflictException
+    except ConflictException as e:
         raise HTTPException(status_code=409, detail=str(e))
     except Exception as e:
         logger.error(f"Error creating period: {str(e)}")
@@ -1125,4 +1185,44 @@ async def get_stages_by_year(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="حدث خطأ أثناء جلب المراحل"
+        )
+
+
+@router.get("/api/sections/by-grade/{grade_id}")
+async def get_sections_by_grade(
+    grade_id: str,
+    user: CurrentUser = Depends(require_any_permission("academics.view")),
+    db: AsyncSession = Depends(get_db),
+):
+    """API: جلب الشعب حسب الصف"""
+    service = AcademicService(db)
+    
+    try:
+        # جلب الشعب
+        sections = await service.sections.list_by_grade(grade_id)
+        
+        return {
+            "success": True,
+            "data": [
+                {
+                    "id": s.id,
+                    "name": s.name,
+                    "capacity": s.capacity,
+                    "is_active": s.is_active,
+                    "class_teachers": [
+                        {
+                            "id": t.id,
+                            "name": f"{t.first_name} {t.last_name}"
+                        }
+                        for t in s.class_teachers
+                    ] if hasattr(s, 'class_teachers') else []
+                }
+                for s in sections
+            ]
+        }
+    except Exception as e:
+        logger.error(f"Error fetching sections by grade: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="حدث خطأ أثناء جلب الشعب"
         )
