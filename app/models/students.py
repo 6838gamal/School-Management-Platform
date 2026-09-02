@@ -18,7 +18,7 @@ class Student(UUIDPkMixin, TimestampMixin, Base):
     __tablename__ = "students"
 
     # ============================================================
-    # المعرفات (بدون Foreign Keys)
+    # المعرفات (بدون Foreign Keys) - حسب طلبك
     # ============================================================
     school_id: Mapped[str] = mapped_column(
         String(36), index=True, nullable=False
@@ -26,8 +26,21 @@ class Student(UUIDPkMixin, TimestampMixin, Base):
     user_id: Mapped[str | None] = mapped_column(
         String(36), index=True, nullable=True
     )
+    
+    # ============================================================
+    # ✅ الحقول الأكاديمية الجديدة (بدون Foreign Keys)
+    # ============================================================
+    year_id: Mapped[str | None] = mapped_column(
+        String(36), index=True, nullable=True, comment="معرف السنة الدراسية"
+    )
+    grade_id: Mapped[str | None] = mapped_column(
+        String(36), index=True, nullable=True, comment="معرف الصف"
+    )
     section_id: Mapped[str | None] = mapped_column(
-        String(36), index=True, nullable=True
+        String(36), index=True, nullable=True, comment="معرف الشعبة"
+    )
+    period_id: Mapped[str | None] = mapped_column(
+        String(36), index=True, nullable=True, comment="معرف الفصل/الحصة"
     )
     
     # ============================================================
