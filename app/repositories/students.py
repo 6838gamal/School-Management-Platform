@@ -1,3 +1,5 @@
+# app/repositories/students.py
+
 """Student repositories."""
 from typing import List, Optional, Tuple
 from sqlalchemy import select, func, and_, or_
@@ -156,7 +158,6 @@ class StudentRepository(BaseRepository[Student]):
         year_id: Optional[str] = None,
         grade_id: Optional[str] = None,
         section_id: Optional[str] = None,
-        
         created_by: Optional[str] = None,
         first_name_ar: Optional[str] = None,
         last_name_ar: Optional[str] = None,
@@ -188,7 +189,6 @@ class StudentRepository(BaseRepository[Student]):
             year_id=year_id,
             grade_id=grade_id,
             section_id=section_id,
-        
             is_active=True,
             enrollment_status="active",
         )
@@ -201,7 +201,7 @@ class StudentRepository(BaseRepository[Student]):
             enrollment = StudentEnrollment(
                 student_id=student.id,
                 school_id=school_id,
-                academic_year_id=year_id,  # استخدام academic_year_id
+                year_id=year_id,  # ✅ استخدم year_id بدلاً من academic_year_id
                 section_id=section_id,
                 status="active",
                 enrolled_at=datetime.now(timezone.utc).date(),
@@ -223,7 +223,7 @@ class StudentRepository(BaseRepository[Student]):
             'national_id', 'gender', 'birth_date', 'nationality',
             'guardian_name', 'guardian_phone', 'guardian_email', 'guardian_relation',
             'phone', 'address', 'photo_url',
-            'year_id', 'grade_id', 'section_id', 'period_id',
+            'year_id', 'grade_id', 'section_id',  # ❌ حذف period_id
             'is_active', 'enrollment_status'
         ]
         
@@ -277,12 +277,12 @@ class EnrollmentRepository(BaseRepository[StudentEnrollment]):
     """مستودع تسجيلات الطلاب."""
     model = StudentEnrollment
 
-    async def get_active(self, student_id: str, academic_year_id: str) -> Optional[StudentEnrollment]:
+    async def get_active(self, student_id: str, year_id: str) -> Optional[StudentEnrollment]:
         """جلب التسجيل النشط لطالب في عام دراسي."""
         result = await self.db.execute(
             select(StudentEnrollment).where(
                 StudentEnrollment.student_id == student_id,
-                StudentEnrollment.academic_year_id == academic_year_id,
+                StudentEnrollment.year_id == year_id,
                 StudentEnrollment.status == "active",
             )
         )
@@ -301,12 +301,12 @@ class EnrollmentRepository(BaseRepository[StudentEnrollment]):
         )
         return result.scalar_one_or_none()
 
-    async def list_by_section(self, section_id: str, academic_year_id: str) -> List[StudentEnrollment]:
+    async def list_by_section(self, section_id: str, year_id: str) -> List[StudentEnrollment]:
         """جلب تسجيلات الطلاب حسب الشعبة والعام الدراسي."""
         result = await self.db.execute(
             select(StudentEnrollment).where(
                 StudentEnrollment.section_id == section_id,
-                StudentEnrollment.academic_year_id == academic_year_id,
+                StudentEnrollment.year_id == year_id,
                 StudentEnrollment.status == "active",
             )
         )
@@ -326,7 +326,7 @@ class EnrollmentRepository(BaseRepository[StudentEnrollment]):
         student_id: str,
         school_id: str,
         section_id: str,
-        academic_year_id: str,
+        year_id: str,
         enrolled_by: Optional[str] = None,
     ) -> StudentEnrollment:
         """إنشاء تسجيل جديد لطالب."""
@@ -334,7 +334,7 @@ class EnrollmentRepository(BaseRepository[StudentEnrollment]):
             student_id=student_id,
             school_id=school_id,
             section_id=section_id,
-            academic_year_id=academic_year_id,
+            year_id=year_id,  # ✅ استخدم year_id
             status="active",
             enrolled_at=datetime.now(timezone.utc).date(),
         )
@@ -355,7 +355,7 @@ class EnrollmentRepository(BaseRepository[StudentEnrollment]):
         self,
         student_id: str,
         new_section_id: str,
-        academic_year_id: str,
+        year_id: str,
         school_id: str,
         performed_by: Optional[str] = None,
     ) -> StudentEnrollment:
@@ -372,7 +372,7 @@ class EnrollmentRepository(BaseRepository[StudentEnrollment]):
             student_id=student_id,
             school_id=school_id,
             section_id=new_section_id,
-            academic_year_id=academic_year_id,
+            year_id=year_id,  # ✅ استخدم year_id
             status="active",
             enrolled_at=datetime.now(timezone.utc).date(),
         )
@@ -384,14 +384,14 @@ class EnrollmentRepository(BaseRepository[StudentEnrollment]):
     async def get_students_by_section(
         self,
         section_id: str,
-        academic_year_id: str,
+        year_id: str,
         is_active: bool = True,
     ) -> List[Student]:
         """✅ جلب الطلاب المسجلين في شعبة معينة."""
         # جلب student_id من StudentEnrollment
         enrollment_stmt = select(StudentEnrollment.student_id).where(
             StudentEnrollment.section_id == section_id,
-            StudentEnrollment.academic_year_id == academic_year_id,
+            StudentEnrollment.year_id == year_id,
             StudentEnrollment.status == "active",
         )
         result = await self.db.execute(enrollment_stmt)
