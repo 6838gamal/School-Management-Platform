@@ -17,7 +17,11 @@
         </div>
 
         <form id="createForm" method="POST" action="/api/v1/academics/grades/create" onsubmit="return handleSubmit(event, this)" novalidate>
-            <!-- ❌ تم إزالة CSRF Token -->
+            
+            <!-- ✅ الحقول المخفية المطلوبة من الخادم -->
+            <input type="hidden" name="school_id" value="{{ current_user.school_id if current_user and current_user.school_id else '' }}">
+            <input type="hidden" name="is_active" value="true">
+            <input type="hidden" name="code" value="">
 
             <div class="space-y-4">
                 <!-- ✅ حقل السنة الدراسية -->
@@ -117,7 +121,7 @@
     </div>
 </div>
 
-<!-- JavaScript المحسن - بدون CSRF -->
+<!-- JavaScript المحسن - مع دعم CSRF وتحسين معالجة الأخطاء -->
 <script>
     (function() {
         'use strict';
@@ -182,7 +186,7 @@
         document.addEventListener('DOMContentLoaded', updateStagesByYear);
 
         // ============================================================
-        // 2. التحقق من صحة البيانات
+        // 2. التحقق من صحة البيانات المحسّن
         // ============================================================
 
         function validateFormData(data) {
@@ -228,7 +232,7 @@
         }
 
         // ============================================================
-        // 4. عرض الرسائل (Toast)
+        // 4. عرض الرسائل (Toast) المحسّن
         // ============================================================
 
         function showMessage(message, type = 'success') {
@@ -237,17 +241,19 @@
             const colors = {
                 success: 'bg-green-50 text-green-800 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800',
                 error: 'bg-red-50 text-red-800 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800',
-                warning: 'bg-yellow-50 text-yellow-800 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-400 dark:border-yellow-800'
+                warning: 'bg-yellow-50 text-yellow-800 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-400 dark:border-yellow-800',
+                info: 'bg-blue-50 text-blue-800 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800'
             };
 
             const icons = {
                 success: '✅',
                 error: '❌',
-                warning: '⚠️'
+                warning: '⚠️',
+                info: 'ℹ️'
             };
 
             const div = document.createElement('div');
-            div.className = `toast-message fixed top-4 right-4 p-4 rounded-lg border ${colors[type]} shadow-lg z-50 max-w-md`;
+            div.className = `toast-message fixed top-4 right-4 p-4 rounded-lg border ${colors[type] || colors.info} shadow-lg z-50 max-w-md`;
             div.setAttribute('role', 'alert');
             div.setAttribute('aria-live', 'polite');
 
@@ -256,7 +262,7 @@
             iconSpan.className = 'mr-2';
 
             const textSpan = document.createElement('span');
-            textSpan.textContent = message.replace(/^[✅❌⚠️]\s*/, '');
+            textSpan.textContent = message.replace(/^[✅❌⚠️ℹ️]\s*/, '');
 
             div.appendChild(iconSpan);
             div.appendChild(textSpan);
@@ -283,7 +289,7 @@
         }
 
         // ============================================================
-        // 5. معالج الإرسال الرئيسي - بدون CSRF
+        // 5. معالج الإرسال الرئيسي المحسّن
         // ============================================================
 
         async function handleSubmit(event, form) {
@@ -292,12 +298,23 @@
             setFormLoading(true);
 
             const formData = new FormData(form);
-            const data = Object.fromEntries(formData.entries());
+            
+            // ✅ بناء الكائن بشكل صحيح مع تحويل البيانات
+            const data = {
+                year_id: formData.get('year_id'),
+                stage_id: formData.get('stage_id'),
+                name: formData.get('name')?.trim() || '',
+                name_en: formData.get('name_en')?.trim() || '',
+                order: parseInt(formData.get('order')) || 0,
+                school_id: formData.get('school_id') || '',
+                is_active: formData.get('is_active') === 'true',
+                code: formData.get('code') || ''
+            };
 
-            if (data.order) {
-                data.order = parseInt(data.order) || 0;
-            }
+            // ✅ تسجيل البيانات المرسلة للتصحيح
+            console.log('📦 البيانات المرسلة:', data);
 
+            // التحقق من صحة البيانات
             const errors = validateFormData(data);
             if (errors.length > 0) {
                 showMessage(errors.join(' • '), 'error');
@@ -313,12 +330,26 @@
             }
 
             try {
-                // ❌ تم إزالة CSRF Token من الـ Headers
+                // ✅ الحصول على CSRF Token إذا كان موجوداً
+                let csrfToken = '';
+                const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+                if (csrfMeta) {
+                    csrfToken = csrfMeta.getAttribute('content');
+                }
+
+                const headers = {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                };
+
+                // إضافة CSRF Token إذا كان موجوداً
+                if (csrfToken) {
+                    headers['X-CSRF-TOKEN'] = csrfToken;
+                }
+
                 const response = await fetch(form.action, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
+                    headers: headers,
                     body: JSON.stringify(data)
                 });
 
@@ -326,28 +357,56 @@
                 try {
                     result = await response.json();
                 } catch (e) {
-                    if (response.ok) {
-                        result = { message: 'تم إضافة الصف بنجاح' };
-                    } else {
-                        throw new Error('حدث خطأ في الاتصال بالخادم');
-                    }
+                    result = { message: await response.text() || 'حدث خطأ في الاتصال بالخادم' };
                 }
 
+                // ✅ تسجيل الاستجابة للتصحيح
+                console.log('📨 استجابة الخادم:', { status: response.status, result });
+
                 if (response.ok) {
-                    showMessage(result.message || 'تم إضافة الصف بنجاح', 'success');
+                    showMessage(result.message || '✅ تم إضافة الصف بنجاح', 'success');
                     form.reset();
                     setTimeout(updateStagesByYear, 100);
                     setTimeout(() => {
                         window.location.href = '/academics/grades/list';
                     }, 1500);
                 } else {
-                    const errorMsg = result.detail || result.message || 'حدث خطأ أثناء الإضافة';
-                    showMessage(errorMsg, 'error');
+                    // ✅ معالجة أخطاء التحقق (422) بشكل أفضل
+                    let errorMsg = 'حدث خطأ أثناء الإضافة';
+                    
+                    if (result.detail) {
+                        if (typeof result.detail === 'object' && result.detail !== null) {
+                            // معالجة أخطاء Pydantic
+                            if (Array.isArray(result.detail)) {
+                                errorMsg = result.detail.map(err => {
+                                    if (err.msg) return err.msg;
+                                    if (err.message) return err.message;
+                                    return JSON.stringify(err);
+                                }).join(' • ');
+                            } else {
+                                errorMsg = JSON.stringify(result.detail);
+                            }
+                        } else {
+                            errorMsg = result.detail;
+                        }
+                    } else if (result.message) {
+                        errorMsg = result.message;
+                    } else if (result.error) {
+                        errorMsg = result.error;
+                    }
+
+                    showMessage(`❌ ${errorMsg}`, 'error');
                     setFormLoading(false);
+                    
+                    // تركيز على الحقل الأول الذي فيه خطأ
+                    if (result.field) {
+                        const field = form.querySelector(`[name="${result.field}"]`);
+                        if (field) field.focus();
+                    }
                 }
             } catch (error) {
-                console.error('Form submission error:', error);
-                showMessage(error.message || 'حدث خطأ في الاتصال بالخادم', 'error');
+                console.error('❌ خطأ في الإرسال:', error);
+                showMessage('❌ حدث خطأ في الاتصال بالخادم', 'error');
                 setFormLoading(false);
             }
 
@@ -411,6 +470,7 @@
                 help.textContent = '⚠️ اسم الصف يجب أن يكون على الأقل حرفين';
                 help.className = 'text-xs text-red-500 mt-1';
                 this.classList.add('border-red-500');
+                this.classList.remove('border-green-500');
             } else if (this.value.trim().length >= 2) {
                 help.textContent = '✓ اسم الصف صحيح';
                 help.className = 'text-xs text-green-500 mt-1';
@@ -431,6 +491,7 @@
                 help.textContent = '⚠️ الترتيب يجب أن يكون رقم موجب';
                 help.className = 'text-xs text-red-500 mt-1';
                 this.classList.add('border-red-500');
+                this.classList.remove('border-green-500');
             } else {
                 help.textContent = 'رقم الترتيب لعرض الصفوف حسب التسلسل (الأصغر أولاً)';
                 help.className = 'text-xs text-slate-400 mt-1';
@@ -438,7 +499,20 @@
             }
         });
 
-        console.log('✅ نموذج إضافة صف جاهز (بدون CSRF)');
+        // ============================================================
+        // 9. إضافة دعم إضافي - معالجة أخطاء الشبكة
+        // ============================================================
+
+        // إعادة المحاولة عند فشل الاتصال
+        window.addEventListener('online', () => {
+            showMessage('✅ تم استعادة الاتصال بالإنترنت', 'success');
+        });
+
+        window.addEventListener('offline', () => {
+            showMessage('⚠️ تم فقدان الاتصال بالإنترنت', 'warning');
+        });
+
+        console.log('✅ نموذج إضافة صف جاهز (محسّن)');
     })();
 </script>
 
@@ -471,6 +545,9 @@
         font-family: 'Cairo', sans-serif;
         backdrop-filter: blur(8px);
         background-color: rgba(255, 255, 255, 0.95);
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+        max-width: 90%;
+        word-wrap: break-word;
     }
 
     .dark .toast-message {
@@ -499,6 +576,8 @@
             max-width: 90%;
             right: 5%;
             top: 1rem;
+            font-size: 0.9rem;
+            padding: 0.75rem;
         }
     }
 
@@ -514,6 +593,28 @@
 
     input:invalid:not(:placeholder-shown)+.text-xs {
         color: #ef4444;
+    }
+
+    /* تحسين التمرير */
+    .toast-message {
+        max-height: 80vh;
+        overflow-y: auto;
+    }
+
+    /* تحسين التركيز */
+    input:focus,
+    select:focus {
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
+    }
+
+    /* تحسين أزرار الإرسال */
+    button[type="submit"]:hover:not(:disabled) {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+    }
+
+    button[type="submit"]:active:not(:disabled) {
+        transform: translateY(0);
     }
 </style>
 
