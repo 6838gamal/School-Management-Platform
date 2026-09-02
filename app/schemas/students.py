@@ -33,11 +33,13 @@ class StudentCreate(BaseModel):
     address: str | None = Field(None, max_length=500)
     photo_url: str | None = Field(None, max_length=500)
     
-    # العلاقات (بدون Foreign Keys)
+    # ✅ الحقول الأكاديمية الجديدة (بدون Foreign Keys)
     school_id: str | None = Field(None, max_length=36)
     user_id: str | None = Field(None, max_length=36)
-    section_id: str | None = Field(None, max_length=36)
-    year_id: str | None = Field(None, max_length=36)  # السنة الأكاديمية للتسجيل
+    year_id: str | None = Field(None, max_length=36, description="معرف السنة الدراسية")
+    grade_id: str | None = Field(None, max_length=36, description="معرف الصف")
+    section_id: str | None = Field(None, max_length=36, description="معرف الشعبة")
+    period_id: str | None = Field(None, max_length=36, description="معرف الفصل/الحصة")
     
     @field_validator('birth_date', mode='before')
     @classmethod
@@ -72,6 +74,12 @@ class StudentUpdate(BaseModel):
     phone: str | None = Field(None, max_length=50)
     address: str | None = Field(None, max_length=500)
     photo_url: str | None = Field(None, max_length=500)
+    
+    # ✅ الحقول الأكاديمية الجديدة (بدون Foreign Keys)
+    year_id: str | None = Field(None, max_length=36, description="معرف السنة الدراسية")
+    grade_id: str | None = Field(None, max_length=36, description="معرف الصف")
+    section_id: str | None = Field(None, max_length=36, description="معرف الشعبة")
+    period_id: str | None = Field(None, max_length=36, description="معرف الفصل/الحصة")
     
     # الحالة
     is_active: bool | None = None
@@ -119,6 +127,12 @@ class StudentOut(ORMBase):
     address: str | None = None
     photo_url: str | None = None
     
+    # ✅ الحقول الأكاديمية
+    year_id: str | None = None
+    grade_id: str | None = None
+    section_id: str | None = None
+    period_id: str | None = None
+    
     # الحالة
     is_active: bool
     enrollment_status: str | None = None
@@ -130,8 +144,13 @@ class StudentOut(ORMBase):
     display_name_ar: str | None = None
     age: int | None = None
     
-    # العلاقات
-    section_id: str | None = None
+    # معلومات إضافية للعرض (من JOIN)
+    year_name: str | None = None
+    grade_name: str | None = None
+    section_name: str | None = None
+    period_name: str | None = None
+    
+    # التسجيل الحالي
     current_enrollment: "EnrollmentOut | None" = None
 
 
@@ -147,7 +166,17 @@ class StudentListOut(ORMBase):
     is_active: bool
     full_name: str = ""
     display_name: str = ""
+    
+    # ✅ الحقول الأكاديمية
+    year_id: str | None = None
+    grade_id: str | None = None
     section_id: str | None = None
+    period_id: str | None = None
+    
+    # معلومات للعرض
+    year_name: str | None = None
+    grade_name: str | None = None
+    section_name: str | None = None
     photo_url: str | None = None
 
 
@@ -204,7 +233,9 @@ class EnrollmentOut(ORMBase):
 class StudentFilter(BaseModel):
     """فلترة قائمة الطلاب"""
     school_id: str | None = Field(None, max_length=36)
-    section_id: str | None = Field(None, max_length=36)
+    year_id: str | None = Field(None, max_length=36, description="معرف السنة الدراسية")
+    grade_id: str | None = Field(None, max_length=36, description="معرف الصف")
+    section_id: str | None = Field(None, max_length=36, description="معرف الشعبة")
     class_id: str | None = Field(None, max_length=36)
     academic_year_id: str | None = Field(None, max_length=36)
     is_active: bool | None = None
@@ -253,9 +284,10 @@ class StudentStats(BaseModel):
     inactive_students: int = 0
     male_students: int = 0
     female_students: int = 0
-    students_by_section: dict[str, int] = {}
+    students_by_year: dict[str, int] = {}      # ✅ حسب السنة
+    students_by_grade: dict[str, int] = {}     # ✅ حسب الصف
+    students_by_section: dict[str, int] = {}   # حسب الشعبة
     students_by_class: dict[str, int] = {}
-    students_by_grade: dict[str, int] = {}
     new_enrollments_this_year: int = 0
     graduates_this_year: int = 0
 
