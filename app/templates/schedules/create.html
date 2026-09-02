@@ -1,11 +1,11 @@
 {% extends "layouts/director.html" %}
 {% block content %}
-<div class="max-w-4xl mx-auto">
+<div class="max-w-6xl mx-auto">
     <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-6">
         <div class="flex items-center justify-between mb-6">
             <div>
                 <h1 class="text-2xl font-bold text-slate-800 dark:text-white">📅 إنشاء جدول دراسي</h1>
-                <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">اختر الشعبة وقم بإنشاء الجدول الدراسي</p>
+                <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">اختر الشعبة وأضف الحصص للجدول الدراسي</p>
             </div>
             <a href="/schedules/list" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
                 ✕ إلغاء
@@ -93,6 +93,37 @@
             </div>
 
             <!-- ============================================================ -->
+            <!-- إضافة المواد والمعلمين -->
+            <!-- ============================================================ -->
+            <div class="mb-6">
+                <div class="flex items-center justify-between mb-3">
+                    <h3 class="text-md font-semibold text-slate-700 dark:text-slate-300">📚 الحصص الدراسية</h3>
+                    <button type="button" onclick="addEntryRow()" class="text-sm bg-primary-100 hover:bg-primary-200 dark:bg-primary-900/30 dark:hover:bg-primary-900/50 text-primary-700 dark:text-primary-300 px-3 py-1.5 rounded-lg transition-colors duration-200">
+                        ➕ إضافة حصة
+                    </button>
+                </div>
+                
+                <div class="overflow-x-auto">
+                    <table class="w-full border border-slate-200 dark:border-slate-700 rounded-lg">
+                        <thead class="bg-slate-50 dark:bg-slate-700/50">
+                            <tr>
+                                <th class="p-2 text-right text-xs font-medium text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700">#</th>
+                                <th class="p-2 text-right text-xs font-medium text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700">اليوم</th>
+                                <th class="p-2 text-right text-xs font-medium text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700">الفصل</th>
+                                <th class="p-2 text-right text-xs font-medium text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700">المادة</th>
+                                <th class="p-2 text-right text-xs font-medium text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700">المعلم</th>
+                                <th class="p-2 text-center text-xs font-medium text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700">إجراء</th>
+                            </tr>
+                        </thead>
+                        <tbody id="entriesBody">
+                            <!-- سيتم إضافة الصفوف بواسطة JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+                <p class="text-xs text-slate-400 dark:text-slate-500 mt-2">💡 قم بإضافة الحصص للجدول الدراسي. يمكنك اختيار اليوم والفصل والمادة والمعلم.</p>
+            </div>
+
+            <!-- ============================================================ -->
             <!-- تفعيل الجدول -->
             <!-- ============================================================ -->
             <div class="flex items-center gap-3 mb-6 p-4 bg-slate-50 dark:bg-slate-700/30 rounded-lg border border-slate-200 dark:border-slate-700">
@@ -106,7 +137,7 @@
             <!-- ============================================================ -->
             <div class="mb-6 p-4 bg-slate-50 dark:bg-slate-700/30 rounded-lg border border-slate-200 dark:border-slate-700">
                 <h3 class="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">📊 ملخص الجدول</h3>
-                <div class="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
                     <div>
                         <span class="text-slate-400 dark:text-slate-500">السنة:</span>
                         <span class="font-medium text-slate-700 dark:text-slate-300" id="summaryYear">لم يتم الاختيار</span>
@@ -123,6 +154,10 @@
                         <span class="text-slate-400 dark:text-slate-500">الشعبة:</span>
                         <span class="font-medium text-slate-700 dark:text-slate-300" id="summarySection">لم يتم الاختيار</span>
                     </div>
+                    <div>
+                        <span class="text-slate-400 dark:text-slate-500">عدد الحصص:</span>
+                        <span class="font-medium text-slate-700 dark:text-slate-300" id="summaryEntries">0</span>
+                    </div>
                 </div>
             </div>
 
@@ -133,6 +168,9 @@
                 <button type="submit" id="submitBtn" class="flex-1 bg-primary-600 hover:bg-primary-700 text-white px-4 py-2.5 rounded-lg font-medium transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed">
                     🚀 إنشاء الجدول
                 </button>
+                <button type="button" onclick="previewSchedule()" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-lg font-medium transition-colors duration-200">
+                    👁️ معاينة
+                </button>
                 <a href="/schedules/list" class="flex-1 bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 px-4 py-2.5 rounded-lg font-medium transition-colors duration-200 text-center">
                     ✕ إلغاء
                 </a>
@@ -141,7 +179,40 @@
     </div>
 </div>
 
+<!-- ============================================================ -->
+<!-- Modal للمعاينة -->
+<!-- ============================================================ -->
+<div id="previewModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 hidden">
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 max-w-5xl w-full max-h-[90vh] overflow-hidden">
+        <div class="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-700">
+            <h3 class="text-lg font-bold text-slate-800 dark:text-white">👁️ معاينة الجدول الدراسي</h3>
+            <button onclick="closePreview()" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
+                ✕
+            </button>
+        </div>
+        <div id="previewContent" class="p-4 overflow-auto max-h-[calc(90vh-120px)]">
+            <div class="text-center text-slate-400 dark:text-slate-500 py-8">
+                ⏳ جاري تحميل المعاينة...
+            </div>
+        </div>
+        <div class="flex gap-3 p-4 border-t border-slate-200 dark:border-slate-700">
+            <button onclick="closePreview()" class="flex-1 bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 px-4 py-2 rounded-lg font-medium transition-colors duration-200">
+                إغلاق
+            </button>
+        </div>
+    </div>
+</div>
+
 <script>
+// ============================================================
+// البيانات الأساسية
+// ============================================================
+const DAYS = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'];
+const PERIODS = ['الحصة الأولى', 'الحصة الثانية', 'الحصة الثالثة', 'الحصة الرابعة', 'الحصة الخامسة', 'الحصة السادسة', 'الحصة السابعة', 'الحصة الثامنة'];
+
+let entryRows = [];
+let rowCounter = 0;
+
 // ============================================================
 // التصفية المتسلسلة: المرحلة ← الصف ← الشعبة
 // ============================================================
@@ -168,9 +239,6 @@ document.addEventListener('DOMContentLoaded', function() {
             grade: opt.getAttribute('data-grade')
         }));
 
-    // ============================================================
-    // تصفية الصفوف حسب المرحلة
-    // ============================================================
     function filterGrades() {
         const stageId = stageSelect.value;
         
@@ -192,9 +260,6 @@ document.addEventListener('DOMContentLoaded', function() {
         updateSummary();
     }
 
-    // ============================================================
-    // تصفية الشعب حسب الصف
-    // ============================================================
     function filterSections() {
         const gradeId = gradeSelect.value;
         
@@ -215,9 +280,6 @@ document.addEventListener('DOMContentLoaded', function() {
         updateSummary();
     }
 
-    // ============================================================
-    // تحديث الملخص
-    // ============================================================
     function updateSummary() {
         const yearText = yearSelect.options[yearSelect.selectedIndex]?.text || 'لم يتم الاختيار';
         const stageText = stageSelect.options[stageSelect.selectedIndex]?.text || 'لم يتم الاختيار';
@@ -230,17 +292,107 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('summarySection').textContent = sectionText;
     }
 
-    // ============================================================
-    // ربط الأحداث
-    // ============================================================
     stageSelect.addEventListener('change', filterGrades);
     gradeSelect.addEventListener('change', filterSections);
     yearSelect.addEventListener('change', updateSummary);
     sectionSelect.addEventListener('change', updateSummary);
 
-    // التصفية الأولية
+    // إضافة 3 صفوف افتراضية
+    for (let i = 0; i < 3; i++) {
+        addEntryRow();
+    }
+
     filterGrades();
+    updateSummary();
 });
+
+// ============================================================
+// إضافة صف حصة جديد
+// ============================================================
+function addEntryRow() {
+    const tbody = document.getElementById('entriesBody');
+    const rowId = ++rowCounter;
+    
+    const tr = document.createElement('tr');
+    tr.className = 'border-b border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors duration-200';
+    tr.id = `entry-row-${rowId}`;
+    tr.innerHTML = `
+        <td class="p-2 text-center text-sm text-slate-500 dark:text-slate-400">${rowId}</td>
+        <td class="p-2">
+            <select name="entries[${rowId}][day]" class="w-full px-2 py-1 text-sm border border-slate-300 dark:border-slate-600 rounded focus:ring-1 focus:ring-primary-500 focus:border-primary-500 dark:bg-slate-700 dark:text-white">
+                ${DAYS.map((d, i) => `<option value="${i}" ${i === 0 ? 'selected' : ''}>${d}</option>`).join('')}
+            </select>
+        </td>
+        <td class="p-2">
+            <select name="entries[${rowId}][period]" class="w-full px-2 py-1 text-sm border border-slate-300 dark:border-slate-600 rounded focus:ring-1 focus:ring-primary-500 focus:border-primary-500 dark:bg-slate-700 dark:text-white">
+                ${PERIODS.map((p, i) => `<option value="${i + 1}" ${i === 0 ? 'selected' : ''}>${p}</option>`).join('')}
+            </select>
+        </td>
+        <td class="p-2">
+            <select name="entries[${rowId}][subject_id]" class="w-full px-2 py-1 text-sm border border-slate-300 dark:border-slate-600 rounded focus:ring-1 focus:ring-primary-500 focus:border-primary-500 dark:bg-slate-700 dark:text-white">
+                <option value="">اختر المادة</option>
+                {% for subject in subjects %}
+                <option value="{{ subject.id }}">{{ subject.name }}</option>
+                {% endfor %}
+            </select>
+        </td>
+        <td class="p-2">
+            <select name="entries[${rowId}][teacher_id]" class="w-full px-2 py-1 text-sm border border-slate-300 dark:border-slate-600 rounded focus:ring-1 focus:ring-primary-500 focus:border-primary-500 dark:bg-slate-700 dark:text-white">
+                <option value="">اختر المعلم</option>
+                {% for teacher in teachers %}
+                <option value="{{ teacher.id }}">{{ teacher.name }}</option>
+                {% endfor %}
+            </select>
+        </td>
+        <td class="p-2 text-center">
+            <button type="button" onclick="removeEntryRow(${rowId})" class="text-red-500 hover:text-red-700 dark:hover:text-red-400 transition-colors duration-200">
+                ✕
+            </button>
+        </td>
+    `;
+    
+    tbody.appendChild(tr);
+    entryRows.push(rowId);
+    updateEntrySummary();
+}
+
+// ============================================================
+// حذف صف حصة
+// ============================================================
+function removeEntryRow(rowId) {
+    if (entryRows.length <= 1) {
+        showMessage('⚠️ يجب أن يكون هناك حصة واحدة على الأقل', 'warning');
+        return;
+    }
+    
+    const row = document.getElementById(`entry-row-${rowId}`);
+    if (row) {
+        row.remove();
+        entryRows = entryRows.filter(id => id !== rowId);
+        updateEntrySummary();
+        renumberRows();
+    }
+}
+
+// ============================================================
+// إعادة ترقيم الصفوف
+// ============================================================
+function renumberRows() {
+    const rows = document.querySelectorAll('#entriesBody tr');
+    rows.forEach((row, index) => {
+        const td = row.querySelector('td:first-child');
+        if (td) {
+            td.textContent = index + 1;
+        }
+    });
+}
+
+// ============================================================
+// تحديث ملخص الحصص
+// ============================================================
+function updateEntrySummary() {
+    document.getElementById('summaryEntries').textContent = entryRows.length;
+}
 
 // ============================================================
 // عرض الرسائل
@@ -268,6 +420,126 @@ function showMessage(message, type = 'info') {
 }
 
 // ============================================================
+// معاينة الجدول
+// ============================================================
+function previewSchedule() {
+    const modal = document.getElementById('previewModal');
+    const content = document.getElementById('previewContent');
+    
+    modal.classList.remove('hidden');
+    content.innerHTML = '<div class="text-center text-slate-400 dark:text-slate-500 py-8">⏳ جاري تحميل المعاينة...</div>';
+    
+    const data = collectFormData();
+    
+    setTimeout(() => {
+        content.innerHTML = buildPreviewTable(data);
+    }, 500);
+}
+
+function closePreview() {
+    document.getElementById('previewModal').classList.add('hidden');
+}
+
+// ============================================================
+// بناء جدول المعاينة
+// ============================================================
+function buildPreviewTable(data) {
+    const days = 5;
+    const periods = 6;
+    
+    let html = `
+        <div class="overflow-x-auto">
+            <table class="w-full border border-slate-200 dark:border-slate-700 rounded-lg text-sm">
+                <thead class="bg-slate-50 dark:bg-slate-700/50">
+                    <tr>
+                        <th class="p-2 text-center border-b border-slate-200 dark:border-slate-700">الفصل</th>
+                        ${DAYS.slice(0, days).map(d => `<th class="p-2 text-center border-b border-slate-200 dark:border-slate-700">${d}</th>`).join('')}
+                    </tr>
+                </thead>
+                <tbody>
+    `;
+    
+    for (let p = 1; p <= periods; p++) {
+        html += `
+            <tr class="border-b border-slate-200 dark:border-slate-700">
+                <td class="p-2 text-center font-medium text-slate-600 dark:text-slate-400">الحصة ${p}</td>
+        `;
+        
+        for (let d = 0; d < days; d++) {
+            const matched = data.entries?.find(entry => 
+                parseInt(entry.day) === d && parseInt(entry.period) === p
+            );
+            
+            if (matched) {
+                html += `
+                    <td class="p-2 text-center border-l border-slate-200 dark:border-slate-700">
+                        <span class="block font-medium text-slate-700 dark:text-slate-300">${matched.subject_name || 'مادة'}</span>
+                        <span class="text-xs text-slate-400 dark:text-slate-500">${matched.teacher_name || 'معلم'}</span>
+                    </td>
+                `;
+            } else {
+                html += `
+                    <td class="p-2 text-center border-l border-slate-200 dark:border-slate-700 text-slate-300 dark:text-slate-600">
+                        —
+                    </td>
+                `;
+            }
+        }
+        
+        html += `</tr>`;
+    }
+    
+    html += `
+                </tbody>
+            </table>
+        </div>
+        <p class="text-xs text-slate-400 dark:text-slate-500 mt-3">📌 هذه معاينة للجدول. يمكنك تعديل الحصص قبل الإنشاء.</p>
+    `;
+    
+    return html;
+}
+
+// ============================================================
+// جمع بيانات النموذج
+// ============================================================
+function collectFormData() {
+    const form = document.getElementById('createForm');
+    const formData = new FormData(form);
+    
+    const entries = [];
+    const rows = document.querySelectorAll('#entriesBody tr');
+    rows.forEach(row => {
+        const day = row.querySelector('select[name$="[day]"]')?.value;
+        const period = row.querySelector('select[name$="[period]"]')?.value;
+        const subject_id = row.querySelector('select[name$="[subject_id]"]')?.value;
+        const teacher_id = row.querySelector('select[name$="[teacher_id]"]')?.value;
+        const subject_name = row.querySelector('select[name$="[subject_id]"] option:checked')?.text || 'مادة';
+        const teacher_name = row.querySelector('select[name$="[teacher_id]"] option:checked')?.text || 'معلم';
+        
+        if (subject_id || teacher_id) {
+            entries.push({
+                day: day || '0',
+                period: period || '1',
+                subject_id: subject_id || '',
+                teacher_id: teacher_id || '',
+                subject_name: subject_name,
+                teacher_name: teacher_name,
+            });
+        }
+    });
+    
+    return {
+        name: document.getElementById('name').value,
+        year_id: formData.get('year_id'),
+        stage_id: formData.get('stage_id'),
+        grade_id: formData.get('grade_id'),
+        section_id: formData.get('section_id'),
+        is_active: formData.get('is_active') === 'true',
+        entries: entries
+    };
+}
+
+// ============================================================
 // معالج تقديم النموذج
 // ============================================================
 async function handleSubmit(event, form) {
@@ -277,15 +549,7 @@ async function handleSubmit(event, form) {
     submitBtn.disabled = true;
     submitBtn.textContent = '⏳ جاري الإنشاء...';
 
-    const formData = new FormData(form);
-    const data = {
-        name: formData.get('name'),
-        year_id: formData.get('year_id'),
-        stage_id: formData.get('stage_id'),
-        grade_id: formData.get('grade_id'),
-        section_id: formData.get('section_id'),
-        is_active: formData.get('is_active') === 'true'
-    };
+    const data = collectFormData();
 
     // التحقق من البيانات
     if (!data.name || !data.name.trim()) {
@@ -318,6 +582,13 @@ async function handleSubmit(event, form) {
 
     if (!data.section_id) {
         showMessage('⚠️ يرجى اختيار الشعبة', 'error');
+        submitBtn.disabled = false;
+        submitBtn.textContent = '🚀 إنشاء الجدول';
+        return;
+    }
+
+    if (data.entries.length === 0) {
+        showMessage('⚠️ يرجى إضافة حصة واحدة على الأقل', 'error');
         submitBtn.disabled = false;
         submitBtn.textContent = '🚀 إنشاء الجدول';
         return;
@@ -364,6 +635,14 @@ async function handleSubmit(event, form) {
 @keyframes slideIn {
     from { transform: translateX(100%); opacity: 0; }
     to { transform: translateX(0); opacity: 1; }
+}
+
+#previewModal {
+    backdrop-filter: blur(4px);
+}
+
+#entriesBody tr:hover {
+    background-color: rgba(59, 130, 246, 0.05);
 }
 </style>
 {% endblock %}
