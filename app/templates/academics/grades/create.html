@@ -18,7 +18,7 @@
 
         <!-- ✅ تم إزالة onsubmit من النموذج - سيتم إدارته عبر JavaScript -->
         <!-- ✅ تم تصحيح المسار: /api/v1/academics/grades/create → /academics/grades/create -->
-        <form id="createForm" method="POST" action="/academics/grades/create" novalidate>
+        <form id="createForm" method="POST" action="/api/v1/academics/grades/create" novalidate>
             
             <!-- ✅ الحقول المخفية المطلوبة من الخادم -->
             <input type="hidden" name="school_id" value="{{ current_user.school_id if current_user and current_user.school_id else '' }}">
@@ -123,7 +123,7 @@
     </div>
 </div>
 
-<!-- ✅ JavaScript المحسن - حل مشكلة 422 نهائياً -->
+<!-- ✅ JavaScript المحسن - مع تصحيح التحقق وإضافة Debug -->
 <script>
     (function() {
         'use strict';
@@ -138,6 +138,8 @@
         const yearSelect = document.getElementById('yearSelect');
         const stageSelect = document.getElementById('stageSelect');
         const gradeName = document.getElementById('gradeName');
+        const gradeNameEn = document.getElementById('gradeNameEn');
+        const gradeOrder = document.getElementById('gradeOrder');
 
         // ✅ إزالة أي معالج onsubmit موجود (للتأكد)
         form.removeAttribute('onsubmit');
@@ -188,26 +190,41 @@
         document.addEventListener('DOMContentLoaded', updateStagesByYear);
 
         // ============================================================
-        // 2. التحقق من صحة البيانات
+        // 2. ✅ التحقق من صحة البيانات (محسّن مع عرض الأخطاء)
         // ============================================================
 
         function validateFormData(data) {
             const errors = [];
 
-            if (!data.year_id || data.year_id === '') {
+            // ✅ التحقق من السنة
+            if (!data.year_id || data.year_id === '' || data.year_id === 'undefined') {
                 errors.push('يرجى اختيار السنة الدراسية');
             }
 
+            // ✅ التحقق من اسم الصف
             if (!data.name || data.name.trim().length < 2) {
                 errors.push('اسم الصف يجب أن يكون على الأقل حرفين');
             }
 
-            if (!data.stage_id || data.stage_id === '') {
+            // ✅ التحقق من المرحلة
+            if (!data.stage_id || data.stage_id === '' || data.stage_id === 'undefined') {
                 errors.push('يرجى اختيار المرحلة');
             }
 
-            if (data.order && (parseInt(data.order) < 0 || isNaN(parseInt(data.order)))) {
-                errors.push('ترتيب الصف يجب أن يكون رقم موجب');
+            // ✅ التحقق من الترتيب (إذا كان موجوداً)
+            if (data.order !== undefined && data.order !== null) {
+                const orderNum = Number(data.order);
+                if (isNaN(orderNum) || orderNum < 0) {
+                    errors.push('ترتيب الصف يجب أن يكون رقم موجب');
+                }
+            }
+
+            // ✅ عرض الأخطاء في Console للتصحيح
+            if (errors.length > 0) {
+                console.log('❌ أخطاء التحقق:', errors);
+                console.log('📦 البيانات:', data);
+            } else {
+                console.log('✅ التحقق ناجح');
             }
 
             return errors;
@@ -230,7 +247,7 @@
         }
 
         // ============================================================
-        // 4. عرض الرسائل (Toast)
+        // 4. عرض الرسائل (Toast) - نسخة محسنة
         // ============================================================
 
         function showMessage(message, type = 'success') {
@@ -272,7 +289,7 @@
 
             setTimeout(() => {
                 dismissToast(div);
-            }, 5000);
+            }, 8000);
 
             div.addEventListener('click', () => dismissToast(div));
         }
@@ -287,48 +304,58 @@
         }
 
         // ============================================================
-        // 5. ✅ معالج الإرسال الرئيسي (المحسّن - الحل النهائي لمشكلة 422)
+        // 5. ✅ معالج الإرسال الرئيسي (مع تصحيح التحقق)
         // ============================================================
 
         async function handleSubmit(event) {
-            // ✅ منع الإرسال التقليدي للنموذج (السبب الرئيسي للمشكلة)
+            // ✅ منع الإرسال التقليدي
             event.preventDefault();
             event.stopPropagation();
 
-            setFormLoading(true);
+            console.log('🔄 بدء عملية الإرسال...');
 
             // ✅ جمع البيانات من النموذج
             const formData = new FormData(form);
             
-            // ✅ بناء كائن JSON بشكل صحيح
+            // ✅ بناء كائن JSON
             const data = {
                 year_id: formData.get('year_id') || '',
                 stage_id: formData.get('stage_id') || '',
                 name: formData.get('name')?.trim() || '',
                 name_en: formData.get('name_en')?.trim() || '',
                 order: parseInt(formData.get('order')) || 0
-                // ✅ ملاحظة: لا نرسل school_id, is_active, code لأن الـ Schema لا يطلبها
             };
 
-            console.log('📦 البيانات المرسلة (JSON):', JSON.stringify(data, null, 2));
+            console.log('📦 البيانات المجمعة:', data);
 
             // ✅ التحقق من صحة البيانات
             const errors = validateFormData(data);
+            
             if (errors.length > 0) {
-                showMessage(errors.join(' • '), 'error');
-                setFormLoading(false);
+                // ✅ عرض جميع الأخطاء
+                const errorMessage = errors.join(' • ');
+                showMessage(`❌ ${errorMessage}`, 'error');
+                console.log('❌ فشل التحقق:', errors);
+                
+                // ✅ تحديد الحقل الأول الذي فيه خطأ
                 if (errors.some(e => e.includes('السنة'))) {
                     yearSelect.focus();
+                    yearSelect.classList.add('border-red-500');
                 } else if (errors.some(e => e.includes('اسم الصف'))) {
                     gradeName.focus();
+                    gradeName.classList.add('border-red-500');
                 } else if (errors.some(e => e.includes('المرحلة'))) {
                     stageSelect.focus();
+                    stageSelect.classList.add('border-red-500');
                 }
                 return false;
             }
 
+            console.log('✅ التحقق ناجح، جاري الإرسال...');
+
+            setFormLoading(true);
+
             try {
-                // ✅ إرسال الطلب كـ JSON (وليس Form Data)
                 const response = await fetch(form.action, {
                     method: 'POST',
                     headers: {
@@ -357,7 +384,6 @@
                         window.location.href = '/academics/grades/list';
                     }, 1500);
                 } else {
-                    // ✅ معالجة أخطاء التحقق (422) بشكل أفضل
                     let errorMsg = 'حدث خطأ أثناء الإضافة';
                     
                     if (result.detail) {
@@ -390,11 +416,37 @@
             return false;
         }
 
-        // ✅ ربط المعالج بالنموذج (بدلاً من onsubmit في HTML)
+        // ✅ ربط المعالج بالنموذج
         form.addEventListener('submit', handleSubmit);
 
         // ============================================================
-        // 6. اختصارات لوحة المفاتيح
+        // 6. ✅ إضافة زر تصحيح (Debug) في Console
+        // ============================================================
+
+        window.debugForm = function() {
+            const data = {
+                year_id: document.getElementById('yearSelect').value,
+                stage_id: document.getElementById('stageSelect').value,
+                name: document.getElementById('gradeName').value,
+                name_en: document.getElementById('gradeNameEn').value,
+                order: document.getElementById('gradeOrder').value
+            };
+            console.log('🔍 حالة النموذج:', data);
+            const errors = validateFormData(data);
+            if (errors.length === 0) {
+                console.log('✅ لا توجد أخطاء - يمكن الإرسال');
+                return '✅ لا توجد أخطاء';
+            } else {
+                console.log('❌ توجد أخطاء:', errors);
+                return '❌ توجد أخطاء: ' + errors.join(' • ');
+            }
+        };
+
+        console.log('✅ نموذج إضافة صف جاهز');
+        console.log('💡 استخدم debugForm() في Console لفحص البيانات');
+
+        // ============================================================
+        // 7. اختصارات لوحة المفاتيح
         // ============================================================
 
         document.addEventListener('keydown', (e) => {
@@ -413,7 +465,7 @@
         });
 
         // ============================================================
-        // 7. تحذير عند وجود تغييرات غير محفوظة
+        // 8. تحذير عند وجود تغييرات غير محفوظة
         // ============================================================
 
         let formDirty = false;
@@ -441,9 +493,23 @@
         });
 
         // ============================================================
-        // 8. تحسينات إضافية - التحقق المباشر
+        // 9. تحسينات إضافية - التحقق المباشر
         // ============================================================
 
+        // إزالة التحذيرات الحمراء عند التحديد
+        gradeName.addEventListener('focus', function() {
+            this.classList.remove('border-red-500');
+        });
+
+        yearSelect.addEventListener('focus', function() {
+            this.classList.remove('border-red-500');
+        });
+
+        stageSelect.addEventListener('focus', function() {
+            this.classList.remove('border-red-500');
+        });
+
+        // التحقق المباشر من اسم الصف
         gradeName.addEventListener('input', function() {
             const help = document.getElementById('name-help');
             if (this.value.trim().length < 2 && this.value.length > 0) {
@@ -463,8 +529,8 @@
             }
         });
 
-        const orderInput = document.getElementById('gradeOrder');
-        orderInput.addEventListener('input', function() {
+        // التحقق المباشر من الترتيب
+        gradeOrder.addEventListener('input', function() {
             const help = document.getElementById('order-help');
             const val = parseInt(this.value);
             if (this.value && (isNaN(val) || val < 0)) {
@@ -477,6 +543,18 @@
                 help.className = 'text-xs text-slate-400 mt-1';
                 this.classList.remove('border-red-500');
             }
+        });
+
+        // ============================================================
+        // 10. معالجة أخطاء الشبكة
+        // ============================================================
+
+        window.addEventListener('online', () => {
+            showMessage('✅ تم استعادة الاتصال بالإنترنت', 'success');
+        });
+
+        window.addEventListener('offline', () => {
+            showMessage('⚠️ تم فقدان الاتصال بالإنترنت', 'warning');
         });
 
         console.log('✅ نموذج إضافة صف جاهز (تم حل مشكلة 422)');
@@ -579,6 +657,14 @@
 
     button[type="submit"]:active:not(:disabled) {
         transform: translateY(0);
+    }
+
+    .border-red-500 {
+        border-color: #ef4444 !important;
+    }
+
+    .border-green-500 {
+        border-color: #22c55e !important;
     }
 </style>
 
