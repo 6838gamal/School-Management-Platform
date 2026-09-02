@@ -17,7 +17,8 @@
         </div>
 
         <!-- ✅ تم إزالة onsubmit من النموذج - سيتم إدارته عبر JavaScript -->
-        <form id="createForm" method="POST" action="/api/v1/academics/grades/create" novalidate>
+        <!-- ✅ تم تصحيح المسار: /api/v1/academics/grades/create → /academics/grades/create -->
+        <form id="createForm" method="POST" action="/academics/grades/create" novalidate>
             
             <!-- ✅ الحقول المخفية المطلوبة من الخادم -->
             <input type="hidden" name="school_id" value="{{ current_user.school_id if current_user and current_user.school_id else '' }}">
