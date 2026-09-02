@@ -375,7 +375,7 @@ async def edit_grade_page(
     )
 
 
-@router.post("/api/grades/create")
+@router.post("/academics/grades/create")
 async def create_grade_api(
     req: GradeCreate,
     user: CurrentUser = Depends(require_any_permission("academics.create")),
@@ -437,7 +437,7 @@ async def create_grade_api(
         )
 
 
-@router.put("/api/grades/{grade_id}")
+@router.put("/academics/grades/{grade_id}")
 async def update_grade_api(
     grade_id: str,
     req: GradeUpdate,
@@ -490,7 +490,7 @@ async def update_grade_api(
         )
 
 
-@router.delete("/api/grades/{grade_id}")
+@router.delete("/academics/grades/{grade_id}")
 async def delete_grade_api(
     grade_id: str,
     user: CurrentUser = Depends(require_any_permission("academics.delete")),
