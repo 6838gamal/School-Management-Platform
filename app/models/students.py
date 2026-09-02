@@ -138,7 +138,7 @@ class StudentEnrollment(UUIDPkMixin, TimestampMixin, Base):
     """Tracks a student's placement in a section for a given academic year."""
     __tablename__ = "student_enrollments"
     __table_args__ = (
-        UniqueConstraint("student_id", "academic_year_id", name="uq_enrollment_student_year"),
+        UniqueConstraint("student_id", "year_id", name="uq_enrollment_student_year"),
     )
 
     # ============================================================
