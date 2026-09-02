@@ -1,11 +1,13 @@
 """Students web routes — shared pages used by director, deputy, and teacher."""
 from fastapi import APIRouter, Depends, Request, Form, HTTPException
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
+from sqlalchemy.orm import selectinload
 from typing import Optional
 import uuid
+import traceback
 from datetime import datetime
 
 from app.core.database import get_db
@@ -18,10 +20,9 @@ from app.core.exceptions import (
     ValidationException,
     AppException
 )
-# إضافة النماذج المفقودة
+# النماذج
 from app.models.students import Student
-from app.models.academics import Section, Grade, Stage
-from app.models.schools import School
+from app.models.academics import Section, Grade, Stage, AcademicYear, Period
 
 router = APIRouter(prefix="/students", tags=["students"])
 templates = Jinja2Templates(directory="app/templates")
@@ -33,47 +34,57 @@ templates = Jinja2Templates(directory="app/templates")
 # ============================================================
 
 # ============================================================
-# دالة مساعدة لجلب بيانات الفصول والسنوات الدراسية
+# دالة مساعدة لجلب بيانات الفصول والسنوات والصفوف والفترات
 # ============================================================
 async def get_onboarding_data(db: AsyncSession, school_id: str):
     """
-    جلب بيانات الفصول والسنوات الدراسية للمدرسة
+    جلب بيانات الفصول والسنوات والصفوف والفترات للمدرسة
     """
     try:
-        # 1. جلب الفصول
+        # 1. جلب السنوات الدراسية
+        years_result = await db.execute(
+            select(AcademicYear)
+            .where(AcademicYear.school_id == school_id)
+            .order_by(AcademicYear.start_date.desc())
+        )
+        years = years_result.scalars().all()
+        
+        # 2. جلب الصفوف
+        grades_result = await db.execute(
+            select(Grade)
+            .where(Grade.school_id == school_id)
+            .order_by(Grade.order)
+        )
+        grades = grades_result.scalars().all()
+        
+        # 3. جلب الشعب مع العلاقات
         sections_result = await db.execute(
             select(Section)
             .options(
-                selectinload(Section.stage),
                 selectinload(Section.grade)
             )
             .where(Section.school_id == school_id)
-            .order_by(Section.stage_id, Section.grade_id, Section.name)
+            .order_by(Section.name)
         )
         sections = sections_result.scalars().all()
         
-        # 2. جلب السنوات الدراسية (إذا كان لديك نموذج Year)
-        # إذا لم يكن موجوداً، استخدم قائمة افتراضية
-        years = []
-        try:
-            from app.models.academics import AcademicYear
-            years_result = await db.execute(
-                select(AcademicYear)
-                .where(AcademicYear.school_id == school_id)
-                .order_by(AcademicYear.start_date.desc())
-            )
-            years = years_result.scalars().all()
-        except ImportError:
-            # إذا لم يكن هناك نموذج AcademicYear
-            years = []
+        # 4. جلب الفترات (الحصص)
+        periods_result = await db.execute(
+            select(Period)
+            .where(Period.school_id == school_id)
+            .order_by(Period.order)
+        )
+        periods = periods_result.scalars().all()
         
         return {
+            "years": years,
+            "grades": grades,
             "sections": sections,
-            "years": years
+            "periods": periods
         }
     except Exception as e:
         print(f"⚠️ Error in get_onboarding_data: {str(e)}")
-        return {"sections": [], "years": []}
+        return {"years": [], "grades": [], "sections": [], "periods": []}
 
 
 # 1️⃣ GET /students/new - صفحة إضافة طالب جديد
@@ -93,9 +104,9 @@ async def student_new(
             sections_data.append({
                 "id": str(section.id),
                 "name": section.name,
-                "stage_name": section.stage.name if section.stage else "غير محدد",
+                "grade_id": str(section.grade_id) if section.grade_id else None,
+                "year_id": section.year_id if hasattr(section, 'year_id') else None,
                 "grade_name": section.grade.name if section.grade else "غير محدد",
-                "full_name": f"{section.stage.name if section.stage else ''} - {section.grade.name if section.grade else ''} - {section.name}"
             })
         
         return templates.TemplateResponse(
@@ -106,6 +117,8 @@ async def student_new(
                 "mode": "create", 
                 "sections": sections_data, 
                 "years": data.get("years", []),
+                "grades": data.get("grades", []),
+                "periods": data.get("periods", []),
                 "student": None,
                 "error": None
             },
@@ -113,8 +126,18 @@ async def student_new(
     except Exception as e:
         print(f"❌ Error in student_new: {str(e)}")
         return templates.TemplateResponse(
-            "errors/error.html",
-            {**ctx, "message": f"حدث خطأ: {str(e)}"},
+            "students/form.html",
+            {
+                **ctx, 
+                "title": "إضافة طالب", 
+                "mode": "create", 
+                "sections": [], 
+                "years": [],
+                "grades": [],
+                "periods": [],
+                "student": None,
+                "error": f"حدث خطأ: {str(e)}"
+            },
             status_code=400
         )
 
@@ -135,8 +158,10 @@ async def student_create(
     guardian_phone: Optional[str] = Form(None),
     guardian_email: Optional[str] = Form(None),
     address: Optional[str] = Form(None),
-    section_id: Optional[str] = Form(None),
     year_id: Optional[str] = Form(None),
+    grade_id: Optional[str] = Form(None),
+    section_id: Optional[str] = Form(None),
+    period_id: Optional[str] = Form(None),
 ):
     service = StudentService(db)
     ctx = await template_context(request)
@@ -162,7 +187,9 @@ async def student_create(
             sections_data.append({
                 "id": str(section.id),
                 "name": section.name,
-                "full_name": f"{section.stage.name if section.stage else ''} - {section.grade.name if section.grade else ''} - {section.name}"
+                "grade_id": str(section.grade_id) if section.grade_id else None,
+                "year_id": section.year_id if hasattr(section, 'year_id') else None,
+                "grade_name": section.grade.name if section.grade else "غير محدد",
             })
         return templates.TemplateResponse(
             "students/form.html",
@@ -172,6 +199,8 @@ async def student_create(
                 "mode": "create", 
                 "sections": sections_data, 
                 "years": data.get("years", []),
+                "grades": data.get("grades", []),
+                "periods": data.get("periods", []),
                 "student": None,
                 "error": "الرجاء تصحيح الأخطاء التالية:<br>• " + "<br>• ".join(errors.values())
             },
@@ -189,8 +218,10 @@ async def student_create(
         guardian_phone=guardian_phone.strip() if guardian_phone else None,
         guardian_email=guardian_email.strip().lower() if guardian_email else None,
         address=address.strip() if address else None,
-        section_id=section_id,
         year_id=year_id,
+        grade_id=grade_id,
+        section_id=section_id,
+        period_id=period_id,
     )
     
     try:
@@ -203,7 +234,9 @@ async def student_create(
             sections_data.append({
                 "id": str(section.id),
                 "name": section.name,
-                "full_name": f"{section.stage.name if section.stage else ''} - {section.grade.name if section.grade else ''} - {section.name}"
+                "grade_id": str(section.grade_id) if section.grade_id else None,
+                "year_id": section.year_id if hasattr(section, 'year_id') else None,
+                "grade_name": section.grade.name if section.grade else "غير محدد",
             })
         return templates.TemplateResponse(
             "students/form.html",
@@ -213,6 +246,8 @@ async def student_create(
                 "mode": "create", 
                 "sections": sections_data, 
                 "years": data.get("years", []),
+                "grades": data.get("grades", []),
+                "periods": data.get("periods", []),
                 "student": None,
                 "error": str(e)
             },
@@ -225,7 +260,9 @@ async def student_create(
             sections_data.append({
                 "id": str(section.id),
                 "name": section.name,
-                "full_name": f"{section.stage.name if section.stage else ''} - {section.grade.name if section.grade else ''} - {section.name}"
+                "grade_id": str(section.grade_id) if section.grade_id else None,
+                "year_id": section.year_id if hasattr(section, 'year_id') else None,
+                "grade_name": section.grade.name if section.grade else "غير محدد",
             })
         return templates.TemplateResponse(
             "students/form.html",
@@ -235,6 +272,8 @@ async def student_create(
                 "mode": "create", 
                 "sections": sections_data, 
                 "years": data.get("years", []),
+                "grades": data.get("grades", []),
+                "periods": data.get("periods", []),
                 "student": None,
                 "error": str(e)
             },
@@ -247,7 +286,9 @@ async def student_create(
             sections_data.append({
                 "id": str(section.id),
                 "name": section.name,
-                "full_name": f"{section.stage.name if section.stage else ''} - {section.grade.name if section.grade else ''} - {section.name}"
+                "grade_id": str(section.grade_id) if section.grade_id else None,
+                "year_id": section.year_id if hasattr(section, 'year_id') else None,
+                "grade_name": section.grade.name if section.grade else "غير محدد",
             })
         return templates.TemplateResponse(
             "students/form.html",
@@ -257,6 +298,8 @@ async def student_create(
                 "mode": "create", 
                 "sections": sections_data, 
                 "years": data.get("years", []),
+                "grades": data.get("grades", []),
+                "periods": data.get("periods", []),
                 "student": None,
                 "error": str(e)
             },
@@ -270,7 +313,9 @@ async def student_create(
             sections_data.append({
                 "id": str(section.id),
                 "name": section.name,
-                "full_name": f"{section.stage.name if section.stage else ''} - {section.grade.name if section.grade else ''} - {section.name}"
+                "grade_id": str(section.grade_id) if section.grade_id else None,
+                "year_id": section.year_id if hasattr(section, 'year_id') else None,
+                "grade_name": section.grade.name if section.grade else "غير محدد",
             })
         return templates.TemplateResponse(
             "students/form.html",
@@ -280,6 +325,8 @@ async def student_create(
                 "mode": "create", 
                 "sections": sections_data, 
                 "years": data.get("years", []),
+                "grades": data.get("grades", []),
+                "periods": data.get("periods", []),
                 "student": None,
                 "error": f"حدث خطأ غير متوقع: {str(e)}"
             },
@@ -349,7 +396,9 @@ async def student_edit(
             sections_data.append({
                 "id": str(section.id),
                 "name": section.name,
-                "full_name": f"{section.stage.name if section.stage else ''} - {section.grade.name if section.grade else ''} - {section.name}"
+                "grade_id": str(section.grade_id) if section.grade_id else None,
+                "year_id": section.year_id if hasattr(section, 'year_id') else None,
+                "grade_name": section.grade.name if section.grade else "غير محدد",
             })
         
         return templates.TemplateResponse(
@@ -361,6 +410,8 @@ async def student_edit(
                 "student": detail, 
                 "sections": sections_data, 
                 "years": data.get("years", []),
+                "grades": data.get("grades", []),
+                "periods": data.get("periods", []),
                 "error": None
             },
         )
@@ -395,6 +446,10 @@ async def student_update(
     guardian_phone: Optional[str] = Form(None),
     guardian_email: Optional[str] = Form(None),
     address: Optional[str] = Form(None),
+    year_id: Optional[str] = Form(None),
+    grade_id: Optional[str] = Form(None),
+    section_id: Optional[str] = Form(None),
+    period_id: Optional[str] = Form(None),
     is_active: Optional[bool] = Form(None),
 ):
     service = StudentService(db)
@@ -418,7 +473,9 @@ async def student_update(
                 sections_data.append({
                     "id": str(section.id),
                     "name": section.name,
-                    "full_name": f"{section.stage.name if section.stage else ''} - {section.grade.name if section.grade else ''} - {section.name}"
+                    "grade_id": str(section.grade_id) if section.grade_id else None,
+                    "year_id": section.year_id if hasattr(section, 'year_id') else None,
+                    "grade_name": section.grade.name if section.grade else "غير محدد",
                 })
             return templates.TemplateResponse(
                 "students/form.html",
@@ -428,7 +485,9 @@ async def student_update(
                     "mode": "edit", 
                     "student": detail,
                     "sections": sections_data, 
-                    "years": data.get("years", []), 
+                    "years": data.get("years", []),
+                    "grades": data.get("grades", []),
+                    "periods": data.get("periods", []),
                     "error": "الرجاء تصحيح الأخطاء التالية:<br>• " + "<br>• ".join(errors.values())
                 },
                 status_code=422
@@ -450,6 +509,10 @@ async def student_update(
         guardian_phone=guardian_phone.strip() if guardian_phone else None,
         guardian_email=guardian_email.strip().lower() if guardian_email else None,
         address=address.strip() if address else None,
+        year_id=year_id,
+        grade_id=grade_id,
+        section_id=section_id,
+        period_id=period_id,
         is_active=is_active,
     )
     
@@ -471,7 +534,9 @@ async def student_update(
                 sections_data.append({
                     "id": str(section.id),
                     "name": section.name,
-                    "full_name": f"{section.stage.name if section.stage else ''} - {section.grade.name if section.grade else ''} - {section.name}"
+                    "grade_id": str(section.grade_id) if section.grade_id else None,
+                    "year_id": section.year_id if hasattr(section, 'year_id') else None,
+                    "grade_name": section.grade.name if section.grade else "غير محدد",
                 })
             return templates.TemplateResponse(
                 "students/form.html",
@@ -481,7 +546,9 @@ async def student_update(
                     "mode": "edit", 
                     "student": detail,
                     "sections": sections_data, 
-                    "years": data.get("years", []), 
+                    "years": data.get("years", []),
+                    "grades": data.get("grades", []),
+                    "periods": data.get("periods", []),
                     "error": str(e)
                 },
                 status_code=409
@@ -501,7 +568,9 @@ async def student_update(
                 sections_data.append({
                     "id": str(section.id),
                     "name": section.name,
-                    "full_name": f"{section.stage.name if section.stage else ''} - {section.grade.name if section.grade else ''} - {section.name}"
+                    "grade_id": str(section.grade_id) if section.grade_id else None,
+                    "year_id": section.year_id if hasattr(section, 'year_id') else None,
+                    "grade_name": section.grade.name if section.grade else "غير محدد",
                 })
             return templates.TemplateResponse(
                 "students/form.html",
@@ -511,7 +580,9 @@ async def student_update(
                     "mode": "edit", 
                     "student": detail,
                     "sections": sections_data, 
-                    "years": data.get("years", []), 
+                    "years": data.get("years", []),
+                    "grades": data.get("grades", []),
+                    "periods": data.get("periods", []),
                     "error": str(e)
                 },
                 status_code=422
@@ -532,7 +603,9 @@ async def student_update(
                 sections_data.append({
                     "id": str(section.id),
                     "name": section.name,
-                    "full_name": f"{section.stage.name if section.stage else ''} - {section.grade.name if section.grade else ''} - {section.name}"
+                    "grade_id": str(section.grade_id) if section.grade_id else None,
+                    "year_id": section.year_id if hasattr(section, 'year_id') else None,
+                    "grade_name": section.grade.name if section.grade else "غير محدد",
                 })
             return templates.TemplateResponse(
                 "students/form.html",
@@ -542,7 +615,9 @@ async def student_update(
                     "mode": "edit", 
                     "student": detail,
                     "sections": sections_data, 
-                    "years": data.get("years", []), 
+                    "years": data.get("years", []),
+                    "grades": data.get("grades", []),
+                    "periods": data.get("periods", []),
                     "error": f"حدث خطأ غير متوقع: {str(e)}"
                 },
                 status_code=500
@@ -617,19 +692,25 @@ async def debug_all_students(
     """
     try:
         students_result = await db.execute(
-            select(Student, Section)
+            select(Student, Section, Grade, AcademicYear)
             .outerjoin(Section, Student.section_id == Section.id)
+            .outerjoin(Grade, Student.grade_id == Grade.id)
+            .outerjoin(AcademicYear, Student.year_id == AcademicYear.id)
             .where(Student.school_id == user.school_id)
         )
         students = students_result.all()
         
         result = []
-        for student, section in students:
+        for student, section, grade, year in students:
             result.append({
                 "id": str(student.id),
                 "name": student.full_name,
+                "year_id": str(student.year_id) if student.year_id else None,
+                "year_name": year.name if year else None,
+                "grade_id": str(student.grade_id) if student.grade_id else None,
+                "grade_name": grade.name if grade else None,
                 "section_id": str(student.section_id) if student.section_id else None,
-                "section_name": section.name if section else "غير مرتبط",
+                "section_name": section.name if section else None,
                 "school_id": str(student.school_id),
                 "is_active": student.is_active if hasattr(student, 'is_active') else True
             })
