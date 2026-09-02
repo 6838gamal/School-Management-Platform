@@ -7,7 +7,17 @@
             <h1 class="text-2xl font-bold text-slate-800 dark:text-white">{{ title }}</h1>
             <p class="text-slate-400 text-sm mt-1">جميع الحقول المطلوبة عليها علامة *</p>
         </div>
-        <a href="/students" class="text-slate-600 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 text-sm font-medium">← العودة للقائمة</a>
+        <div class="flex items-center gap-3">
+            <!-- زر الاستيراد الجديد -->
+            <button onclick="document.getElementById('importModal').classList.remove('hidden')" 
+                    class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200 flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+                </svg>
+                استيراد طلاب
+            </button>
+            <a href="/students" class="text-slate-600 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 text-sm font-medium">← العودة للقائمة</a>
+        </div>
     </div>
 
     {% if error %}
@@ -219,14 +229,74 @@
     </div>
 </div>
 
+<!-- نافذة الاستيراد -->
+<div id="importModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 hidden">
+    <div class="bg-white dark:bg-slate-800 rounded-xl max-w-2xl w-full mx-4 p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="text-xl font-bold text-slate-800 dark:text-white">استيراد طلاب من ملف</h2>
+            <button onclick="document.getElementById('importModal').classList.add('hidden')" 
+                    class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+
+        <!-- نموذج الاستيراد -->
+        <form id="importForm" enctype="multipart/form-data" class="space-y-4">
+            <div class="border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-lg p-8 text-center hover:border-primary-500 transition-colors cursor-pointer" id="dropZone">
+                <input type="file" name="file" id="fileInput" accept=".csv,.xlsx,.xls,.pdf" class="hidden" required>
+                <svg class="w-12 h-12 text-slate-400 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+                </svg>
+                <p class="text-slate-600 dark:text-slate-300" id="fileLabel">اسحب الملف هنا أو انقر للاختيار</p>
+                <p class="text-xs text-slate-400 mt-1">يدعم: CSV, XLSX, XLS, PDF</p>
+                <p class="text-xs text-slate-400 mt-1 font-semibold text-emerald-600 dark:text-emerald-400" id="fileName"></p>
+            </div>
+
+            <!-- معاينة البيانات -->
+            <div id="previewContainer" class="hidden">
+                <h3 class="font-semibold text-slate-700 dark:text-slate-300 mb-2">معاينة البيانات</h3>
+                <div class="overflow-x-auto border rounded-lg">
+                    <table class="w-full text-sm" id="previewTable">
+                        <thead class="bg-slate-50 dark:bg-slate-700">
+                            <tr id="previewHeader"></tr>
+                        </thead>
+                        <tbody id="previewBody"></tbody>
+                    </table>
+                </div>
+                <p class="text-xs text-slate-400 mt-2" id="rowCount"></p>
+            </div>
+
+            <!-- تنسيق الملف -->
+            <div class="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg">
+                <p class="text-xs text-blue-700 dark:text-blue-300">
+                    <span class="font-bold">📌 ملاحظة:</span> يجب أن يحتوي الملف على الأعمدة التالية:
+                    <br>
+                    رقم الطالب, الاسم الأول, اسم العائلة (إلزامية) - الجنس, تاريخ الميلاد, اسم ولي الأمر, هاتف ولي الأمر, البريد الإلكتروني, العنوان, السنة الدراسية, الصف, الشعبة (اختيارية)
+                </p>
+            </div>
+
+            <div class="flex gap-3 pt-4 border-t border-slate-100 dark:border-slate-700">
+                <button type="submit" class="bg-primary-600 hover:bg-primary-700 text-white px-6 py-2 rounded-lg text-sm font-semibold transition-colors duration-200">
+                    استيراد
+                </button>
+                <button type="button" onclick="document.getElementById('importModal').classList.add('hidden')" 
+                        class="bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 px-6 py-2 rounded-lg text-sm font-medium transition-colors duration-200">
+                    إلغاء
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // العناصر
+    // === كود تصفية الصفوف والشعب ===
     const yearSelect = document.getElementById('yearSelect');
     const gradeSelect = document.getElementById('gradeSelect');
     const sectionSelect = document.getElementById('sectionSelect');
     
-    // حفظ الخيارات الأصلية
     const allGrades = Array.from(gradeSelect.querySelectorAll('option'))
         .filter(opt => opt.value !== '')
         .map(opt => ({
@@ -246,20 +316,16 @@ document.addEventListener('DOMContentLoaded', function() {
             selected: opt.selected
         }));
     
-    // تخزين القيم المحددة مسبقاً
     let preselectedGrade = gradeSelect.value;
     let preselectedSection = sectionSelect.value;
     
-    // دالة تصفية الصفوف
     function filterGrades() {
         const yearId = yearSelect.value;
         
-        // حذف جميع الخيارات ما عدا الأول
         while (gradeSelect.options.length > 1) {
             gradeSelect.remove(1);
         }
         
-        // إضافة الخيارات المفلترة
         const filtered = allGrades.filter(opt => yearId === '' || opt.year === yearId);
         filtered.forEach(opt => {
             const option = document.createElement('option');
@@ -272,7 +338,6 @@ document.addEventListener('DOMContentLoaded', function() {
             gradeSelect.appendChild(option);
         });
         
-        // إذا لم تكن هناك خيارات، أضف رسالة
         if (filtered.length === 0) {
             const option = document.createElement('option');
             option.value = '';
@@ -281,7 +346,6 @@ document.addEventListener('DOMContentLoaded', function() {
             gradeSelect.appendChild(option);
         }
         
-        // إعادة تعيين القيمة المحددة إذا كانت موجودة
         if (preselectedGrade) {
             const exists = Array.from(gradeSelect.options).some(opt => opt.value === preselectedGrade);
             if (exists) {
@@ -294,21 +358,17 @@ document.addEventListener('DOMContentLoaded', function() {
             gradeSelect.value = '';
         }
         
-        // تصفية الشعب بعد تغيير الصف
         filterSections();
     }
     
-    // دالة تصفية الشعب
     function filterSections() {
         const gradeId = gradeSelect.value;
         const yearId = yearSelect.value;
         
-        // حذف جميع الخيارات ما عدا الأول
         while (sectionSelect.options.length > 1) {
             sectionSelect.remove(1);
         }
         
-        // إضافة الخيارات المفلترة
         const filtered = allSections.filter(opt => {
             const gradeMatch = gradeId === '' || opt.grade === gradeId;
             const yearMatch = yearId === '' || opt.year === yearId;
@@ -327,7 +387,6 @@ document.addEventListener('DOMContentLoaded', function() {
             sectionSelect.appendChild(option);
         });
         
-        // إذا لم تكن هناك خيارات، أضف رسالة
         if (filtered.length === 0) {
             const option = document.createElement('option');
             option.value = '';
@@ -336,7 +395,6 @@ document.addEventListener('DOMContentLoaded', function() {
             sectionSelect.appendChild(option);
         }
         
-        // إعادة تعيين القيمة المحددة إذا كانت موجودة
         if (preselectedSection) {
             const exists = Array.from(sectionSelect.options).some(opt => opt.value === preselectedSection);
             if (exists) {
@@ -350,7 +408,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
     
-    // أحداث التغيير
     yearSelect.addEventListener('change', function() {
         preselectedGrade = gradeSelect.value;
         preselectedSection = sectionSelect.value;
@@ -362,22 +419,17 @@ document.addEventListener('DOMContentLoaded', function() {
         filterSections();
     });
     
-    // التصفية الأولية (إذا كانت هناك قيمة محددة مسبقاً)
     if (yearSelect.value) {
         filterGrades();
     } else {
-        // عرض جميع الصفوف إذا لم تكن هناك سنة محددة
         filterGrades();
     }
     
-    // إذا كان هناك صف محدد مسبقاً، قم بتصفية الشعب
     if (gradeSelect.value) {
         filterSections();
     }
     
-    // معالجة حالة "لا توجد سنة" - عرض جميع الصفوف
     if (!yearSelect.value) {
-        // إعادة عرض جميع الصفوف
         while (gradeSelect.options.length > 1) {
             gradeSelect.remove(1);
         }
@@ -396,6 +448,196 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         filterSections();
     }
+
+    // === كود الاستيراد ===
+    const fileInput = document.getElementById('fileInput');
+    const dropZone = document.getElementById('dropZone');
+    const fileLabel = document.getElementById('fileLabel');
+    const fileName = document.getElementById('fileName');
+    const previewContainer = document.getElementById('previewContainer');
+    const previewHeader = document.getElementById('previewHeader');
+    const previewBody = document.getElementById('previewBody');
+    const rowCount = document.getElementById('rowCount');
+    const importForm = document.getElementById('importForm');
+
+    dropZone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        dropZone.classList.add('border-primary-500', 'bg-primary-50', 'dark:bg-primary-900/20');
+    });
+
+    dropZone.addEventListener('dragleave', () => {
+        dropZone.classList.remove('border-primary-500', 'bg-primary-50', 'dark:bg-primary-900/20');
+    });
+
+    dropZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropZone.classList.remove('border-primary-500', 'bg-primary-50', 'dark:bg-primary-900/20');
+        if (e.dataTransfer.files.length) {
+            fileInput.files = e.dataTransfer.files;
+            handleFile(fileInput.files[0]);
+        }
+    });
+
+    dropZone.addEventListener('click', () => fileInput.click());
+
+    fileInput.addEventListener('change', function() {
+        if (this.files.length) {
+            handleFile(this.files[0]);
+        }
+    });
+
+    function handleFile(file) {
+        fileName.textContent = `📎 ${file.name}`;
+        fileLabel.textContent = 'تم اختيار الملف';
+        previewContainer.classList.add('hidden');
+
+        const reader = new FileReader();
+        
+        if (file.name.endsWith('.csv')) {
+            reader.onload = function(e) {
+                const text = e.target.result;
+                const rows = text.split('\n').filter(row => row.trim());
+                if (rows.length > 0) {
+                    displayPreview(rows);
+                }
+            };
+            reader.readAsText(file, 'UTF-8');
+        } else if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, {type: 'array'});
+                    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                    const jsonData = XLSX.utils.sheet_to_json(firstSheet, {header: 1});
+                    if (jsonData.length > 0) {
+                        const rows = jsonData.map(row => row.join(','));
+                        displayPreview(rows);
+                    }
+                } catch (error) {
+                    alert('خطأ في قراءة ملف Excel: ' + error.message);
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        } else if (file.name.endsWith('.pdf')) {
+            reader.onload = function(e) {
+                try {
+                    const typedarray = new Uint8Array(e.target.result);
+                    pdfjsLib.getDocument(typedarray).promise.then(function(pdf) {
+                        let fullText = '';
+                        let promises = [];
+                        for (let i = 1; i <= pdf.numPages; i++) {
+                            promises.push(pdf.getPage(i).then(function(page) {
+                                return page.getTextContent().then(function(textContent) {
+                                    let pageText = '';
+                                    textContent.items.forEach(function(item) {
+                                        pageText += item.str + ' ';
+                                    });
+                                    return pageText;
+                                });
+                            }));
+                        }
+                        Promise.all(promises).then(function(pages) {
+                            fullText = pages.join('\n');
+                            const lines = fullText.split('\n').filter(line => line.trim());
+                            if (lines.length > 0) {
+                                displayPreviewFromPDF(lines);
+                            } else {
+                                alert('لم يتم العثور على نص في ملف PDF');
+                            }
+                        });
+                    }).catch(function(error) {
+                        alert('خطأ في قراءة ملف PDF: ' + error.message);
+                    });
+                } catch (error) {
+                    alert('خطأ في قراءة ملف PDF: ' + error.message);
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        } else {
+            alert('نوع الملف غير مدعوم');
+        }
+    }
+
+    function displayPreview(rows) {
+        if (rows.length === 0) {
+            alert('الملف فارغ');
+            return;
+        }
+
+        const headers = rows[0].split(',').map(h => h.trim());
+        const dataRows = rows.slice(1, 6);
+
+        previewHeader.innerHTML = headers.map(h => `<th class="px-3 py-2 text-right border-b">${h}</th>`).join('');
+        previewBody.innerHTML = dataRows.map(row => {
+            const cells = row.split(',').map(c => c.trim());
+            return `<tr>${cells.map(c => `<td class="px-3 py-2 border-b">${c || '-'}</td>`).join('')}</tr>`;
+        }).join('');
+
+        rowCount.textContent = `📊 إجمالي الطلاب: ${rows.length - 1}`;
+        previewContainer.classList.remove('hidden');
+    }
+
+    function displayPreviewFromPDF(lines) {
+        if (lines.length === 0) {
+            alert('الملف فارغ');
+            return;
+        }
+
+        previewHeader.innerHTML = '<th class="px-3 py-2 text-right border-b">البيانات المستخرجة من PDF</th>';
+        previewBody.innerHTML = lines.slice(0, 10).map(row => 
+            `<tr><td class="px-3 py-2 border-b">${row || '-'}</td></tr>`
+        ).join('');
+        
+        rowCount.textContent = `📊 عدد الأسطر المستخرجة: ${lines.length}`;
+        previewContainer.classList.remove('hidden');
+    }
+
+    importForm.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const file = fileInput.files[0];
+        if (!file) {
+            alert('الرجاء اختيار ملف للاستيراد');
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const submitBtn = this.querySelector('button[type="submit"]');
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'جاري الاستيراد...';
+
+        try {
+            const response = await fetch('/students/import', {
+                method: 'POST',
+                body: formData
+            });
+
+            const result = await response.json();
+            
+            if (result.success) {
+                let message = `✅ تم استيراد ${result.imported} طالب بنجاح`;
+                if (result.errors && result.errors.length > 0) {
+                    message += `\n⚠️ عدد الأخطاء: ${result.errors.length}`;
+                }
+                alert(message);
+                window.location.href = '/students';
+            } else {
+                alert('❌ ' + (result.message || 'حدث خطأ أثناء الاستيراد'));
+            }
+        } catch (error) {
+            alert('❌ حدث خطأ في الاتصال بالخادم: ' + error.message);
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'استيراد';
+        }
+    });
 });
 </script>
+
+<!-- إضافة مكتبات خارجية -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+
 {% endblock %}
