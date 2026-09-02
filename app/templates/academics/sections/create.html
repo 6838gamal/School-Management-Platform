@@ -1,3 +1,4 @@
+<!-- app/templates/academics/sections/create.html -->
 {% extends "layouts/director.html" %}
 {% block content %}
 <div class="max-w-2xl mx-auto">
@@ -14,6 +15,34 @@
 
         <form id="createForm" method="POST" action="/api/v1/academics/sections/create" onsubmit="return handleSubmit(event, this)">
             <div class="space-y-4">
+                <!-- السنة الدراسية -->
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                        السنة الدراسية <span class="text-red-500">*</span>
+                    </label>
+                    <select name="year_id" id="yearSelect" class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-slate-700 dark:text-white transition-colors duration-200" required>
+                        <option value="">اختر السنة الدراسية</option>
+                        {% for year in years %}
+                        <option value="{{ year.id }}">{{ year.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- الصف -->
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                        الصف <span class="text-red-500">*</span>
+                    </label>
+                    <select name="grade_id" id="gradeSelect" class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-slate-700 dark:text-white transition-colors duration-200" required>
+                        <option value="">اختر الصف</option>
+                        {% for g in grades %}
+                        <option value="{{ g.id }}" data-year="{{ g.year_id }}">{{ g.name }}</option>
+                        {% endfor %}
+                    </select>
+                    <p class="text-xs text-slate-400 mt-1">يتم تصفية الصفوف حسب السنة المختارة</p>
+                </div>
+
+                <!-- اسم الشعبة -->
                 <div>
                     <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                         اسم الشعبة <span class="text-red-500">*</span>
@@ -24,6 +53,7 @@
                     <p class="text-xs text-slate-400 mt-1">مثال: 1-أ، 1-ب، 2-أ، ...</p>
                 </div>
 
+                <!-- السعة -->
                 <div>
                     <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                         السعة
@@ -33,18 +63,22 @@
                     <p class="text-xs text-slate-400 mt-1">عدد الطلاب المسموح به في الشعبة</p>
                 </div>
 
+                <!-- المعلمين (رائد الفصل) -->
                 <div>
                     <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                        الصف <span class="text-red-500">*</span>
+                        رائد الفصل
                     </label>
-                    <select name="grade_id" class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-slate-700 dark:text-white transition-colors duration-200" required>
-                        <option value="">اختر الصف</option>
-                        {% for g in grades %}
-                        <option value="{{ g.id }}">{{ g.name }}</option>
+                    <select name="teacher_ids" id="teacherSelect" multiple
+                            class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-slate-700 dark:text-white transition-colors duration-200 min-h-[100px]">
+                        <option value="">اختر المعلمين (يمكن اختيار أكثر من واحد)</option>
+                        {% for teacher in teachers %}
+                        <option value="{{ teacher.id }}">{{ teacher.first_name }} {{ teacher.last_name }} - {{ teacher.specialization or 'بدون تخصص' }}</option>
                         {% endfor %}
                     </select>
+                    <p class="text-xs text-slate-400 mt-1">يمكن اختيار أكثر من معلم كرائد فصل (اضغط Ctrl+اختيار)</p>
                 </div>
 
+                <!-- حالة التفعيل -->
                 <div class="flex items-center space-x-3 space-x-reverse">
                     <input type="checkbox" name="is_active" value="true" checked
                            class="w-4 h-4 text-primary-600 border-slate-300 rounded focus:ring-primary-500 dark:border-slate-600">
@@ -65,6 +99,55 @@
 </div>
 
 <script>
+// تصفية الصفوف حسب السنة المختارة
+document.addEventListener('DOMContentLoaded', function() {
+    const yearSelect = document.getElementById('yearSelect');
+    const gradeSelect = document.getElementById('gradeSelect');
+    const allOptions = Array.from(gradeSelect.querySelectorAll('option'));
+    
+    // حفظ الخيارات الأصلية
+    const originalOptions = allOptions.filter(opt => opt.value !== '').map(opt => ({
+        value: opt.value,
+        text: opt.text,
+        year: opt.getAttribute('data-year')
+    }));
+    
+    function filterGrades() {
+        const yearId = yearSelect.value;
+        
+        // حذف جميع الخيارات ما عدا الأول
+        while (gradeSelect.options.length > 1) {
+            gradeSelect.remove(1);
+        }
+        
+        // إضافة الخيارات المفلترة
+        const filtered = originalOptions.filter(opt => yearId === '' || opt.year === yearId);
+        filtered.forEach(opt => {
+            const option = document.createElement('option');
+            option.value = opt.value;
+            option.textContent = opt.text;
+            option.setAttribute('data-year', opt.year);
+            gradeSelect.appendChild(option);
+        });
+        
+        // إذا لم تكن هناك خيارات، أضف رسالة
+        if (filtered.length === 0) {
+            const option = document.createElement('option');
+            option.value = '';
+            option.textContent = 'لا توجد صفوف في هذه السنة';
+            option.disabled = true;
+            gradeSelect.appendChild(option);
+        }
+        
+        gradeSelect.value = '';
+    }
+    
+    yearSelect.addEventListener('change', filterGrades);
+    
+    // التصفية الأولية
+    filterGrades();
+});
+
 async function handleSubmit(event, form) {
     event.preventDefault();
     const submitBtn = document.getElementById('submitBtn');
@@ -73,8 +156,17 @@ async function handleSubmit(event, form) {
 
     const formData = new FormData(form);
     const data = Object.fromEntries(formData.entries());
+    
+    // معالجة البيانات
     if (data.capacity) data.capacity = parseInt(data.capacity);
     data.is_active = data.is_active === 'true';
+    
+    // معالجة المعلمين المختارين (متعدد)
+    const teacherSelect = document.getElementById('teacherSelect');
+    const selectedTeachers = Array.from(teacherSelect.selectedOptions)
+        .filter(opt => opt.value !== '')
+        .map(opt => opt.value);
+    data.teacher_ids = selectedTeachers;
 
     try {
         const response = await fetch(form.action, {
@@ -101,7 +193,7 @@ async function handleSubmit(event, form) {
         showMessage('❌ حدث خطأ في الاتصال بالخادم', 'error');
         submitBtn.disabled = false;
         submitBtn.textContent = 'إضافة';
-        console.error(error);
+        console.error('Error:', error);
     }
 }
 
@@ -127,6 +219,26 @@ function showMessage(message, type = 'success') {
 }
 .animate-slide-in {
     animation: slideIn 0.3s ease-out;
+}
+
+/* تحسين شكل الـ select المتعدد */
+select[multiple] {
+    scroll-behavior: smooth;
+}
+select[multiple] option {
+    padding: 6px 10px;
+    border-bottom: 1px solid #e2e8f0;
+    cursor: pointer;
+}
+select[multiple] option:checked {
+    background: #3b82f6 linear-gradient(0deg, #3b82f6 0%, #3b82f6 100%);
+    color: white;
+}
+select[multiple] option:hover {
+    background: #e2e8f0;
+}
+.dark select[multiple] option:hover {
+    background: #334155;
 }
 </style>
 {% endblock %}
