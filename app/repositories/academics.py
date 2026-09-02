@@ -82,7 +82,7 @@ class StageRepository(BaseRepository[Stage]):
     model = Stage
 
     async def list_by_year(self, year_id: str) -> list[Stage]:
-        """✅ جلب المراحل حسب السنة الدراسية"""
+        """جلب المراحل حسب السنة الدراسية"""
         result = await self.db.execute(
             select(self.model)
             .where(self.model.year_id == year_id)
@@ -100,7 +100,7 @@ class StageRepository(BaseRepository[Stage]):
         return list(result.scalars().all())
 
     async def list_by_school_and_year(self, school_id: str, year_id: str) -> list[Stage]:
-        """✅ جلب المراحل حسب المدرسة والسنة الدراسية"""
+        """جلب المراحل حسب المدرسة والسنة الدراسية"""
         result = await self.db.execute(
             select(self.model)
             .where(
@@ -121,7 +121,7 @@ class StageRepository(BaseRepository[Stage]):
         return result.scalar_one_or_none()
 
     async def get_by(self, school_id: str, year_id: str, name: str) -> Stage | None:
-        """✅ جلب مرحلة حسب المدرسة والسنة والاسم"""
+        """جلب مرحلة حسب المدرسة والسنة والاسم"""
         result = await self.db.execute(
             select(self.model).where(
                 self.model.school_id == school_id,
@@ -166,7 +166,7 @@ class GradeRepository(BaseRepository[Grade]):
         return list(result.scalars().all())
 
     async def list_by_stage_and_year(self, stage_id: str, year_id: str) -> list[Grade]:
-        """✅ جلب الصفوف حسب المرحلة والسنة الدراسية"""
+        """جلب الصفوف حسب المرحلة والسنة الدراسية"""
         result = await self.db.execute(
             select(self.model)
             .where(
@@ -187,7 +187,7 @@ class GradeRepository(BaseRepository[Grade]):
         return list(result.scalars().all())
 
     async def list_by_school_and_year(self, school_id: str, year_id: str) -> list[Grade]:
-        """✅ جلب الصفوف حسب المدرسة والسنة الدراسية"""
+        """جلب الصفوف حسب المدرسة والسنة الدراسية"""
         result = await self.db.execute(
             select(self.model)
             .where(
@@ -199,7 +199,7 @@ class GradeRepository(BaseRepository[Grade]):
         return list(result.scalars().all())
 
     async def list_by_school_with_relations(self, school_id: str) -> list[Grade]:
-        """✅ جلب الصفوف مع العلاقات (المرحلة والسنة)"""
+        """جلب الصفوف مع العلاقات (المرحلة والسنة)"""
         result = await self.db.execute(
             select(self.model)
             .where(self.model.school_id == school_id)
@@ -212,7 +212,7 @@ class GradeRepository(BaseRepository[Grade]):
         return list(result.scalars().all())
 
     async def get_by_id(self, id: str) -> Grade | None:
-        """✅ جلب صف بواسطة المعرف مع العلاقات"""
+        """جلب صف بواسطة المعرف مع العلاقات"""
         result = await self.db.execute(
             select(self.model)
             .where(self.model.id == id)
@@ -224,7 +224,7 @@ class GradeRepository(BaseRepository[Grade]):
         return result.scalar_one_or_none()
 
     async def get_by(self, school_id: str, stage_id: str, year_id: str, name: str) -> Grade | None:
-        """✅ جلب صف حسب المدرسة والمرحلة والسنة والاسم"""
+        """جلب صف حسب المدرسة والمرحلة والسنة والاسم"""
         result = await self.db.execute(
             select(self.model).where(
                 self.model.school_id == school_id,
@@ -236,7 +236,7 @@ class GradeRepository(BaseRepository[Grade]):
         return result.scalar_one_or_none()
 
     async def get_by_name_in_stage(self, stage_id: str, name: str, exclude_id: str | None = None) -> Grade | None:
-        """✅ جلب صف بالاسم في مرحلة معينة (مع إمكانية الاستبعاد)"""
+        """جلب صف بالاسم في مرحلة معينة (مع إمكانية الاستبعاد)"""
         query = select(self.model).where(
             self.model.stage_id == stage_id,
             self.model.name == name
@@ -247,7 +247,7 @@ class GradeRepository(BaseRepository[Grade]):
         return result.scalar_one_or_none()
 
     async def update(self, id: str, **kwargs) -> Grade:
-        """✅ تحديث صف"""
+        """تحديث صف"""
         item = await self.get_by_id(id)
         if not item:
             raise ValueError("العنصر غير موجود")
@@ -289,8 +289,20 @@ class SectionRepository(BaseRepository[Section]):
         )
         return list(result.scalars().all())
 
+    async def list_by_school_and_year(self, school_id: str, year_id: str) -> list[Section]:
+        """✅ جلب الشعب حسب المدرسة والسنة الدراسية"""
+        result = await self.db.execute(
+            select(self.model)
+            .where(
+                self.model.school_id == school_id,
+                self.model.year_id == year_id
+            )
+            .order_by(self.model.name)
+        )
+        return list(result.scalars().all())
+
     async def list_by_grade_with_relations(self, grade_id: str) -> list[Section]:
-        """✅ جلب الشعب مع العلاقة مع الصف"""
+        """جلب الشعب مع العلاقة مع الصف"""
         result = await self.db.execute(
             select(self.model)
             .where(self.model.grade_id == grade_id)
@@ -299,19 +311,46 @@ class SectionRepository(BaseRepository[Section]):
         )
         return list(result.scalars().all())
 
+    async def list_by_school_with_relations(self, school_id: str) -> list[Section]:
+        """✅ جلب جميع الشعب مع العلاقات (الصف والسنة)"""
+        result = await self.db.execute(
+            select(self.model)
+            .where(self.model.school_id == school_id)
+            .options(
+                selectinload(self.model.grade),
+                selectinload(self.model.year)
+            )
+            .order_by(self.model.name)
+        )
+        return list(result.scalars().all())
+
     async def get_by_id(self, id: str) -> Section | None:
-        """جلب شعبة بواسطة المعرف"""
+        """جلب شعبة بواسطة المعرف مع العلاقات"""
         result = await self.db.execute(
             select(self.model)
             .where(self.model.id == id)
-            .options(selectinload(self.model.grade))
+            .options(
+                selectinload(self.model.grade),
+                selectinload(self.model.year)
+            )
         )
         return result.scalar_one_or_none()
 
     async def get_by_name_in_grade(self, grade_id: str, name: str, exclude_id: str | None = None) -> Section | None:
-        """✅ جلب شعبة بالاسم في صف معين (مع إمكانية الاستبعاد)"""
+        """جلب شعبة بالاسم في صف معين (مع إمكانية الاستبعاد)"""
         query = select(self.model).where(
             self.model.grade_id == grade_id,
+            self.model.name == name
+        )
+        if exclude_id:
+            query = query.where(self.model.id != exclude_id)
+        result = await self.db.execute(query)
+        return result.scalar_one_or_none()
+
+    async def get_by_name_in_school(self, school_id: str, name: str, exclude_id: str | None = None) -> Section | None:
+        """✅ جلب شعبة بالاسم في مدرسة معينة (مع إمكانية الاستبعاد)"""
+        query = select(self.model).where(
+            self.model.school_id == school_id,
             self.model.name == name
         )
         if exclude_id:
@@ -374,7 +413,7 @@ class SubjectRepository(BaseRepository[Subject]):
         return list(result.scalars().all())
 
     async def list_active_by_school(self, school_id: str) -> list[Subject]:
-        """✅ جلب المواد النشطة لمدرسة معينة"""
+        """جلب المواد النشطة لمدرسة معينة"""
         result = await self.db.execute(
             select(self.model)
             .where(
@@ -427,7 +466,7 @@ class RoomRepository(BaseRepository[Room]):
         return list(result.scalars().all())
 
     async def list_active_by_school(self, school_id: str) -> list[Room]:
-        """✅ جلب القاعات النشطة لمدرسة معينة"""
+        """جلب القاعات النشطة لمدرسة معينة"""
         result = await self.db.execute(
             select(self.model)
             .where(
@@ -497,7 +536,7 @@ class PeriodRepository(BaseRepository[Period]):
         return result.scalar_one_or_none()
 
     async def get_by_order(self, school_id: str, order: int) -> Period | None:
-        """✅ جلب فصل بالترتيب لمدرسة معينة"""
+        """جلب فصل بالترتيب لمدرسة معينة"""
         result = await self.db.execute(
             select(self.model).where(
                 self.model.school_id == school_id,
