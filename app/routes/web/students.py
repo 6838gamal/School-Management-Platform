@@ -1,5 +1,5 @@
 """Students web routes — shared pages used by director, deputy, and teacher."""
-from fastapi import APIRouter, Depends, Request, Form, HTTPException
+from fastapi import APIRouter, Depends, Request, Form, HTTPException, File, UploadFile
 from fastapi.responses import RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,6 +9,10 @@ from typing import Optional
 import uuid
 import traceback
 from datetime import datetime
+import pandas as pd
+import io
+import pdfplumber
+from pathlib import Path
 
 from app.core.database import get_db
 from app.core.dependencies import CurrentUser, require_any_permission, template_context
@@ -68,17 +72,336 @@ async def get_onboarding_data(db: AsyncSession, school_id: str):
         )
         sections = sections_result.scalars().all()
         
-        
-        
         return {
             "years": years,
             "grades": grades,
             "sections": sections
-            
         }
     except Exception as e:
         print(f"⚠️ Error in get_onboarding_data: {str(e)}")
-        return {"years": [], "grades": [], "sections": [], "periods": []}
+        return {"years": [], "grades": [], "sections": []}
+
+
+# ============================================================
+# دالة مساعدة للحصول على معرف السنة من الاسم
+# ============================================================
+async def get_year_id_by_name(db: AsyncSession, school_id: str, year_name: str):
+    """الحصول على معرف السنة من الاسم"""
+    if not year_name:
+        return None
+    result = await db.execute(
+        select(AcademicYear).where(
+            AcademicYear.school_id == school_id,
+            AcademicYear.name == year_name.strip()
+        )
+    )
+    year = result.scalar_one_or_none()
+    return str(year.id) if year else None
+
+
+# ============================================================
+# دالة مساعدة للحصول على معرف الصف من الاسم
+# ============================================================
+async def get_grade_id_by_name(db: AsyncSession, school_id: str, grade_name: str):
+    """الحصول على معرف الصف من الاسم"""
+    if not grade_name:
+        return None
+    result = await db.execute(
+        select(Grade).where(
+            Grade.school_id == school_id,
+            Grade.name == grade_name.strip()
+        )
+    )
+    grade = result.scalar_one_or_none()
+    return str(grade.id) if grade else None
+
+
+# ============================================================
+# دالة مساعدة للحصول على معرف الشعبة من الاسم
+# ============================================================
+async def get_section_id_by_name(db: AsyncSession, school_id: str, section_name: str):
+    """الحصول على معرف الشعبة من الاسم"""
+    if not section_name:
+        return None
+    result = await db.execute(
+        select(Section).where(
+            Section.school_id == school_id,
+            Section.name == section_name.strip()
+        )
+    )
+    section = result.scalar_one_or_none()
+    return str(section.id) if section else None
+
+
+# ============================================================
+# 📥 POST /students/import - استيراد الطلاب من ملف
+# ============================================================
+@router.post("/import")
+async def import_students(
+    request: Request,
+    user: CurrentUser = Depends(require_any_permission("students.create")),
+    db: AsyncSession = Depends(get_db),
+    file: UploadFile = File(...),
+):
+    """
+    استيراد الطلاب من ملف (CSV, Excel, PDF)
+    """
+    try:
+        # التحقق من الملف
+        if not file:
+            return JSONResponse({
+                'success': False,
+                'message': 'لم يتم اختيار ملف'
+            }, status_code=400)
+        
+        filename = file.filename.lower()
+        content = await file.read()
+        
+        # تحديد نوع الملف ومعالجته
+        data = []
+        
+        if filename.endswith('.csv'):
+            # قراءة CSV
+            try:
+                text = content.decode('utf-8')
+                lines = text.split('\n')
+                headers = [h.strip() for h in lines[0].split(',')]
+                for line in lines[1:]:
+                    if line.strip():
+                        values = [v.strip() for v in line.split(',')]
+                        if len(values) == len(headers):
+                            row = dict(zip(headers, values))
+                            data.append(row)
+            except UnicodeDecodeError:
+                # محاولة بترميز آخر
+                text = content.decode('windows-1256')
+                lines = text.split('\n')
+                headers = [h.strip() for h in lines[0].split(',')]
+                for line in lines[1:]:
+                    if line.strip():
+                        values = [v.strip() for v in line.split(',')]
+                        if len(values) == len(headers):
+                            row = dict(zip(headers, values))
+                            data.append(row)
+            
+        elif filename.endswith('.xlsx') or filename.endswith('.xls'):
+            # قراءة Excel
+            try:
+                df = pd.read_excel(io.BytesIO(content), engine='openpyxl' if filename.endswith('.xlsx') else 'xlrd')
+                data = df.to_dict('records')
+            except Exception as e:
+                return JSONResponse({
+                    'success': False,
+                    'message': f'خطأ في قراءة ملف Excel: {str(e)}'
+                }, status_code=400)
+            
+        elif filename.endswith('.pdf'):
+            # قراءة PDF باستخدام pdfplumber
+            try:
+                with pdfplumber.open(io.BytesIO(content)) as pdf:
+                    text = ''
+                    for page in pdf.pages:
+                        text += page.extract_text() or ''
+                
+                # معالجة النص المستخرج
+                lines = [line.strip() for line in text.split('\n') if line.strip()]
+                data = parse_pdf_data(lines)
+            except Exception as e:
+                return JSONResponse({
+                    'success': False,
+                    'message': f'خطأ في قراءة ملف PDF: {str(e)}'
+                }, status_code=400)
+        else:
+            return JSONResponse({
+                'success': False,
+                'message': 'نوع الملف غير مدعوم. يرجى استخدام CSV, Excel, أو PDF'
+            }, status_code=400)
+        
+        # التحقق من وجود بيانات
+        if not data:
+            return JSONResponse({
+                'success': False,
+                'message': 'لم يتم العثور على بيانات في الملف'
+            }, status_code=400)
+        
+        # استيراد البيانات
+        imported_count = 0
+        errors = []
+        
+        for idx, row in enumerate(data, start=2):  # start=2 لأن الصف الأول هو الرؤوس
+            try:
+                # استخراج البيانات من الصف
+                student_number = str(row.get('رقم الطالب') or row.get('student_number') or row.get('Student Number') or row.get('StudentNumber') or '').strip()
+                national_id = str(row.get('الرقم الوطني') or row.get('national_id') or row.get('National ID') or row.get('NationalID') or '').strip() or None
+                first_name = str(row.get('الاسم الأول') or row.get('first_name') or row.get('First Name') or row.get('FirstName') or '').strip()
+                last_name = str(row.get('اسم العائلة') or row.get('last_name') or row.get('Last Name') or row.get('LastName') or '').strip()
+                gender = str(row.get('الجنس') or row.get('gender') or row.get('Gender') or '').strip() or None
+                birth_date = str(row.get('تاريخ الميلاد') or row.get('birth_date') or row.get('Birth Date') or row.get('BirthDate') or '').strip() or None
+                guardian_name = str(row.get('اسم ولي الأمر') or row.get('guardian_name') or row.get('Guardian Name') or row.get('GuardianName') or '').strip() or None
+                guardian_phone = str(row.get('هاتف ولي الأمر') or row.get('guardian_phone') or row.get('Guardian Phone') or row.get('GuardianPhone') or '').strip() or None
+                guardian_email = str(row.get('البريد الإلكتروني لولي الأمر') or row.get('guardian_email') or row.get('Guardian Email') or row.get('GuardianEmail') or '').strip().lower() or None
+                address = str(row.get('العنوان') or row.get('address') or row.get('Address') or '').strip() or None
+                year_name = str(row.get('السنة الدراسية') or row.get('year') or row.get('Year') or '').strip() or None
+                grade_name = str(row.get('الصف') or row.get('grade') or row.get('Grade') or '').strip() or None
+                section_name = str(row.get('الشعبة') or row.get('section') or row.get('Section') or '').strip() or None
+                
+                # التحقق من الحقول المطلوبة
+                if not student_number:
+                    errors.append(f"الصف {idx}: رقم الطالب مطلوب")
+                    continue
+                
+                if not first_name:
+                    errors.append(f"الصف {idx}: الاسم الأول مطلوب")
+                    continue
+                
+                if not last_name:
+                    errors.append(f"الصف {idx}: اسم العائلة مطلوب")
+                    continue
+                
+                # الحصول على المعرفات من الأسماء
+                year_id = None
+                if year_name:
+                    year_id = await get_year_id_by_name(db, user.school_id, year_name)
+                
+                grade_id = None
+                if grade_name:
+                    grade_id = await get_grade_id_by_name(db, user.school_id, grade_name)
+                
+                section_id = None
+                if section_name:
+                    section_id = await get_section_id_by_name(db, user.school_id, section_name)
+                
+                # إنشاء بيانات الطالب
+                student_data = StudentCreate(
+                    student_number=student_number,
+                    national_id=national_id,
+                    first_name=first_name,
+                    last_name=last_name,
+                    gender=gender,
+                    birth_date=birth_date,
+                    guardian_name=guardian_name,
+                    guardian_phone=guardian_phone,
+                    guardian_email=guardian_email,
+                    address=address,
+                    year_id=year_id,
+                    grade_id=grade_id,
+                    section_id=section_id,
+                )
+                
+                # إنشاء الطالب
+                service = StudentService(db)
+                await service.create_student(student_data, user.id, user.school_id)
+                imported_count += 1
+                
+            except ConflictException as e:
+                errors.append(f"الصف {idx}: رقم الطالب موجود بالفعل")
+                continue
+            except Exception as e:
+                errors.append(f"الصف {idx}: {str(e)}")
+                continue
+        
+        return JSONResponse({
+            'success': True,
+            'imported': imported_count,
+            'errors': errors,
+            'message': f'تم استيراد {imported_count} طالب' + (f'، {len(errors)} خطأ' if errors else '')
+        })
+        
+    except Exception as e:
+        return JSONResponse({
+            'success': False,
+            'message': f'حدث خطأ غير متوقع: {str(e)}'
+        }, status_code=500)
+
+
+def parse_pdf_data(lines):
+    """
+    معالجة البيانات المستخرجة من PDF
+    يمكن تخصيص هذه الدالة حسب تنسيق ملف PDF الخاص بك
+    """
+    students = []
+    current_student = {}
+    
+    for line in lines:
+        # البحث عن رقم الطالب
+        if 'رقم الطالب' in line or 'Student Number' in line or 'StudentNumber' in line:
+            if current_student:
+                students.append(current_student)
+            current_student = {}
+            parts = line.split(':')
+            if len(parts) > 1:
+                current_student['student_number'] = parts[1].strip()
+            else:
+                # محاولة استخراج الرقم من النص
+                import re
+                numbers = re.findall(r'\d+', line)
+                if numbers:
+                    current_student['student_number'] = numbers[0]
+        
+        # البحث عن الاسم
+        elif 'الاسم' in line or 'Name' in line:
+            parts = line.split(':')
+            if len(parts) > 1:
+                name = parts[1].strip()
+                name_parts = name.split()
+                if len(name_parts) >= 2:
+                    current_student['first_name'] = name_parts[0]
+                    current_student['last_name'] = ' '.join(name_parts[1:])
+                else:
+                    current_student['first_name'] = name
+        
+        # البحث عن السنة
+        elif 'السنة' in line or 'Year' in line:
+            parts = line.split(':')
+            if len(parts) > 1:
+                current_student['year'] = parts[1].strip()
+        
+        # البحث عن الصف
+        elif 'الصف' in line or 'Grade' in line:
+            parts = line.split(':')
+            if len(parts) > 1:
+                current_student['grade'] = parts[1].strip()
+        
+        # البحث عن الشعبة
+        elif 'الشعبة' in line or 'Section' in line:
+            parts = line.split(':')
+            if len(parts) > 1:
+                current_student['section'] = parts[1].strip()
+        
+        # البحث عن الجنس
+        elif 'الجنس' in line or 'Gender' in line:
+            parts = line.split(':')
+            if len(parts) > 1:
+                current_student['gender'] = parts[1].strip()
+        
+        # البحث عن تاريخ الميلاد
+        elif 'تاريخ الميلاد' in line or 'Birth Date' in line:
+            parts = line.split(':')
+            if len(parts) > 1:
+                current_student['birth_date'] = parts[1].strip()
+        
+        # البحث عن ولي الأمر
+        elif 'ولي الأمر' in line or 'Guardian' in line:
+            parts = line.split(':')
+            if len(parts) > 1:
+                if 'اسم' in line or 'Name' in line:
+                    current_student['guardian_name'] = parts[1].strip()
+                elif 'هاتف' in line or 'Phone' in line:
+                    current_student['guardian_phone'] = parts[1].strip()
+                elif 'بريد' in line or 'Email' in line:
+                    current_student['guardian_email'] = parts[1].strip()
+        
+        # البحث عن العنوان
+        elif 'العنوان' in line or 'Address' in line:
+            parts = line.split(':')
+            if len(parts) > 1:
+                current_student['address'] = parts[1].strip()
+    
+    # إضافة آخر طالب
+    if current_student:
+        students.append(current_student)
+    
+    return students
 
 
 # 1️⃣ GET /students/new - صفحة إضافة طالب جديد
@@ -112,7 +435,6 @@ async def student_new(
                 "sections": sections_data, 
                 "years": data.get("years", []),
                 "grades": data.get("grades", []),
-        
                 "student": None,
                 "error": None
             },
@@ -128,7 +450,6 @@ async def student_new(
                 "sections": [], 
                 "years": [],
                 "grades": [],
-                
                 "student": None,
                 "error": f"حدث خطأ: {str(e)}"
             },
@@ -155,7 +476,6 @@ async def student_create(
     year_id: Optional[str] = Form(None),
     grade_id: Optional[str] = Form(None),
     section_id: Optional[str] = Form(None),
-    
 ):
     service = StudentService(db)
     ctx = await template_context(request)
@@ -194,7 +514,6 @@ async def student_create(
                 "sections": sections_data, 
                 "years": data.get("years", []),
                 "grades": data.get("grades", []),
-                
                 "student": None,
                 "error": "الرجاء تصحيح الأخطاء التالية:<br>• " + "<br>• ".join(errors.values())
             },
@@ -215,7 +534,6 @@ async def student_create(
         year_id=year_id,
         grade_id=grade_id,
         section_id=section_id,
-    
     )
     
     try:
@@ -241,7 +559,6 @@ async def student_create(
                 "sections": sections_data, 
                 "years": data.get("years", []),
                 "grades": data.get("grades", []),
-                
                 "student": None,
                 "error": str(e)
             },
@@ -267,7 +584,6 @@ async def student_create(
                 "sections": sections_data, 
                 "years": data.get("years", []),
                 "grades": data.get("grades", []),
-                
                 "student": None,
                 "error": str(e)
             },
@@ -293,7 +609,6 @@ async def student_create(
                 "sections": sections_data, 
                 "years": data.get("years", []),
                 "grades": data.get("grades", []),
-                
                 "student": None,
                 "error": str(e)
             },
@@ -320,7 +635,6 @@ async def student_create(
                 "sections": sections_data, 
                 "years": data.get("years", []),
                 "grades": data.get("grades", []),
-            
                 "student": None,
                 "error": f"حدث خطأ غير متوقع: {str(e)}"
             },
@@ -405,7 +719,6 @@ async def student_edit(
                 "sections": sections_data, 
                 "years": data.get("years", []),
                 "grades": data.get("grades", []),
-                
                 "error": None
             },
         )
@@ -443,7 +756,6 @@ async def student_update(
     year_id: Optional[str] = Form(None),
     grade_id: Optional[str] = Form(None),
     section_id: Optional[str] = Form(None),
-    
     is_active: Optional[bool] = Form(None),
 ):
     service = StudentService(db)
@@ -481,7 +793,6 @@ async def student_update(
                     "sections": sections_data, 
                     "years": data.get("years", []),
                     "grades": data.get("grades", []),
-                    
                     "error": "الرجاء تصحيح الأخطاء التالية:<br>• " + "<br>• ".join(errors.values())
                 },
                 status_code=422
@@ -506,7 +817,6 @@ async def student_update(
         year_id=year_id,
         grade_id=grade_id,
         section_id=section_id,
-    
         is_active=is_active,
     )
     
@@ -542,7 +852,6 @@ async def student_update(
                     "sections": sections_data, 
                     "years": data.get("years", []),
                     "grades": data.get("grades", []),
-                    
                     "error": str(e)
                 },
                 status_code=409
@@ -576,7 +885,6 @@ async def student_update(
                     "sections": sections_data, 
                     "years": data.get("years", []),
                     "grades": data.get("grades", []),
-                
                     "error": str(e)
                 },
                 status_code=422
@@ -611,7 +919,6 @@ async def student_update(
                     "sections": sections_data, 
                     "years": data.get("years", []),
                     "grades": data.get("grades", []),
-                    
                     "error": f"حدث خطأ غير متوقع: {str(e)}"
                 },
                 status_code=500
