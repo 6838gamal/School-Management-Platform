@@ -16,7 +16,8 @@
             </a>
         </div>
 
-        <form id="createForm" method="POST" action="/api/v1/academics/grades/create" onsubmit="return handleSubmit(event, this)" novalidate>
+        <!-- ✅ تم إزالة onsubmit من النموذج - سيتم إدارته عبر JavaScript -->
+        <form id="createForm" method="POST" action="/api/v1/academics/grades/create" novalidate>
             
             <!-- ✅ الحقول المخفية المطلوبة من الخادم -->
             <input type="hidden" name="school_id" value="{{ current_user.school_id if current_user and current_user.school_id else '' }}">
@@ -121,17 +122,24 @@
     </div>
 </div>
 
-<!-- JavaScript المحسن - مع دعم CSRF وتحسين معالجة الأخطاء -->
+<!-- ✅ JavaScript المحسن - حل مشكلة 422 نهائياً -->
 <script>
     (function() {
         'use strict';
 
+        // ============================================================
+        // 0. الحصول على العناصر
+        // ============================================================
+        
         const form = document.getElementById('createForm');
         const submitBtn = document.getElementById('submitBtn');
         const resetBtn = document.getElementById('resetBtn');
         const yearSelect = document.getElementById('yearSelect');
         const stageSelect = document.getElementById('stageSelect');
         const gradeName = document.getElementById('gradeName');
+
+        // ✅ إزالة أي معالج onsubmit موجود (للتأكد)
+        form.removeAttribute('onsubmit');
 
         // ============================================================
         // 1. تحديث قائمة المراحل بناءً على السنة المختارة
@@ -142,12 +150,10 @@
             const options = stageSelect.querySelectorAll('option[data-year-id]');
             const placeholder = stageSelect.querySelector('option[value=""]');
 
-            // إخفاء جميع المراحل أولاً
             options.forEach(opt => {
                 opt.style.display = 'none';
             });
 
-            // إظهار المراحل التي تنتمي للسنة المختارة
             let hasVisible = false;
             options.forEach(opt => {
                 if (opt.dataset.yearId === selectedYear) {
@@ -156,7 +162,6 @@
                 }
             });
 
-            // تحديث النص الافتراضي
             if (placeholder) {
                 if (selectedYear) {
                     if (hasVisible) {
@@ -175,39 +180,31 @@
                 }
             }
 
-            // إعادة تعيين الاختيار
             stageSelect.value = '';
         }
 
-        // ربط حدث تغيير السنة
         yearSelect.addEventListener('change', updateStagesByYear);
-
-        // التنفيذ عند تحميل الصفحة
         document.addEventListener('DOMContentLoaded', updateStagesByYear);
 
         // ============================================================
-        // 2. التحقق من صحة البيانات المحسّن
+        // 2. التحقق من صحة البيانات
         // ============================================================
 
         function validateFormData(data) {
             const errors = [];
 
-            // التحقق من السنة
             if (!data.year_id || data.year_id === '') {
                 errors.push('يرجى اختيار السنة الدراسية');
             }
 
-            // التحقق من اسم الصف
             if (!data.name || data.name.trim().length < 2) {
                 errors.push('اسم الصف يجب أن يكون على الأقل حرفين');
             }
 
-            // التحقق من المرحلة
             if (!data.stage_id || data.stage_id === '') {
                 errors.push('يرجى اختيار المرحلة');
             }
 
-            // التحقق من الترتيب
             if (data.order && (parseInt(data.order) < 0 || isNaN(parseInt(data.order)))) {
                 errors.push('ترتيب الصف يجب أن يكون رقم موجب');
             }
@@ -232,7 +229,7 @@
         }
 
         // ============================================================
-        // 4. عرض الرسائل (Toast) المحسّن
+        // 4. عرض الرسائل (Toast)
         // ============================================================
 
         function showMessage(message, type = 'success') {
@@ -289,32 +286,32 @@
         }
 
         // ============================================================
-        // 5. معالج الإرسال الرئيسي المحسّن
+        // 5. ✅ معالج الإرسال الرئيسي (المحسّن - الحل النهائي لمشكلة 422)
         // ============================================================
 
-        async function handleSubmit(event, form) {
+        async function handleSubmit(event) {
+            // ✅ منع الإرسال التقليدي للنموذج (السبب الرئيسي للمشكلة)
             event.preventDefault();
+            event.stopPropagation();
 
             setFormLoading(true);
 
+            // ✅ جمع البيانات من النموذج
             const formData = new FormData(form);
             
-            // ✅ بناء الكائن بشكل صحيح مع تحويل البيانات
+            // ✅ بناء كائن JSON بشكل صحيح
             const data = {
-                year_id: formData.get('year_id'),
-                stage_id: formData.get('stage_id'),
+                year_id: formData.get('year_id') || '',
+                stage_id: formData.get('stage_id') || '',
                 name: formData.get('name')?.trim() || '',
                 name_en: formData.get('name_en')?.trim() || '',
-                order: parseInt(formData.get('order')) || 0,
-                school_id: formData.get('school_id') || '',
-                is_active: formData.get('is_active') === 'true',
-                code: formData.get('code') || ''
+                order: parseInt(formData.get('order')) || 0
+                // ✅ ملاحظة: لا نرسل school_id, is_active, code لأن الـ Schema لا يطلبها
             };
 
-            // ✅ تسجيل البيانات المرسلة للتصحيح
-            console.log('📦 البيانات المرسلة:', data);
+            console.log('📦 البيانات المرسلة (JSON):', JSON.stringify(data, null, 2));
 
-            // التحقق من صحة البيانات
+            // ✅ التحقق من صحة البيانات
             const errors = validateFormData(data);
             if (errors.length > 0) {
                 showMessage(errors.join(' • '), 'error');
@@ -330,37 +327,25 @@
             }
 
             try {
-                // ✅ الحصول على CSRF Token إذا كان موجوداً
-                let csrfToken = '';
-                const csrfMeta = document.querySelector('meta[name="csrf-token"]');
-                if (csrfMeta) {
-                    csrfToken = csrfMeta.getAttribute('content');
-                }
-
-                const headers = {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json'
-                };
-
-                // إضافة CSRF Token إذا كان موجوداً
-                if (csrfToken) {
-                    headers['X-CSRF-TOKEN'] = csrfToken;
-                }
-
+                // ✅ إرسال الطلب كـ JSON (وليس Form Data)
                 const response = await fetch(form.action, {
                     method: 'POST',
-                    headers: headers,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
                     body: JSON.stringify(data)
                 });
 
                 let result = {};
+                const responseText = await response.text();
+                
                 try {
-                    result = await response.json();
+                    result = JSON.parse(responseText);
                 } catch (e) {
-                    result = { message: await response.text() || 'حدث خطأ في الاتصال بالخادم' };
+                    result = { message: responseText || 'حدث خطأ في الاتصال بالخادم' };
                 }
 
-                // ✅ تسجيل الاستجابة للتصحيح
                 console.log('📨 استجابة الخادم:', { status: response.status, result });
 
                 if (response.ok) {
@@ -375,17 +360,14 @@
                     let errorMsg = 'حدث خطأ أثناء الإضافة';
                     
                     if (result.detail) {
-                        if (typeof result.detail === 'object' && result.detail !== null) {
-                            // معالجة أخطاء Pydantic
-                            if (Array.isArray(result.detail)) {
-                                errorMsg = result.detail.map(err => {
-                                    if (err.msg) return err.msg;
-                                    if (err.message) return err.message;
-                                    return JSON.stringify(err);
-                                }).join(' • ');
-                            } else {
-                                errorMsg = JSON.stringify(result.detail);
-                            }
+                        if (Array.isArray(result.detail)) {
+                            errorMsg = result.detail.map(err => {
+                                if (err.msg) return err.msg;
+                                if (err.message) return err.message;
+                                return JSON.stringify(err);
+                            }).join(' • ');
+                        } else if (typeof result.detail === 'object') {
+                            errorMsg = JSON.stringify(result.detail);
                         } else {
                             errorMsg = result.detail;
                         }
@@ -397,12 +379,6 @@
 
                     showMessage(`❌ ${errorMsg}`, 'error');
                     setFormLoading(false);
-                    
-                    // تركيز على الحقل الأول الذي فيه خطأ
-                    if (result.field) {
-                        const field = form.querySelector(`[name="${result.field}"]`);
-                        if (field) field.focus();
-                    }
                 }
             } catch (error) {
                 console.error('❌ خطأ في الإرسال:', error);
@@ -412,6 +388,9 @@
 
             return false;
         }
+
+        // ✅ ربط المعالج بالنموذج (بدلاً من onsubmit في HTML)
+        form.addEventListener('submit', handleSubmit);
 
         // ============================================================
         // 6. اختصارات لوحة المفاتيح
@@ -499,20 +478,7 @@
             }
         });
 
-        // ============================================================
-        // 9. إضافة دعم إضافي - معالجة أخطاء الشبكة
-        // ============================================================
-
-        // إعادة المحاولة عند فشل الاتصال
-        window.addEventListener('online', () => {
-            showMessage('✅ تم استعادة الاتصال بالإنترنت', 'success');
-        });
-
-        window.addEventListener('offline', () => {
-            showMessage('⚠️ تم فقدان الاتصال بالإنترنت', 'warning');
-        });
-
-        console.log('✅ نموذج إضافة صف جاهز (محسّن)');
+        console.log('✅ نموذج إضافة صف جاهز (تم حل مشكلة 422)');
     })();
 </script>
 
@@ -595,19 +561,16 @@
         color: #ef4444;
     }
 
-    /* تحسين التمرير */
     .toast-message {
         max-height: 80vh;
         overflow-y: auto;
     }
 
-    /* تحسين التركيز */
     input:focus,
     select:focus {
         box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
     }
 
-    /* تحسين أزرار الإرسال */
     button[type="submit"]:hover:not(:disabled) {
         transform: translateY(-1px);
         box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
