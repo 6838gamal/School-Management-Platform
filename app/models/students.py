@@ -150,7 +150,7 @@ class StudentEnrollment(UUIDPkMixin, TimestampMixin, Base):
     school_id: Mapped[str] = mapped_column(
         String(36), index=True, nullable=False
     )
-    academic_year_id: Mapped[str] = mapped_column(
+    year_id: Mapped[str] = mapped_column(
         String(36), index=True, nullable=False
     )
     section_id: Mapped[str | None] = mapped_column(
@@ -195,7 +195,7 @@ class StudentEnrollment(UUIDPkMixin, TimestampMixin, Base):
         return (end_date - self.enrolled_at).days
     
     def __repr__(self) -> str:
-        return f"<StudentEnrollment student={self.student_id} year={self.academic_year_id} status={self.status}>"
+        return f"<StudentEnrollment student={self.student_id} year={self.year_id} status={self.status}>"
 
 
 __all__ = [
