@@ -185,9 +185,16 @@ class GradeWithRelations(GradeOut):
 
 # ============= Section =============
 class SectionCreate(BaseModel):
-    grade_id: str
-    name: str = Field(..., min_length=1, max_length=50)
-    capacity: int = Field(30, ge=1, le=100)
+    """نموذج إنشاء شعبة - مع دعم السنة والمعلمين"""
+    grade_id: str = Field(..., description="معرف الصف")
+    year_id: str = Field(..., description="معرف السنة الدراسية")
+    name: str = Field(..., min_length=1, max_length=50, description="اسم الشعبة")
+    capacity: int = Field(30, ge=1, le=100, description="السعة")
+    teacher_ids: Optional[List[str]] = Field(
+        default_factory=list, 
+        description="قائمة معرفات المعلمين كرؤساء فصل"
+    )
+    is_active: bool = Field(True, description="حالة التفعيل")
     
     @validator('name')
     def validate_name(cls, v):
@@ -200,25 +207,58 @@ class SectionCreate(BaseModel):
         if not v:
             raise ValueError('يرجى اختيار الصف')
         return v
+    
+    @validator('year_id')
+    def validate_year_id(cls, v):
+        if not v:
+            raise ValueError('يرجى اختيار السنة الدراسية')
+        return v
+    
+    @validator('capacity')
+    def validate_capacity(cls, v):
+        if v < 1:
+            raise ValueError('السعة يجب أن تكون على الأقل 1')
+        if v > 100:
+            raise ValueError('السعة القصوى هي 100')
+        return v
 
 
 class SectionUpdate(BaseModel):
-    grade_id: Optional[str] = None
-    name: Optional[str] = None
-    capacity: Optional[int] = None
-    is_active: Optional[bool] = None
+    """نموذج تحديث شعبة - مع دعم السنة والمعلمين"""
+    grade_id: Optional[str] = Field(None, description="معرف الصف")
+    year_id: Optional[str] = Field(None, description="معرف السنة الدراسية")
+    name: Optional[str] = Field(None, min_length=1, max_length=50, description="اسم الشعبة")
+    capacity: Optional[int] = Field(None, ge=1, le=100, description="السعة")
+    teacher_ids: Optional[List[str]] = Field(
+        None, 
+        description="قائمة معرفات المعلمين كرؤساء فصل"
+    )
+    is_active: Optional[bool] = Field(None, description="حالة التفعيل")
 
 
 class SectionOut(ORMBase):
+    """نموذج عرض الشعبة - مع دعم السنة والمعلمين"""
     id: str
     school_id: str
     grade_id: str
+    year_id: str
     name: str
     capacity: int
     is_active: bool
+    class_teacher_ids: Optional[str] = None
     
-    # حقول إضافية للعرض
+    # حقول إضافية للعرض (من JOIN)
     grade_name: Optional[str] = None
+    year_name: Optional[str] = None
+    class_teachers: List[dict] = []  # قائمة المعلمين كرؤساء فصل
+
+
+class SectionListResponse(BaseModel):
+    """رد قائمة الشعب"""
+    items: List[SectionOut]
+    total: int
+    page: int = 1
+    page_size: int = 20
 
 
 # ============= Subject =============
@@ -331,6 +371,8 @@ class AcademicTreeSection(BaseModel):
     name: str
     capacity: int
     is_active: bool
+    class_teacher_ids: Optional[str] = None
+    class_teachers: List[dict] = []  # قائمة المعلمين كرؤساء فصل
 
 
 class AcademicTreeGrade(BaseModel):
@@ -485,6 +527,7 @@ __all__ = [
     "SectionCreate",
     "SectionUpdate",
     "SectionOut",
+    "SectionListResponse",
     
     # Subject
     "SubjectCreate",
