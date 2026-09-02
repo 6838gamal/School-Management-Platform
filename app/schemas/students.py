@@ -188,7 +188,7 @@ class EnrollmentCreate(BaseModel):
     """Schema لتسجيل طالب في صف/شعبة"""
     student_id: str = Field(..., max_length=36)
     school_id: str = Field(..., max_length=36)
-    academic_year_id: str = Field(..., max_length=36)
+    year_id: str = Field(..., max_length=36)
     section_id: str | None = Field(None, max_length=36)
     class_id: str | None = Field(None, max_length=36)
     enrolled_at: date = Field(default=date.today)
@@ -210,7 +210,7 @@ class EnrollmentOut(ORMBase):
     id: str
     student_id: str
     school_id: str
-    academic_year_id: str
+    year_id: str
     section_id: str | None = None
     class_id: str | None = None
     status: str
@@ -237,7 +237,7 @@ class StudentFilter(BaseModel):
     grade_id: str | None = Field(None, max_length=36, description="معرف الصف")
     section_id: str | None = Field(None, max_length=36, description="معرف الشعبة")
     class_id: str | None = Field(None, max_length=36)
-    academic_year_id: str | None = Field(None, max_length=36)
+    year_id: str | None = Field(None, max_length=36)
     is_active: bool | None = None
     gender: str | None = Field(None, pattern="^(male|female|ذكر|أنثى)$")
     search: str | None = Field(None, description="بحث في الاسم أو رقم الطالب")
@@ -260,7 +260,7 @@ class TransferRequest(BaseModel):
     student_id: str = Field(..., max_length=36)
     from_section_id: str | None = Field(None, max_length=36)
     to_section_id: str = Field(..., max_length=36)
-    academic_year_id: str = Field(..., max_length=36)
+    year_id: str = Field(..., max_length=36)
     reason: str | None = Field(None, max_length=500)
     transfer_date: date = Field(default=date.today)
 
