@@ -39,9 +39,7 @@ class Student(UUIDPkMixin, TimestampMixin, Base):
     section_id: Mapped[str | None] = mapped_column(
         String(36), index=True, nullable=True, comment="معرف الشعبة"
     )
-    period_id: Mapped[str | None] = mapped_column(
-        String(36), index=True, nullable=True, comment="معرف الفصل/الحصة"
-    )
+    
     
     # ============================================================
     # معلومات الطالب الأساسية
