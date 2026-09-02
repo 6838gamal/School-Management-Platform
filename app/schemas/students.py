@@ -39,7 +39,7 @@ class StudentCreate(BaseModel):
     year_id: str | None = Field(None, max_length=36, description="معرف السنة الدراسية")
     grade_id: str | None = Field(None, max_length=36, description="معرف الصف")
     section_id: str | None = Field(None, max_length=36, description="معرف الشعبة")
-    period_id: str | None = Field(None, max_length=36, description="معرف الفصل/الحصة")
+    
     
     @field_validator('birth_date', mode='before')
     @classmethod
@@ -79,7 +79,7 @@ class StudentUpdate(BaseModel):
     year_id: str | None = Field(None, max_length=36, description="معرف السنة الدراسية")
     grade_id: str | None = Field(None, max_length=36, description="معرف الصف")
     section_id: str | None = Field(None, max_length=36, description="معرف الشعبة")
-    period_id: str | None = Field(None, max_length=36, description="معرف الفصل/الحصة")
+    
     
     # الحالة
     is_active: bool | None = None
@@ -131,7 +131,7 @@ class StudentOut(ORMBase):
     year_id: str | None = None
     grade_id: str | None = None
     section_id: str | None = None
-    period_id: str | None = None
+    
     
     # الحالة
     is_active: bool
@@ -171,7 +171,7 @@ class StudentListOut(ORMBase):
     year_id: str | None = None
     grade_id: str | None = None
     section_id: str | None = None
-    period_id: str | None = None
+    
     
     # معلومات للعرض
     year_name: str | None = None
