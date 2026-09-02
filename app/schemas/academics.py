@@ -71,6 +71,14 @@ class AcademicYearOut(ORMBase):
     is_active: bool
 
 
+class AcademicYearWithRelations(AcademicYearOut):
+    """السنة الدراسية مع العلاقات الكاملة"""
+    stages: List["StageOut"] = []
+    grades: List["GradeOut"] = []
+    stages_count: int = 0
+    grades_count: int = 0
+
+
 # ============= Stage =============
 class StageCreate(BaseModel):
     year_id: str
@@ -83,6 +91,12 @@ class StageCreate(BaseModel):
         if not v or len(v.strip()) < 2:
             raise ValueError('اسم المرحلة يجب أن يكون على الأقل حرفين')
         return v.strip()
+    
+    @validator('year_id')
+    def validate_year_id(cls, v):
+        if not v:
+            raise ValueError('يرجى اختيار السنة الدراسية')
+        return v
 
 
 class StageUpdate(BaseModel):
@@ -99,6 +113,13 @@ class StageOut(ORMBase):
     name: str
     name_en: Optional[str] = None
     order: int
+
+
+class StageWithRelations(StageOut):
+    """المرحلة مع العلاقات الكاملة"""
+    year: Optional["AcademicYearOut"] = None
+    grades: List["GradeOut"] = []
+    grades_count: int = 0
 
 
 # ============= Grade =============
@@ -155,6 +176,13 @@ class GradeOut(ORMBase):
     year_name: Optional[str] = None
 
 
+class GradeWithRelations(GradeOut):
+    """الصف مع العلاقات الكاملة"""
+    stage: Optional["StageOut"] = None
+    year: Optional["AcademicYearOut"] = None
+    sections_count: int = 0
+
+
 # ============= Section =============
 class SectionCreate(BaseModel):
     grade_id: str
@@ -166,6 +194,12 @@ class SectionCreate(BaseModel):
         if not v or len(v.strip()) < 1:
             raise ValueError('اسم الشعبة مطلوب')
         return v.strip()
+    
+    @validator('grade_id')
+    def validate_grade_id(cls, v):
+        if not v:
+            raise ValueError('يرجى اختيار الصف')
+        return v
 
 
 class SectionUpdate(BaseModel):
@@ -225,6 +259,12 @@ class RoomCreate(BaseModel):
     building: Optional[str] = Field(None, max_length=100)
     floor: Optional[str] = Field(None, max_length=20)
     capacity: int = Field(30, ge=1, le=500)
+    
+    @validator('name')
+    def validate_name(cls, v):
+        if not v or len(v.strip()) < 1:
+            raise ValueError('اسم القاعة مطلوب')
+        return v.strip()
 
 
 class RoomUpdate(BaseModel):
@@ -252,6 +292,12 @@ class PeriodCreate(BaseModel):
     start_time: str = Field(..., pattern=r'^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$')
     end_time: str = Field(..., pattern=r'^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$')
     is_break: bool = False
+    
+    @validator('name')
+    def validate_name(cls, v):
+        if not v or len(v.strip()) < 1:
+            raise ValueError('اسم الفصل مطلوب')
+        return v.strip()
     
     @validator('end_time')
     def validate_time_range(cls, v, values):
@@ -324,33 +370,57 @@ class AcademicTree(BaseModel):
 # ============= Assessment (التقييمات) =============
 class AssessmentCreate(BaseModel):
     """نموذج إنشاء تقييم جديد"""
-    section_id: str
-    subject_id: str
-    teacher_id: Optional[str] = None
-    title: str = Field(..., min_length=2, max_length=200)
-    assessment_type: str = Field(..., pattern="^(exam|quiz|assignment|homework|activity|participation)$")
-    max_score: float = Field(100.0, gt=0)
-    passing_score: Optional[float] = Field(50.0, ge=0)
-    weight: float = Field(1.0, gt=0)
-    date: Optional[str] = None
-    description: Optional[str] = None
-    school_id: Optional[str] = None
-    year_id: Optional[str] = None
+    section_id: str = Field(..., description="معرف الشعبة")
+    subject_id: str = Field(..., description="معرف المادة")
+    teacher_id: Optional[str] = Field(None, description="معرف المعلم")
+    title: str = Field(..., min_length=2, max_length=200, description="عنوان التقييم")
+    assessment_type: str = Field(..., pattern="^(exam|quiz|assignment|homework|activity|participation)$", description="نوع التقييم")
+    max_score: float = Field(100.0, gt=0, description="الدرجة القصوى")
+    passing_score: Optional[float] = Field(50.0, ge=0, description="درجة النجاح")
+    weight: float = Field(1.0, gt=0, description="الوزن النسبي")
+    date: Optional[str] = Field(None, description="تاريخ التقييم")
+    description: Optional[str] = Field(None, description="وصف التقييم")
+    school_id: Optional[str] = Field(None, description="معرف المدرسة")
+    year_id: Optional[str] = Field(None, description="معرف السنة الدراسية")
+    
+    @validator('title')
+    def validate_title(cls, v):
+        if not v or len(v.strip()) < 2:
+            raise ValueError('عنوان التقييم يجب أن يكون على الأقل حرفين')
+        return v.strip()
+    
+    @validator('max_score')
+    def validate_max_score(cls, v):
+        if v <= 0:
+            raise ValueError('الدرجة القصوى يجب أن تكون أكبر من صفر')
+        return v
+    
+    @validator('passing_score')
+    def validate_passing_score(cls, v, values):
+        if v is not None and 'max_score' in values and v > values['max_score']:
+            raise ValueError('درجة النجاح يجب أن لا تتجاوز الدرجة القصوى')
+        return v
+    
+    @validator('weight')
+    def validate_weight(cls, v):
+        if v <= 0:
+            raise ValueError('الوزن يجب أن يكون أكبر من صفر')
+        return v
 
 
 class AssessmentUpdate(BaseModel):
     """نموذج تحديث تقييم"""
-    section_id: Optional[str] = None
-    subject_id: Optional[str] = None
-    teacher_id: Optional[str] = None
-    title: Optional[str] = None
-    assessment_type: Optional[str] = Field(None, pattern="^(exam|quiz|assignment|homework|activity|participation)$")
-    max_score: Optional[float] = None
-    passing_score: Optional[float] = None
-    weight: Optional[float] = None
-    date: Optional[str] = None
-    description: Optional[str] = None
-    year_id: Optional[str] = None
+    section_id: Optional[str] = Field(None, description="معرف الشعبة")
+    subject_id: Optional[str] = Field(None, description="معرف المادة")
+    teacher_id: Optional[str] = Field(None, description="معرف المعلم")
+    title: Optional[str] = Field(None, min_length=2, max_length=200, description="عنوان التقييم")
+    assessment_type: Optional[str] = Field(None, pattern="^(exam|quiz|assignment|homework|activity|participation)$", description="نوع التقييم")
+    max_score: Optional[float] = Field(None, gt=0, description="الدرجة القصوى")
+    passing_score: Optional[float] = Field(None, ge=0, description="درجة النجاح")
+    weight: Optional[float] = Field(None, gt=0, description="الوزن النسبي")
+    date: Optional[str] = Field(None, description="تاريخ التقييم")
+    description: Optional[str] = Field(None, description="وصف التقييم")
+    year_id: Optional[str] = Field(None, description="معرف السنة الدراسية")
 
 
 class AssessmentOut(ORMBase):
@@ -373,6 +443,7 @@ class AssessmentOut(ORMBase):
     section_name: Optional[str] = None
     subject_name: Optional[str] = None
     teacher_name: Optional[str] = None
+    school_name: Optional[str] = None
 
 
 class AssessmentListResponse(BaseModel):
@@ -384,76 +455,59 @@ class AssessmentListResponse(BaseModel):
 
 
 # ============================================================
-# ✅ دعم العلاقات بين الكيانات
-# ============================================================
-
-class GradeWithRelations(GradeOut):
-    """الصف مع العلاقات الكاملة"""
-    stage: Optional["StageOut"] = None
-    year: Optional["AcademicYearOut"] = None
-    sections_count: int = 0
-
-
-class StageWithRelations(StageOut):
-    """المرحلة مع العلاقات الكاملة"""
-    year: Optional["AcademicYearOut"] = None
-    grades: List[GradeOut] = []
-    grades_count: int = 0
-
-
-class AcademicYearWithRelations(AcademicYearOut):
-    """السنة الدراسية مع العلاقات الكاملة"""
-    stages: List[StageOut] = []
-    grades: List[GradeOut] = []
-    stages_count: int = 0
-    grades_count: int = 0
-
-
-# ============================================================
-# ✅ تحديث __all__
+# ✅ تحديث __all__ - القائمة الكاملة
 # ============================================================
 
 __all__ = [
     # School
     "SchoolOut",
     "SchoolUpdate",
+    
     # Academic Year
     "AcademicYearCreate",
     "AcademicYearUpdate",
     "AcademicYearOut",
     "AcademicYearWithRelations",
+    
     # Stage
     "StageCreate",
     "StageUpdate",
     "StageOut",
     "StageWithRelations",
+    
     # Grade
     "GradeCreate",
     "GradeUpdate",
     "GradeOut",
     "GradeWithRelations",
+    
     # Section
     "SectionCreate",
     "SectionUpdate",
     "SectionOut",
+    
     # Subject
     "SubjectCreate",
     "SubjectUpdate",
     "SubjectOut",
+    
     # Room
     "RoomCreate",
     "RoomUpdate",
     "RoomOut",
+    
     # Period
     "PeriodCreate",
     "PeriodUpdate",
     "PeriodOut",
+    
     # Academic Tree
     "AcademicTree",
     "AcademicTreeYear",
     "AcademicTreeStage",
     "AcademicTreeGrade",
     "AcademicTreeSection",
+    
     # Assessment
     "AssessmentCreate",
     "AssessmentUpdate",
