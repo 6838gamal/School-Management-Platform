@@ -355,55 +355,7 @@ async def create_schedule_page(
         )
 
 
-@router.get("/{schedule_id}/update")
-async def update_schedule_page(
-    request: Request,
-    schedule_id: str,
-    user: CurrentUser = Depends(require_any_permission("schedules.update")),
-    db: AsyncSession = Depends(get_db),
-    ctx: dict = Depends(template_context),
-):
-    """صفحة تعديل جدول"""
-    try:
-        service = ScheduleService(db)
-        schedule = await service.get_schedule(schedule_id)
-        
-        if not schedule:
-            raise HTTPException(status_code=404, detail="الجدول غير موجود")
-        
-        years = await get_academic_years(db, user.school_id)
-        stages = await get_stages(db, user.school_id)
-        grades = await get_grades(db, user.school_id)
-        sections = await get_sections_with_details(db, user.school_id)
-        subjects = await get_subjects(db, user.school_id)
-        teachers = await get_teachers(db, user.school_id)
-        
-        return templates.TemplateResponse(
-            "schedules/update.html",
-            {
-                **ctx,
-                "title": "تعديل جدول دراسي",
-                "item": schedule,
-                "years": years,
-                "stages": stages,
-                "grades": grades,
-                "sections": sections,
-                "subjects": subjects,
-                "teachers": teachers,
-                "error": None
-            }
-        )
-    except HTTPException:
-        raise
-    except NotFoundException as e:
-        raise HTTPException(status_code=404, detail=str(e))
-    except Exception as e:
-        print(f"❌ Error in update_schedule_page: {str(e)}")
-        traceback.print_exc()
-        raise HTTPException(status_code=400, detail=f"حدث خطأ: {str(e)}")
-
-
-@router.get("/{schedule_id}/view")
+@router.get("/{schedule_id}")
 async def view_schedule_page(
     request: Request,
     schedule_id: str,
@@ -419,6 +371,37 @@ async def view_schedule_page(
         if not schedule:
             raise HTTPException(status_code=404, detail="الجدول غير موجود")
         
+        # جلب أسماء المواد والمعلمين للعرض
+        entries_data = []
+        for entry in schedule.get("entries", []):
+            # جلب المادة
+            subject_name = None
+            if entry.get("subject_id"):
+                subject_result = await db.execute(
+                    select(Subject).where(Subject.id == entry["subject_id"])
+                )
+                subject = subject_result.scalar_one_or_none()
+                if subject:
+                    subject_name = subject.name
+            
+            # جلب المعلم
+            teacher_name = None
+            if entry.get("teacher_id"):
+                teacher_result = await db.execute(
+                    select(Teacher).where(Teacher.id == entry["teacher_id"])
+                )
+                teacher = teacher_result.scalar_one_or_none()
+                if teacher:
+                    teacher_name = f"{teacher.first_name} {teacher.last_name}".strip() or teacher.full_name
+            
+            entries_data.append({
+                **entry,
+                "subject_name": subject_name,
+                "teacher_name": teacher_name,
+            })
+        
+        schedule["entries"] = entries_data
+        
         return templates.TemplateResponse(
             "schedules/view.html",
             {
@@ -426,6 +409,7 @@ async def view_schedule_page(
                 "title": "عرض الجدول الدراسي",
                 "schedule": schedule,
                 "days": ["الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس"],
+                "periods": ["الحصة الأولى", "الحصة الثانية", "الحصة الثالثة", "الحصة الرابعة", "الحصة الخامسة", "الحصة السادسة"],
                 "error": None
             }
         )
@@ -435,6 +419,57 @@ async def view_schedule_page(
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         print(f"❌ Error in view_schedule_page: {str(e)}")
+        traceback.print_exc()
+        raise HTTPException(status_code=400, detail=f"حدث خطأ: {str(e)}")
+
+
+@router.get("/{schedule_id}/edit")
+async def edit_schedule_page(
+    request: Request,
+    schedule_id: str,
+    user: CurrentUser = Depends(require_any_permission("schedules.update")),
+    db: AsyncSession = Depends(get_db),
+    ctx: dict = Depends(template_context),
+):
+    """صفحة تعديل جدول"""
+    try:
+        service = ScheduleService(db)
+        schedule = await service.get_schedule_with_entries(schedule_id)
+        
+        if not schedule:
+            raise HTTPException(status_code=404, detail="الجدول غير موجود")
+        
+        # جلب البيانات المطلوبة
+        years = await get_academic_years(db, user.school_id)
+        stages = await get_stages(db, user.school_id)
+        grades = await get_grades(db, user.school_id)
+        sections = await get_sections_with_details(db, user.school_id)
+        subjects = await get_subjects(db, user.school_id)
+        teachers = await get_teachers(db, user.school_id)
+        
+        return templates.TemplateResponse(
+            "schedules/edit.html",
+            {
+                **ctx,
+                "title": "تعديل جدول دراسي",
+                "schedule": schedule,
+                "years": years,
+                "stages": stages,
+                "grades": grades,
+                "sections": sections,
+                "subjects": subjects,
+                "teachers": teachers,
+                "days": ["الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس"],
+                "periods": ["الحصة الأولى", "الحصة الثانية", "الحصة الثالثة", "الحصة الرابعة", "الحصة الخامسة", "الحصة السادسة"],
+                "error": None
+            }
+        )
+    except HTTPException:
+        raise
+    except NotFoundException as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        print(f"❌ Error in edit_schedule_page: {str(e)}")
         traceback.print_exc()
         raise HTTPException(status_code=400, detail=f"حدث خطأ: {str(e)}")
 
@@ -539,5 +574,153 @@ async def delete_schedule_api(
         await db.rollback()
         return JSONResponse(
             {"detail": str(e)},
+            status_code=500
+        )
+
+
+@router.post("/api/v1/schedules/{schedule_id}/entries")
+async def add_entry_api(
+    schedule_id: str,
+    req: ScheduleEntryCreate,
+    user: CurrentUser = Depends(require_any_permission("schedules.update")),
+    db: AsyncSession = Depends(get_db),
+):
+    """إضافة حصة جديدة إلى الجدول عبر API"""
+    try:
+        service = ScheduleService(db)
+        entry = await service.add_entry(schedule_id, req)
+        await db.commit()
+        
+        return {
+            "success": True,
+            "message": "تم إضافة الحصة بنجاح",
+            "id": str(entry.id)
+        }
+        
+    except NotFoundException as e:
+        return JSONResponse(
+            {"detail": str(e)},
+            status_code=404
+        )
+    except ValueError as e:
+        return JSONResponse(
+            {"detail": str(e)},
+            status_code=422
+        )
+    except Exception as e:
+        print(f"❌ Error adding entry: {str(e)}")
+        traceback.print_exc()
+        await db.rollback()
+        return JSONResponse(
+            {"detail": str(e)},
+            status_code=500
+        )
+
+
+@router.put("/api/v1/entries/{entry_id}")
+async def update_entry_api(
+    entry_id: str,
+    req: ScheduleEntryUpdate,
+    user: CurrentUser = Depends(require_any_permission("schedules.update")),
+    db: AsyncSession = Depends(get_db),
+):
+    """تحديث حصة في الجدول عبر API"""
+    try:
+        service = ScheduleService(db)
+        entry = await service.update_entry(entry_id, req)
+        await db.commit()
+        
+        return {
+            "success": True,
+            "message": "تم تحديث الحصة بنجاح",
+            "id": str(entry.id)
+        }
+        
+    except NotFoundException as e:
+        return JSONResponse(
+            {"detail": str(e)},
+            status_code=404
+        )
+    except Exception as e:
+        print(f"❌ Error updating entry: {str(e)}")
+        traceback.print_exc()
+        await db.rollback()
+        return JSONResponse(
+            {"detail": str(e)},
+            status_code=500
+        )
+
+
+@router.delete("/api/v1/entries/{entry_id}")
+async def delete_entry_api(
+    entry_id: str,
+    user: CurrentUser = Depends(require_any_permission("schedules.update")),
+    db: AsyncSession = Depends(get_db),
+):
+    """حذف حصة من الجدول عبر API"""
+    try:
+        service = ScheduleService(db)
+        await service.delete_entry(entry_id)
+        await db.commit()
+        
+        return {
+            "success": True,
+            "message": "تم حذف الحصة بنجاح"
+        }
+        
+    except NotFoundException as e:
+        return JSONResponse(
+            {"detail": str(e)},
+            status_code=404
+        )
+    except Exception as e:
+        print(f"❌ Error deleting entry: {str(e)}")
+        traceback.print_exc()
+        await db.rollback()
+        return JSONResponse(
+            {"detail": str(e)},
+            status_code=500
+        )
+
+
+# ============================================================
+# مسارات التصحيح
+# ============================================================
+
+@router.get("/debug/data")
+async def debug_schedule_data(
+    request: Request,
+    user: CurrentUser = Depends(require_any_permission("schedules.view")),
+    db: AsyncSession = Depends(get_db),
+):
+    """عرض بيانات الجداول للتصحيح"""
+    try:
+        result = {
+            "years": await get_academic_years(db, user.school_id),
+            "stages": await get_stages(db, user.school_id),
+            "grades": await get_grades(db, user.school_id),
+            "sections": await get_sections_with_details(db, user.school_id),
+            "subjects": await get_subjects(db, user.school_id),
+            "teachers": await get_teachers(db, user.school_id),
+        }
+        
+        # جلب الجداول الموجودة
+        try:
+            service = ScheduleService(db)
+            schedules = await service.list_schedules(user.school_id)
+            result["schedules"] = schedules or []
+        except Exception as e:
+            result["schedules_error"] = str(e)
+        
+        return JSONResponse(result)
+        
+    except Exception as e:
+        print(f"❌ Error in debug_schedule_data: {str(e)}")
+        traceback.print_exc()
+        return JSONResponse(
+            {
+                "error": str(e),
+                "traceback": traceback.format_exc()
+            },
             status_code=500
         )
