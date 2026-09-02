@@ -156,7 +156,7 @@ class StudentRepository(BaseRepository[Student]):
         year_id: Optional[str] = None,
         grade_id: Optional[str] = None,
         section_id: Optional[str] = None,
-        period_id: Optional[str] = None,
+        
         created_by: Optional[str] = None,
         first_name_ar: Optional[str] = None,
         last_name_ar: Optional[str] = None,
@@ -188,7 +188,7 @@ class StudentRepository(BaseRepository[Student]):
             year_id=year_id,
             grade_id=grade_id,
             section_id=section_id,
-            period_id=period_id,
+        
             is_active=True,
             enrollment_status="active",
         )
