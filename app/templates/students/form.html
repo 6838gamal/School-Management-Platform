@@ -1,3 +1,4 @@
+<!-- app/templates/students/form.html -->
 {% extends "layouts/director.html" %}
 {% block content %}
 <div class="space-y-6">
@@ -119,9 +120,13 @@
             <div class="border-b border-slate-100 dark:border-slate-700 pb-6">
                 <h3 class="text-lg font-semibold text-slate-800 dark:text-white mb-4">المعلومات الأكاديمية</h3>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <!-- السنة الدراسية -->
                     <div class="space-y-1">
-                        <label class="text-sm font-medium text-slate-700 dark:text-slate-300">السنة الدراسية</label>
-                        <select name="year_id" class="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
+                        <label class="text-sm font-medium text-slate-700 dark:text-slate-300">
+                            السنة الدراسية <span class="text-danger-500">*</span>
+                        </label>
+                        <select name="year_id" id="yearSelect" 
+                                class="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500" required>
                             <option value="">اختر السنة...</option>
                             {% for year in years %}
                             <option value="{{ year.id }}" 
@@ -132,17 +137,57 @@
                         </select>
                     </div>
                     
+                    <!-- الصف -->
                     <div class="space-y-1">
-                        <label class="text-sm font-medium text-slate-700 dark:text-slate-300">القسم/الشعبة</label>
-                        <select name="section_id" class="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
-                            <option value="">اختر القسم...</option>
+                        <label class="text-sm font-medium text-slate-700 dark:text-slate-300">
+                            الصف <span class="text-danger-500">*</span>
+                        </label>
+                        <select name="grade_id" id="gradeSelect" 
+                                class="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500" required>
+                            <option value="">اختر الصف...</option>
+                            {% for grade in grades %}
+                            <option value="{{ grade.id }}" data-year="{{ grade.year_id }}"
+                                    {% if mode == 'edit' and student.grade_id == grade.id %}selected{% endif %}>
+                                {{ grade.name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                        <p class="text-xs text-slate-400 mt-1">يتم تصفية الصفوف حسب السنة المختارة</p>
+                    </div>
+                    
+                    <!-- الشعبة -->
+                    <div class="space-y-1">
+                        <label class="text-sm font-medium text-slate-700 dark:text-slate-300">
+                            الشعبة <span class="text-danger-500">*</span>
+                        </label>
+                        <select name="section_id" id="sectionSelect" 
+                                class="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500" required>
+                            <option value="">اختر الشعبة...</option>
                             {% for section in sections %}
-                            <option value="{{ section.id }}" 
+                            <option value="{{ section.id }}" data-grade="{{ section.grade_id }}" data-year="{{ section.year_id }}"
                                     {% if mode == 'edit' and student.section_id == section.id %}selected{% endif %}>
                                 {{ section.name }}
                             </option>
                             {% endfor %}
                         </select>
+                        <p class="text-xs text-slate-400 mt-1">يتم تصفية الشعب حسب الصف المختار</p>
+                    </div>
+                    
+                    <!-- الفصل (الحصة) -->
+                    <div class="space-y-1">
+                        <label class="text-sm font-medium text-slate-700 dark:text-slate-300">
+                            الفصل (الحصة)
+                        </label>
+                        <select name="period_id" class="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
+                            <option value="">اختر الفصل...</option>
+                            {% for period in periods %}
+                            <option value="{{ period.id }}" 
+                                    {% if mode == 'edit' and student.period_id == period.id %}selected{% endif %}>
+                                {{ period.name }} ({{ period.order }})
+                            </option>
+                            {% endfor %}
+                        </select>
+                        <p class="text-xs text-slate-400 mt-1">اختياري - يمكن تحديد الفصل الدراسي للطالب</p>
                     </div>
                 </div>
             </div>
@@ -188,4 +233,184 @@
         </form>
     </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // العناصر
+    const yearSelect = document.getElementById('yearSelect');
+    const gradeSelect = document.getElementById('gradeSelect');
+    const sectionSelect = document.getElementById('sectionSelect');
+    
+    // حفظ الخيارات الأصلية
+    const allGrades = Array.from(gradeSelect.querySelectorAll('option'))
+        .filter(opt => opt.value !== '')
+        .map(opt => ({
+            value: opt.value,
+            text: opt.text,
+            year: opt.getAttribute('data-year'),
+            selected: opt.selected
+        }));
+    
+    const allSections = Array.from(sectionSelect.querySelectorAll('option'))
+        .filter(opt => opt.value !== '')
+        .map(opt => ({
+            value: opt.value,
+            text: opt.text,
+            grade: opt.getAttribute('data-grade'),
+            year: opt.getAttribute('data-year'),
+            selected: opt.selected
+        }));
+    
+    // تخزين القيم المحددة مسبقاً
+    let preselectedGrade = gradeSelect.value;
+    let preselectedSection = sectionSelect.value;
+    
+    // دالة تصفية الصفوف
+    function filterGrades() {
+        const yearId = yearSelect.value;
+        
+        // حذف جميع الخيارات ما عدا الأول
+        while (gradeSelect.options.length > 1) {
+            gradeSelect.remove(1);
+        }
+        
+        // إضافة الخيارات المفلترة
+        const filtered = allGrades.filter(opt => yearId === '' || opt.year === yearId);
+        filtered.forEach(opt => {
+            const option = document.createElement('option');
+            option.value = opt.value;
+            option.textContent = opt.text;
+            option.setAttribute('data-year', opt.year);
+            if (opt.selected && yearId !== '') {
+                option.selected = true;
+            }
+            gradeSelect.appendChild(option);
+        });
+        
+        // إذا لم تكن هناك خيارات، أضف رسالة
+        if (filtered.length === 0) {
+            const option = document.createElement('option');
+            option.value = '';
+            option.textContent = 'لا توجد صفوف في هذه السنة';
+            option.disabled = true;
+            gradeSelect.appendChild(option);
+        }
+        
+        // إعادة تعيين القيمة المحددة إذا كانت موجودة
+        if (preselectedGrade) {
+            const exists = Array.from(gradeSelect.options).some(opt => opt.value === preselectedGrade);
+            if (exists) {
+                gradeSelect.value = preselectedGrade;
+            } else {
+                gradeSelect.value = '';
+                preselectedGrade = '';
+            }
+        } else {
+            gradeSelect.value = '';
+        }
+        
+        // تصفية الشعب بعد تغيير الصف
+        filterSections();
+    }
+    
+    // دالة تصفية الشعب
+    function filterSections() {
+        const gradeId = gradeSelect.value;
+        const yearId = yearSelect.value;
+        
+        // حذف جميع الخيارات ما عدا الأول
+        while (sectionSelect.options.length > 1) {
+            sectionSelect.remove(1);
+        }
+        
+        // إضافة الخيارات المفلترة
+        const filtered = allSections.filter(opt => {
+            const gradeMatch = gradeId === '' || opt.grade === gradeId;
+            const yearMatch = yearId === '' || opt.year === yearId;
+            return gradeMatch && yearMatch;
+        });
+        
+        filtered.forEach(opt => {
+            const option = document.createElement('option');
+            option.value = opt.value;
+            option.textContent = opt.text;
+            option.setAttribute('data-grade', opt.grade);
+            option.setAttribute('data-year', opt.year);
+            if (opt.selected && gradeId !== '') {
+                option.selected = true;
+            }
+            sectionSelect.appendChild(option);
+        });
+        
+        // إذا لم تكن هناك خيارات، أضف رسالة
+        if (filtered.length === 0) {
+            const option = document.createElement('option');
+            option.value = '';
+            option.textContent = 'لا توجد شعب في هذا الصف';
+            option.disabled = true;
+            sectionSelect.appendChild(option);
+        }
+        
+        // إعادة تعيين القيمة المحددة إذا كانت موجودة
+        if (preselectedSection) {
+            const exists = Array.from(sectionSelect.options).some(opt => opt.value === preselectedSection);
+            if (exists) {
+                sectionSelect.value = preselectedSection;
+            } else {
+                sectionSelect.value = '';
+                preselectedSection = '';
+            }
+        } else {
+            sectionSelect.value = '';
+        }
+    }
+    
+    // أحداث التغيير
+    yearSelect.addEventListener('change', function() {
+        preselectedGrade = gradeSelect.value;
+        preselectedSection = sectionSelect.value;
+        filterGrades();
+    });
+    
+    gradeSelect.addEventListener('change', function() {
+        preselectedSection = sectionSelect.value;
+        filterSections();
+    });
+    
+    // التصفية الأولية (إذا كانت هناك قيمة محددة مسبقاً)
+    if (yearSelect.value) {
+        filterGrades();
+    } else {
+        // عرض جميع الصفوف إذا لم تكن هناك سنة محددة
+        filterGrades();
+    }
+    
+    // إذا كان هناك صف محدد مسبقاً، قم بتصفية الشعب
+    if (gradeSelect.value) {
+        filterSections();
+    }
+    
+    // معالجة حالة "لا توجد سنة" - عرض جميع الصفوف
+    if (!yearSelect.value) {
+        // إعادة عرض جميع الصفوف
+        while (gradeSelect.options.length > 1) {
+            gradeSelect.remove(1);
+        }
+        allGrades.forEach(opt => {
+            const option = document.createElement('option');
+            option.value = opt.value;
+            option.textContent = opt.text;
+            option.setAttribute('data-year', opt.year);
+            if (opt.selected) {
+                option.selected = true;
+            }
+            gradeSelect.appendChild(option);
+        });
+        if (preselectedGrade) {
+            gradeSelect.value = preselectedGrade;
+        }
+        filterSections();
+    }
+});
+</script>
 {% endblock %}
