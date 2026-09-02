@@ -73,7 +73,7 @@ async def get_onboarding_data(db: AsyncSession, school_id: str):
         return {
             "years": years,
             "grades": grades,
-            "sections": sections,
+            "sections": sections
             
         }
     except Exception as e:
