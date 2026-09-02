@@ -17,8 +17,7 @@
         </div>
 
         <form id="createForm" method="POST" action="/api/grades/create" onsubmit="return handleSubmit(event, this)" novalidate>
-            <!-- ✅ CSRF Token -->
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <!-- ❌ تم إزالة CSRF Token -->
 
             <div class="space-y-4">
                 <!-- ✅ حقل السنة الدراسية -->
@@ -44,31 +43,7 @@
                     <p id="year-help" class="text-xs text-slate-400 mt-1">اختر السنة الدراسية التي ينتمي إليها الصف</p>
                 </div>
 
-                <!-- حقل اسم الصف -->
-                <div>
-                    <label for="gradeName" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                        اسم الصف <span class="text-red-500">*</span>
-                    </label>
-                    <input id="gradeName" type="text" name="name" placeholder="مثال: الصف الأول"
-                           class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-slate-700 dark:text-white transition-colors duration-200"
-                           required
-                           minlength="2"
-                           maxlength="100"
-                           aria-describedby="name-help">
-                    <p id="name-help" class="text-xs text-slate-400 mt-1">أدخل اسم الصف باللغة العربية (حرفين على الأقل)</p>
-                </div>
-
-                <!-- حقل الاسم بالإنجليزية -->
-                <div>
-                    <label for="gradeNameEn" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                        الاسم بالإنجليزية
-                    </label>
-                    <input id="gradeNameEn" type="text" name="name_en" placeholder="مثال: Grade 1"
-                           class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-slate-700 dark:text-white transition-colors duration-200"
-                           maxlength="100">
-                </div>
-
-                <!-- ✅ حقل المرحلة - يتغير بناءً على السنة المختارة -->
+                <!-- ✅ حقل المرحلة -->
                 <div>
                     <label for="stageSelect" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                         المرحلة <span class="text-red-500">*</span>
@@ -87,7 +62,31 @@
                     <p id="stage-help" class="text-xs text-slate-400 mt-1">اختر المرحلة التي ينتمي إليها الصف</p>
                 </div>
 
-                <!-- حقل الترتيب -->
+                <!-- ✅ حقل اسم الصف -->
+                <div>
+                    <label for="gradeName" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                        اسم الصف <span class="text-red-500">*</span>
+                    </label>
+                    <input id="gradeName" type="text" name="name" placeholder="مثال: الصف الأول"
+                           class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-slate-700 dark:text-white transition-colors duration-200"
+                           required
+                           minlength="2"
+                           maxlength="100"
+                           aria-describedby="name-help">
+                    <p id="name-help" class="text-xs text-slate-400 mt-1">أدخل اسم الصف باللغة العربية (حرفين على الأقل)</p>
+                </div>
+
+                <!-- ✅ حقل الاسم بالإنجليزية -->
+                <div>
+                    <label for="gradeNameEn" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                        الاسم بالإنجليزية
+                    </label>
+                    <input id="gradeNameEn" type="text" name="name_en" placeholder="مثال: Grade 1"
+                           class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-slate-700 dark:text-white transition-colors duration-200"
+                           maxlength="100">
+                </div>
+
+                <!-- ✅ حقل الترتيب -->
                 <div>
                     <label for="gradeOrder" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                         ترتيب الصف
@@ -118,7 +117,7 @@
     </div>
 </div>
 
-<!-- JavaScript المحسن -->
+<!-- JavaScript المحسن - بدون CSRF -->
 <script>
     (function() {
         'use strict';
@@ -225,8 +224,6 @@
             });
             submitBtn.textContent = loading ? 'جاري الإضافة...' : 'إضافة';
             submitBtn.disabled = loading;
-
-            // تغيير مؤشر الماوس
             document.body.style.cursor = loading ? 'wait' : 'default';
         }
 
@@ -235,7 +232,6 @@
         // ============================================================
 
         function showMessage(message, type = 'success') {
-            // إزالة الرسائل السابقة
             document.querySelectorAll('.toast-message').forEach(el => el.remove());
 
             const colors = {
@@ -255,7 +251,6 @@
             div.setAttribute('role', 'alert');
             div.setAttribute('aria-live', 'polite');
 
-            // إضافة أيقونة
             const iconSpan = document.createElement('span');
             iconSpan.textContent = icons[type] || 'ℹ️';
             iconSpan.className = 'mr-2';
@@ -267,31 +262,15 @@
             div.appendChild(textSpan);
             document.body.appendChild(div);
 
-            // تأثير الدخول
-            requestAnimationFrame(() => {
+            setTimeout(() => {
                 div.style.animation = 'slideIn 0.3s ease-out';
-            });
+            }, 10);
 
-            // إزالة تلقائية بعد 5 ثوانٍ
-            let timeout = setTimeout(() => {
+            setTimeout(() => {
                 dismissToast(div);
             }, 5000);
 
-            // إزالة عند النقر
-            div.addEventListener('click', () => {
-                clearTimeout(timeout);
-                dismissToast(div);
-            });
-
-            // إزالة عند الضغط على Escape
-            const escapeHandler = (e) => {
-                if (e.key === 'Escape') {
-                    clearTimeout(timeout);
-                    dismissToast(div);
-                    document.removeEventListener('keydown', escapeHandler);
-                }
-            };
-            document.addEventListener('keydown', escapeHandler);
+            div.addEventListener('click', () => dismissToast(div));
         }
 
         function dismissToast(element) {
@@ -304,30 +283,25 @@
         }
 
         // ============================================================
-        // 5. معالج الإرسال الرئيسي
+        // 5. معالج الإرسال الرئيسي - بدون CSRF
         // ============================================================
 
         async function handleSubmit(event, form) {
             event.preventDefault();
 
-            // تعطيل النموذج
             setFormLoading(true);
 
-            // جمع البيانات
             const formData = new FormData(form);
             const data = Object.fromEntries(formData.entries());
 
-            // تحويل الترتيب إلى رقم
             if (data.order) {
                 data.order = parseInt(data.order) || 0;
             }
 
-            // التحقق من صحة البيانات
             const errors = validateFormData(data);
             if (errors.length > 0) {
                 showMessage(errors.join(' • '), 'error');
                 setFormLoading(false);
-                // التركيز على أول حقل به خطأ
                 if (errors.some(e => e.includes('السنة'))) {
                     yearSelect.focus();
                 } else if (errors.some(e => e.includes('اسم الصف'))) {
@@ -339,11 +313,11 @@
             }
 
             try {
+                // ❌ تم إزالة CSRF Token من الـ Headers
                 const response = await fetch(form.action, {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRFToken': document.querySelector('[name="csrf_token"]')?.value || ''
+                        'Content-Type': 'application/json'
                     },
                     body: JSON.stringify(data)
                 });
@@ -362,11 +336,7 @@
                 if (response.ok) {
                     showMessage(result.message || 'تم إضافة الصف بنجاح', 'success');
                     form.reset();
-
-                    // إعادة تهيئة قائمة المراحل
                     setTimeout(updateStagesByYear, 100);
-
-                    // التوجيه بعد 1.5 ثانية
                     setTimeout(() => {
                         window.location.href = '/academics/grades/list';
                     }, 1500);
@@ -389,15 +359,12 @@
         // ============================================================
 
         document.addEventListener('keydown', (e) => {
-            // Ctrl+Enter أو Cmd+Enter للإرسال
             if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-                const activeElement = document.activeElement;
-                if (form.contains(activeElement)) {
+                if (form.contains(document.activeElement)) {
                     e.preventDefault();
                     form.dispatchEvent(new Event('submit'));
                 }
             }
-            // Escape لإغلاق الرسائل
             if (e.key === 'Escape') {
                 const toast = document.querySelector('.toast-message');
                 if (toast) {
@@ -417,12 +384,10 @@
             el.addEventListener('input', () => { formDirty = true; });
         });
 
-        // إعادة تعيين حالة التعديل عند الإرسال الناجح
         form.addEventListener('submit', () => {
             setTimeout(() => { formDirty = false; }, 100);
         });
 
-        // إعادة تعيين عند إعادة تعيين النموذج
         resetBtn.addEventListener('click', () => {
             formDirty = false;
             setTimeout(updateStagesByYear, 100);
@@ -440,7 +405,6 @@
         // 8. تحسينات إضافية - التحقق المباشر
         // ============================================================
 
-        // التحقق من اسم الصف أثناء الكتابة
         gradeName.addEventListener('input', function() {
             const help = document.getElementById('name-help');
             if (this.value.trim().length < 2 && this.value.length > 0) {
@@ -459,7 +423,6 @@
             }
         });
 
-        // التحقق من الترتيب
         const orderInput = document.getElementById('gradeOrder');
         orderInput.addEventListener('input', function() {
             const help = document.getElementById('order-help');
@@ -475,7 +438,7 @@
             }
         });
 
-        console.log('✅ نموذج إضافة صف جاهز مع دعم السنة الدراسية');
+        console.log('✅ نموذج إضافة صف جاهز (بدون CSRF)');
     })();
 </script>
 
@@ -514,20 +477,17 @@
         background-color: rgba(30, 41, 59, 0.95);
     }
 
-    /* تحسينات الوضع المظلم */
     .dark select option {
         background-color: #1e293b;
         color: #f1f5f9;
     }
 
-    /* تحسينات التركيز */
     input:focus-visible,
     select:focus-visible {
         outline: 2px solid #3b82f6;
         outline-offset: 2px;
     }
 
-    /* تحسينات للشاشات الصغيرة */
     @media (max-width: 640px) {
         .flex.gap-3 {
             flex-direction: column;
@@ -542,14 +502,12 @@
         }
     }
 
-    /* تنسيق الحقول المعطلة */
     input:disabled,
     select:disabled {
         opacity: 0.6;
         cursor: not-allowed;
     }
 
-    /* تنسيق الحقول غير الصالحة */
     input:invalid:not(:placeholder-shown) {
         border-color: #ef4444;
     }
