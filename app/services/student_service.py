@@ -88,7 +88,6 @@ class StudentService:
             year_id=data.year_id,
             grade_id=data.grade_id,
             section_id=data.section_id,
-            period_id=data.period_id,
             created_by=user_id,
         )
         
@@ -118,7 +117,7 @@ class StudentService:
         grade_name = None
         stage_name = None
         year_name = None
-        period_name = None
+        
         
         # جلب اسم الشعبة
         if student.section_id:
@@ -144,11 +143,7 @@ class StudentService:
             if year:
                 year_name = year.name
         
-        # جلب اسم الفصل/الحصة
-        if student.period_id:
-            period = await self._get_period(student.period_id)
-            if period:
-                period_name = period.name
+        
         
         # ✅ جلب التسجيل النشط (اختياري)
         current_enrollment = None
@@ -192,7 +187,6 @@ class StudentService:
             "grade_name": grade_name,
             "section_id": student.section_id,
             "section_name": section_name,
-            "period_id": student.period_id,
             "period_name": period_name,
             "stage_name": stage_name,
             "current_enrollment": current_enrollment,
@@ -340,7 +334,7 @@ class StudentService:
                 "grade_name": grade_name,
                 "section_id": student.section_id,
                 "section_name": section_name,
-                "period_id": student.period_id,
+                
                 "created_at": student.created_at,
                 "updated_at": student.updated_at,
             })
@@ -480,7 +474,7 @@ class StudentService:
                 "grade_name": grade_name,
                 "section_id": student.section_id,
                 "section_name": section_name,
-                "period_id": student.period_id,
+                
                 "stage_name": stage_name,
                 # --- حالة الحضور (إذا طلب) ---
                 "attendance_status": None,
