@@ -154,7 +154,22 @@ async def get_section_id_by_name(db: AsyncSession, school_id: str, section_name:
 
 
 # ============================================================
-# 📥 POST /students/import - استيراد الطلاب من ملف
+# دالة مساعدة لاستخراج قيمة الحقل من الصف
+# ============================================================
+def get_field_value(row, field_name: str, column_mappings: dict):
+    """الحصول على قيمة الحقل من الصف باستخدام الأسماء المختلفة"""
+    for key in column_mappings.get(field_name, [field_name]):
+        if key in row:
+            value = row[key]
+            if isinstance(value, str):
+                value = value.strip()
+            if value and value != 'nan' and value != 'None' and value != '':
+                return value
+    return None
+
+
+# ============================================================
+# 📥 POST /students/import - استيراد الطلاب من ملف (محدث)
 # ============================================================
 @router.post("/import")
 async def import_students(
@@ -171,127 +186,219 @@ async def import_students(
         if not file:
             return JSONResponse({
                 'success': False,
-                'message': 'لم يتم اختيار ملف'
+                'message': 'لم يتم اختيار ملف',
+                'imported': 0,
+                'errors': ['لم يتم اختيار ملف']
             }, status_code=400)
         
         filename = file.filename.lower()
         content = await file.read()
         
+        if not content:
+            return JSONResponse({
+                'success': False,
+                'message': 'الملف فارغ',
+                'imported': 0,
+                'errors': ['الملف فارغ']
+            }, status_code=400)
+        
         # تحديد نوع الملف ومعالجته
         data = []
+        errors = []
         
         if filename.endswith('.csv'):
             # قراءة CSV
             try:
                 text = content.decode('utf-8')
-                lines = text.split('\n')
+                lines = [line.strip() for line in text.split('\n') if line.strip()]
+                
+                if len(lines) < 2:
+                    return JSONResponse({
+                        'success': False,
+                        'message': 'الملف لا يحتوي على بيانات كافية',
+                        'imported': 0,
+                        'errors': ['الملف لا يحتوي على بيانات كافية']
+                    }, status_code=400)
+                
+                # استخراج العناوين
                 headers = [h.strip() for h in lines[0].split(',')]
-                for line in lines[1:]:
+                print(f"📋 العناوين المستخرجة: {headers}")
+                
+                # معالجة الصفوف
+                for idx, line in enumerate(lines[1:], start=2):
                     if line.strip():
                         values = [v.strip() for v in line.split(',')]
                         if len(values) == len(headers):
                             row = dict(zip(headers, values))
                             data.append(row)
+                        else:
+                            errors.append(f"الصف {idx}: عدد الأعمدة غير متطابق (متوقع {len(headers)}, وجد {len(values)})")
+                            
             except UnicodeDecodeError:
                 # محاولة بترميز آخر
-                text = content.decode('windows-1256')
-                lines = text.split('\n')
-                headers = [h.strip() for h in lines[0].split(',')]
-                for line in lines[1:]:
-                    if line.strip():
-                        values = [v.strip() for v in line.split(',')]
-                        if len(values) == len(headers):
-                            row = dict(zip(headers, values))
-                            data.append(row)
-            
+                try:
+                    text = content.decode('windows-1256')
+                    lines = [line.strip() for line in text.split('\n') if line.strip()]
+                    headers = [h.strip() for h in lines[0].split(',')]
+                    for idx, line in enumerate(lines[1:], start=2):
+                        if line.strip():
+                            values = [v.strip() for v in line.split(',')]
+                            if len(values) == len(headers):
+                                row = dict(zip(headers, values))
+                                data.append(row)
+                            else:
+                                errors.append(f"الصف {idx}: عدد الأعمدة غير متطابق")
+                except Exception as e:
+                    errors.append(f"خطأ في قراءة الملف: {str(e)}")
+                    
         elif filename.endswith('.xlsx') or filename.endswith('.xls'):
             # قراءة Excel
             try:
                 df = pd.read_excel(io.BytesIO(content), engine='openpyxl' if filename.endswith('.xlsx') else 'xlrd')
+                
+                # تحويل DataFrame إلى قائمة من القواميس
                 data = df.to_dict('records')
+                
+                # تحويل جميع القيم إلى سلاسل نصية
+                for row in data:
+                    for key, value in row.items():
+                        if pd.isna(value):
+                            row[key] = ''
+                        else:
+                            row[key] = str(value).strip()
+                            
+                print(f"📋 العناوين المستخرجة من Excel: {list(data[0].keys()) if data else 'لا توجد بيانات'}")
+                
             except Exception as e:
-                return JSONResponse({
-                    'success': False,
-                    'message': f'خطأ في قراءة ملف Excel: {str(e)}'
-                }, status_code=400)
-            
+                errors.append(f"خطأ في قراءة ملف Excel: {str(e)}")
+                
         elif filename.endswith('.pdf'):
-            # قراءة PDF باستخدام pdfplumber
+            # قراءة PDF
             try:
                 with pdfplumber.open(io.BytesIO(content)) as pdf:
                     text = ''
                     for page in pdf.pages:
                         text += page.extract_text() or ''
                 
-                # معالجة النص المستخرج
                 lines = [line.strip() for line in text.split('\n') if line.strip()]
                 data = parse_pdf_data(lines)
+                
             except Exception as e:
-                return JSONResponse({
-                    'success': False,
-                    'message': f'خطأ في قراءة ملف PDF: {str(e)}'
-                }, status_code=400)
+                errors.append(f"خطأ في قراءة ملف PDF: {str(e)}")
         else:
             return JSONResponse({
                 'success': False,
-                'message': 'نوع الملف غير مدعوم. يرجى استخدام CSV, Excel, أو PDF'
+                'message': 'نوع الملف غير مدعوم. يرجى استخدام CSV, Excel, أو PDF',
+                'imported': 0,
+                'errors': ['نوع الملف غير مدعوم']
             }, status_code=400)
         
         # التحقق من وجود بيانات
         if not data:
             return JSONResponse({
                 'success': False,
-                'message': 'لم يتم العثور على بيانات في الملف'
+                'message': 'لم يتم العثور على بيانات في الملف',
+                'imported': 0,
+                'errors': errors or ['لم يتم العثور على بيانات في الملف']
             }, status_code=400)
         
-        # استيراد البيانات
-        imported_count = 0
-        errors = []
+        print(f"📊 عدد الصفوف المستخرجة: {len(data)}")
         
-        for idx, row in enumerate(data, start=2):  # start=2 لأن الصف الأول هو الرؤوس
+        # ============================================================
+        # ✅ أسماء الأعمدة المدعومة (عربي وإنجليزي)
+        # ============================================================
+        column_mappings = {
+            'student_number': ['رقم الطالب', 'student_number', 'Student Number', 'StudentNumber', 'الرقم'],
+            'national_id': ['الرقم الوطني', 'national_id', 'National ID', 'NationalID', 'الهوية'],
+            'first_name': ['الاسم الأول', 'first_name', 'First Name', 'FirstName', 'الاسم'],
+            'last_name': ['اسم العائلة', 'last_name', 'Last Name', 'LastName', 'العائلة', 'اللقب'],
+            'gender': ['الجنس', 'gender', 'Gender'],
+            'birth_date': ['تاريخ الميلاد', 'birth_date', 'Birth Date', 'BirthDate'],
+            'guardian_name': ['اسم ولي الأمر', 'guardian_name', 'Guardian Name', 'GuardianName', 'ولي الأمر'],
+            'guardian_phone': ['هاتف ولي الأمر', 'guardian_phone', 'Guardian Phone', 'GuardianPhone', 'هاتف ولي'],
+            'guardian_email': ['البريد الإلكتروني لولي الأمر', 'guardian_email', 'Guardian Email', 'GuardianEmail', 'بريد ولي'],
+            'address': ['العنوان', 'address', 'Address'],
+            'year_name': ['السنة الدراسية', 'year', 'Year', 'السنة', 'academic_year'],
+            'grade_name': ['الصف', 'grade', 'Grade', 'المرحلة'],
+            'section_name': ['الشعبة', 'section', 'Section', 'الفصل'],
+        }
+        
+        # ============================================================
+        # ✅ معالجة البيانات واستيرادها
+        # ============================================================
+        
+        imported_count = 0
+        import_errors = []
+        
+        for idx, row in enumerate(data, start=2):
             try:
-                # استخراج البيانات من الصف
-                student_number = str(row.get('رقم الطالب') or row.get('student_number') or row.get('Student Number') or row.get('StudentNumber') or '').strip()
-                national_id = str(row.get('الرقم الوطني') or row.get('national_id') or row.get('National ID') or row.get('NationalID') or '').strip() or None
-                first_name = str(row.get('الاسم الأول') or row.get('first_name') or row.get('First Name') or row.get('FirstName') or '').strip()
-                last_name = str(row.get('اسم العائلة') or row.get('last_name') or row.get('Last Name') or row.get('LastName') or '').strip()
-                gender = str(row.get('الجنس') or row.get('gender') or row.get('Gender') or '').strip() or None
-                birth_date = str(row.get('تاريخ الميلاد') or row.get('birth_date') or row.get('Birth Date') or row.get('BirthDate') or '').strip() or None
-                guardian_name = str(row.get('اسم ولي الأمر') or row.get('guardian_name') or row.get('Guardian Name') or row.get('GuardianName') or '').strip() or None
-                guardian_phone = str(row.get('هاتف ولي الأمر') or row.get('guardian_phone') or row.get('Guardian Phone') or row.get('GuardianPhone') or '').strip() or None
-                guardian_email = str(row.get('البريد الإلكتروني لولي الأمر') or row.get('guardian_email') or row.get('Guardian Email') or row.get('GuardianEmail') or '').strip().lower() or None
-                address = str(row.get('العنوان') or row.get('address') or row.get('Address') or '').strip() or None
-                year_name = str(row.get('السنة الدراسية') or row.get('year') or row.get('Year') or '').strip() or None
-                grade_name = str(row.get('الصف') or row.get('grade') or row.get('Grade') or '').strip() or None
-                section_name = str(row.get('الشعبة') or row.get('section') or row.get('Section') or '').strip() or None
+                # استخراج البيانات
+                student_number = get_field_value(row, 'student_number', column_mappings)
+                national_id = get_field_value(row, 'national_id', column_mappings)
+                first_name = get_field_value(row, 'first_name', column_mappings)
+                last_name = get_field_value(row, 'last_name', column_mappings)
+                gender = get_field_value(row, 'gender', column_mappings)
+                birth_date = get_field_value(row, 'birth_date', column_mappings)
+                guardian_name = get_field_value(row, 'guardian_name', column_mappings)
+                guardian_phone = get_field_value(row, 'guardian_phone', column_mappings)
+                guardian_email = get_field_value(row, 'guardian_email', column_mappings)
+                address = get_field_value(row, 'address', column_mappings)
+                year_name = get_field_value(row, 'year_name', column_mappings)
+                grade_name = get_field_value(row, 'grade_name', column_mappings)
+                section_name = get_field_value(row, 'section_name', column_mappings)
                 
-                # التحقق من الحقول المطلوبة
+                print(f"🔍 الصف {idx}: رقم={student_number}, الاسم={first_name} {last_name}")
+                
+                # ✅ التحقق من الحقول المطلوبة
+                field_errors = []
+                
                 if not student_number:
-                    errors.append(f"الصف {idx}: رقم الطالب مطلوب")
-                    continue
+                    field_errors.append("رقم الطالب مطلوب")
                 
                 if not first_name:
-                    errors.append(f"الصف {idx}: الاسم الأول مطلوب")
-                    continue
+                    field_errors.append("الاسم الأول مطلوب")
                 
                 if not last_name:
-                    errors.append(f"الصف {idx}: اسم العائلة مطلوب")
+                    field_errors.append("اسم العائلة مطلوب")
+                
+                if field_errors:
+                    import_errors.append(f"الصف {idx}: " + "، ".join(field_errors))
                     continue
                 
-                # الحصول على المعرفات من الأسماء
+                # ✅ الحصول على المعرفات من الأسماء
                 year_id = None
                 if year_name:
                     year_id = await get_year_id_by_name(db, user.school_id, year_name)
+                    if not year_id:
+                        import_errors.append(f"الصف {idx}: السنة الدراسية '{year_name}' غير موجودة")
+                        continue
                 
                 grade_id = None
                 if grade_name:
                     grade_id = await get_grade_id_by_name(db, user.school_id, grade_name)
+                    if not grade_id:
+                        import_errors.append(f"الصف {idx}: الصف '{grade_name}' غير موجود")
+                        continue
                 
                 section_id = None
                 if section_name:
                     section_id = await get_section_id_by_name(db, user.school_id, section_name)
+                    if not section_id:
+                        import_errors.append(f"الصف {idx}: الشعبة '{section_name}' غير موجودة")
+                        continue
                 
-                # إنشاء بيانات الطالب
+                # ✅ التحقق من تكرار رقم الطالب
+                existing = await db.execute(
+                    select(Student).where(
+                        Student.student_number == student_number,
+                        Student.school_id == user.school_id
+                    )
+                )
+                if existing.scalar_one_or_none():
+                    import_errors.append(f"الصف {idx}: رقم الطالب '{student_number}' موجود بالفعل")
+                    continue
+                
+                # ✅ إنشاء بيانات الطالب
                 student_data = StudentCreate(
                     student_number=student_number,
                     national_id=national_id,
@@ -308,29 +415,51 @@ async def import_students(
                     section_id=section_id,
                 )
                 
-                # إنشاء الطالب
+                # ✅ إنشاء الطالب
                 service = StudentService(db)
                 await service.create_student(student_data, user.id, user.school_id)
                 imported_count += 1
                 
+                print(f"✅ تم استيراد الطالب {student_number} - {first_name} {last_name}")
+                
             except ConflictException as e:
-                errors.append(f"الصف {idx}: رقم الطالب موجود بالفعل")
-                continue
+                import_errors.append(f"الصف {idx}: {str(e)}")
+            except ValidationException as e:
+                import_errors.append(f"الصف {idx}: {str(e)}")
             except Exception as e:
-                errors.append(f"الصف {idx}: {str(e)}")
-                continue
+                import_errors.append(f"الصف {idx}: {str(e)}")
+                print(f"❌ خطأ في الصف {idx}: {str(e)}")
+        
+        # ============================================================
+        # ✅ عرض النتيجة النهائية
+        # ============================================================
+        
+        success_message = f'تم استيراد {imported_count} طالب بنجاح'
+        if import_errors:
+            success_message += f'، عدد الأخطاء: {len(import_errors)}'
         
         return JSONResponse({
-            'success': True,
+            'success': imported_count > 0,
             'imported': imported_count,
-            'errors': errors,
-            'message': f'تم استيراد {imported_count} طالب' + (f'، {len(errors)} خطأ' if errors else '')
+            'errors': import_errors,
+            'message': success_message,
+            'total_rows': len(data),
+            'has_errors': len(import_errors) > 0,
+            'error_summary': {
+                'total_errors': len(import_errors),
+                'error_messages': import_errors[:10]
+            }
         })
         
     except Exception as e:
+        print(f"❌ خطأ غير متوقع: {str(e)}")
+        traceback.print_exc()
+        
         return JSONResponse({
             'success': False,
-            'message': f'حدث خطأ غير متوقع: {str(e)}'
+            'message': f'حدث خطأ غير متوقع: {str(e)}',
+            'imported': 0,
+            'errors': [str(e)]
         }, status_code=500)
 
 
