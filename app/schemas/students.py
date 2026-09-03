@@ -1,7 +1,7 @@
 """Student schemas."""
 from datetime import date, datetime
 from pydantic import BaseModel, Field, field_validator
-from typing import Optional
+from typing import Optional, Dict, Any
 
 from app.schemas.common import ORMBase
 
@@ -26,20 +26,26 @@ class StudentCreate(BaseModel):
     guardian_name: str | None = Field(None, max_length=255)
     guardian_phone: str | None = Field(None, max_length=50)
     guardian_email: str | None = Field(None, max_length=255)
-    guardian_relation: str | None = Field(None, max_length=50)  # أب / أم / ولي
+    guardian_relation: str | None = Field(None, max_length=50)
     
     # معلومات الاتصال
     phone: str | None = Field(None, max_length=50)
     address: str | None = Field(None, max_length=500)
     photo_url: str | None = Field(None, max_length=500)
     
-    # ✅ الحقول الأكاديمية الجديدة (بدون Foreign Keys)
+    # ✅ الحقول الأكاديمية
     school_id: str | None = Field(None, max_length=36)
     user_id: str | None = Field(None, max_length=36)
     year_id: str | None = Field(None, max_length=36, description="معرف السنة الدراسية")
     grade_id: str | None = Field(None, max_length=36, description="معرف الصف")
     section_id: str | None = Field(None, max_length=36, description="معرف الشعبة")
     
+    # ✅ حالة الحضور الافتراضية
+    attendance_status: str | None = Field(
+        "present", 
+        pattern="^(present|absent|late|permitted|excused)$",
+        description="حالة الحضور"
+    )
     
     @field_validator('birth_date', mode='before')
     @classmethod
@@ -75,11 +81,17 @@ class StudentUpdate(BaseModel):
     address: str | None = Field(None, max_length=500)
     photo_url: str | None = Field(None, max_length=500)
     
-    # ✅ الحقول الأكاديمية الجديدة (بدون Foreign Keys)
+    # ✅ الحقول الأكاديمية
     year_id: str | None = Field(None, max_length=36, description="معرف السنة الدراسية")
     grade_id: str | None = Field(None, max_length=36, description="معرف الصف")
     section_id: str | None = Field(None, max_length=36, description="معرف الشعبة")
     
+    # ✅ حالة الحضور
+    attendance_status: str | None = Field(
+        None, 
+        pattern="^(present|absent|late|permitted|excused)$",
+        description="حالة الحضور"
+    )
     
     # الحالة
     is_active: bool | None = None
@@ -102,7 +114,7 @@ class StudentUpdate(BaseModel):
 # ============================================================
 
 class StudentOut(ORMBase):
-    """Schema لعرض بيانات طالب"""
+    """Schema لعرض بيانات طالب كاملة"""
     id: str
     school_id: str
     user_id: str | None = None
@@ -132,6 +144,9 @@ class StudentOut(ORMBase):
     grade_id: str | None = None
     section_id: str | None = None
     
+    # ✅ حالة الحضور
+    attendance_status: str | None = None
+    attendance_updated_at: datetime | None = None
     
     # الحالة
     is_active: bool
@@ -144,14 +159,32 @@ class StudentOut(ORMBase):
     display_name_ar: str | None = None
     age: int | None = None
     
+    # ✅ تسميات حالة الحضور
+    attendance_label: str | None = None
+    attendance_color: str | None = None
+    
     # معلومات إضافية للعرض (من JOIN)
     year_name: str | None = None
     grade_name: str | None = None
     section_name: str | None = None
-    period_name: str | None = None
     
     # التسجيل الحالي
     current_enrollment: "EnrollmentOut | None" = None
+    
+    # إحصائيات إضافية (للواجهة)
+    assignments_total: int = 0
+    assignments_completed: int = 0
+    activities_total: int = 0
+    activities_completed: int = 0
+    
+    # إحصائيات الحضور
+    attendance_stats: Dict[str, Any] | None = None
+    late_stats: Dict[str, Any] | None = None
+    
+    # الحصص (للواجهة)
+    periods: list[Dict[str, Any]] | None = None
+    assignments: list[Dict[str, Any]] | None = None
+    activities: list[Dict[str, Any]] | None = None
 
 
 class StudentListOut(ORMBase):
@@ -172,12 +205,27 @@ class StudentListOut(ORMBase):
     grade_id: str | None = None
     section_id: str | None = None
     
+    # ✅ حالة الحضور
+    attendance_status: str | None = None
     
     # معلومات للعرض
     year_name: str | None = None
     grade_name: str | None = None
     section_name: str | None = None
     photo_url: str | None = None
+    
+    # ✅ تسميات حالة الحضور
+    attendance_label: str | None = None
+    attendance_color: str | None = None
+    
+    # إحصائيات للعرض في البطاقة
+    assignments_total: int = 0
+    assignments_completed: int = 0
+    activities_total: int = 0
+    activities_completed: int = 0
+    
+    # إحصائيات الحضور
+    attendance_stats: Dict[str, Any] | None = None
 
 
 # ============================================================
@@ -190,7 +238,7 @@ class EnrollmentCreate(BaseModel):
     school_id: str = Field(..., max_length=36)
     year_id: str = Field(..., max_length=36)
     section_id: str | None = Field(None, max_length=36)
-    class_id: str | None = Field(None, max_length=36)
+    grade_id: str | None = Field(None, max_length=36)  # ✅ بدلاً من class_id
     enrolled_at: date = Field(default=date.today)
     status: str = Field(default="active", pattern="^(active|transferred|graduated|left|dropped)$")
     notes: str | None = Field(None, max_length=500)
@@ -199,7 +247,7 @@ class EnrollmentCreate(BaseModel):
 class EnrollmentUpdate(BaseModel):
     """Schema لتحديث تسجيل طالب"""
     section_id: str | None = Field(None, max_length=36)
-    class_id: str | None = Field(None, max_length=36)
+    grade_id: str | None = Field(None, max_length=36)  # ✅ بدلاً من class_id
     status: str | None = Field(None, pattern="^(active|transferred|graduated|left|dropped)$")
     ended_at: date | None = None
     notes: str | None = Field(None, max_length=500)
@@ -212,7 +260,7 @@ class EnrollmentOut(ORMBase):
     school_id: str
     year_id: str
     section_id: str | None = None
-    class_id: str | None = None
+    grade_id: str | None = None  # ✅ بدلاً من class_id
     status: str
     enrolled_at: date
     ended_at: date | None = None
@@ -236,18 +284,22 @@ class StudentFilter(BaseModel):
     year_id: str | None = Field(None, max_length=36, description="معرف السنة الدراسية")
     grade_id: str | None = Field(None, max_length=36, description="معرف الصف")
     section_id: str | None = Field(None, max_length=36, description="معرف الشعبة")
-    class_id: str | None = Field(None, max_length=36)
-    year_id: str | None = Field(None, max_length=36)
     is_active: bool | None = None
     gender: str | None = Field(None, pattern="^(male|female|ذكر|أنثى)$")
     search: str | None = Field(None, description="بحث في الاسم أو رقم الطالب")
+    
+    # ✅ إضافة فلتر حالة الحضور
+    attendance_status: str | None = Field(
+        None, 
+        pattern="^(present|absent|late|permitted|excused)$",
+        description="فلتر حسب حالة الحضور"
+    )
 
 
 class StudentSearchResult(StudentListOut):
     """نتيجة بحث عن طالب مع معلومات إضافية"""
     age: int | None = None
     current_section: str | None = None
-    current_class: str | None = None
     enrollment_status: str | None = None
 
 
@@ -284,12 +336,69 @@ class StudentStats(BaseModel):
     inactive_students: int = 0
     male_students: int = 0
     female_students: int = 0
-    students_by_year: dict[str, int] = {}      # ✅ حسب السنة
-    students_by_grade: dict[str, int] = {}     # ✅ حسب الصف
-    students_by_section: dict[str, int] = {}   # حسب الشعبة
+    students_by_year: dict[str, int] = {}
+    students_by_grade: dict[str, int] = {}
+    students_by_section: dict[str, int] = {}
     students_by_class: dict[str, int] = {}
     new_enrollments_this_year: int = 0
     graduates_this_year: int = 0
+    
+    # ✅ إحصائيات الحضور
+    present_today: int = 0
+    absent_today: int = 0
+    late_today: int = 0
+    permitted_today: int = 0
+    excused_today: int = 0
+
+
+# ============================================================
+# Schema لتحديث حالة الحضور (API)
+# ============================================================
+
+class AttendanceUpdate(BaseModel):
+    """Schema لتحديث حالة الحضور"""
+    student_id: str = Field(..., max_length=36)
+    status: str = Field(..., pattern="^(present|absent|late|permitted|excused)$")
+    date: str | None = Field(None, description="تاريخ الحضور (YYYY-MM-DD)")
+    note: str | None = Field(None, max_length=500)
+
+
+class AttendanceBulkUpdate(BaseModel):
+    """Schema لتحديث حالة الحضور لمجموعة من الطلاب"""
+    student_ids: list[str] = Field(..., min_length=1)
+    status: str = Field(..., pattern="^(present|absent|late|permitted|excused)$")
+    date: str | None = Field(None, description="تاريخ الحضور (YYYY-MM-DD)")
+    note: str | None = Field(None, max_length=500)
+
+
+# ============================================================
+# Schema لحالة الطالب الكاملة (للواجهة)
+# ============================================================
+
+class StudentFullStatus(BaseModel):
+    """Schema لحالة الطالب الكاملة للواجهة"""
+    # بيانات الطالب الأساسية
+    student: StudentOut
+    
+    # حالة الحضور اليومية
+    today_attendance: str | None = None
+    
+    # إحصائيات الحضور
+    attendance_stats: Dict[str, Any] | None = None
+    
+    # الواجبات
+    assignments: list[Dict[str, Any]] | None = None
+    assignments_stats: Dict[str, int] | None = None
+    
+    # الأنشطة
+    activities: list[Dict[str, Any]] | None = None
+    activities_stats: Dict[str, int] | None = None
+    
+    # التأخر
+    late_stats: Dict[str, int] | None = None
+    
+    # الحصص
+    periods: list[Dict[str, Any]] | None = None
 
 
 # ============================================================
