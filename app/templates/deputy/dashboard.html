@@ -8,20 +8,12 @@
             <h1 class="text-2xl font-bold text-slate-800 dark:text-white">🏫 لوحة تحكم الوكيل</h1>
             <p class="text-slate-400 text-sm mt-1">
                 نظرة عامة على المدرسة - {{ stats.academic_year|default('السنة الحالية') }}
-                {% if stats.semester %}
-                    - الفصل {{ stats.semester }}
-                {% endif %}
             </p>
         </div>
         <div class="flex flex-wrap items-center gap-3">
             <span class="bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 px-3 py-1.5 rounded-lg text-sm flex items-center gap-2">
                 <span>📅</span> {{ stats.current_date|default('اليوم') }}
             </span>
-            {% if stats.week_day %}
-            <span class="bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-3 py-1.5 rounded-lg text-sm">
-                {{ stats.week_day }}
-            </span>
-            {% endif %}
         </div>
     </div>
 
@@ -38,8 +30,8 @@
     </div>
     {% endif %}
 
-    {# ============ بطاقات الإحصائيات العامة ============ #}
-    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+    {# ============ إحصائيات سريعة من stats ============ #}
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div class="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-100 dark:border-slate-700 text-center">
             <div class="text-2xl mb-1">👥</div>
             <p class="text-2xl font-bold text-slate-800 dark:text-white">{{ stats.total_students|default(0) }}</p>
@@ -60,387 +52,146 @@
             <p class="text-2xl font-bold text-slate-800 dark:text-white">{{ stats.total_subjects|default(0) }}</p>
             <p class="text-xs text-slate-400">المواد</p>
         </div>
-        <div class="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-100 dark:border-slate-700 text-center">
-            <div class="text-2xl mb-1">⏰</div>
-            <p class="text-2xl font-bold text-slate-800 dark:text-white">{{ stats.total_periods|default(0) }}</p>
-            <p class="text-xs text-slate-400">الحصص اليوم</p>
-        </div>
-        <div class="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-100 dark:border-slate-700 text-center">
-            <div class="text-2xl mb-1">📊</div>
-            <p class="text-2xl font-bold text-success-600">{{ stats.attendance_today.rate|default(0) }}%</p>
-            <p class="text-xs text-slate-400">نسبة الحضور</p>
-        </div>
     </div>
 
-    {# ============ الحضور اليوم ============ #}
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div class="bg-white dark:bg-slate-800 rounded-xl p-5 border border-slate-100 dark:border-slate-700 lg:col-span-2">
-            <h3 class="font-semibold text-slate-700 dark:text-slate-200 mb-4">📊 الحضور اليوم</h3>
-            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div class="text-center p-3 bg-success-50 dark:bg-success-900/20 rounded-lg">
-                    <p class="text-2xl font-bold text-success-600">{{ stats.attendance_today.present|default(0) }}</p>
-                    <p class="text-xs text-slate-400">حاضر</p>
-                </div>
-                <div class="text-center p-3 bg-danger-50 dark:bg-danger-900/20 rounded-lg">
-                    <p class="text-2xl font-bold text-danger-600">{{ stats.attendance_today.absent|default(0) }}</p>
-                    <p class="text-xs text-slate-400">غائب</p>
-                </div>
-                <div class="text-center p-3 bg-warning-50 dark:bg-warning-900/20 rounded-lg">
-                    <p class="text-2xl font-bold text-warning-600">{{ stats.attendance_today.late|default(0) }}</p>
-                    <p class="text-xs text-slate-400">متأخر</p>
-                </div>
-                <div class="text-center p-3 bg-primary-50 dark:bg-primary-900/20 rounded-lg">
-                    <p class="text-2xl font-bold text-primary-600">{{ stats.attendance_today.excused|default(0) }}</p>
-                    <p class="text-xs text-slate-400">بعذر</p>
-                </div>
+    {# ============ عرض الفصول (Sections) ============ #}
+    {% if stats.sections and stats.sections|length > 0 %}
+        <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 overflow-hidden">
+            <div class="px-6 py-4 bg-primary-50 dark:bg-primary-900/20 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between">
+                <h3 class="font-semibold text-slate-700 dark:text-slate-200">🏫 الفصول الدراسية</h3>
+                <span class="text-sm text-slate-500 dark:text-slate-400">{{ stats.sections|length }} فصل</span>
             </div>
-            <div class="mt-4 p-3 bg-primary-50 dark:bg-primary-900/20 rounded-lg flex items-center justify-between">
-                <span class="text-sm text-slate-600 dark:text-slate-300">نسبة الحضور</span>
-                <span class="text-lg font-bold text-primary-600">{{ stats.attendance_today.rate|default(0) }}%</span>
-            </div>
-            <div class="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2 mt-2">
-                <div class="bg-primary-600 h-2 rounded-full transition-all duration-500" style="width: {{ stats.attendance_today.rate|default(0) }}%"></div>
-            </div>
-        </div>
-
-        {# ============ المعلمون اليوم ============ #}
-        <div class="bg-white dark:bg-slate-800 rounded-xl p-5 border border-slate-100 dark:border-slate-700">
-            <h3 class="font-semibold text-slate-700 dark:text-slate-200 mb-4">👨‍🏫 المعلمون اليوم</h3>
-            <div class="space-y-2">
-                <div class="flex items-center justify-between p-3 bg-success-50 dark:bg-success-900/20 rounded-lg">
-                    <span class="text-sm text-slate-600 dark:text-slate-300">✅ الحاضرون</span>
-                    <span class="font-bold text-success-600">{{ stats.teachers_today.present|default(0) }}</span>
-                </div>
-                <div class="flex items-center justify-between p-3 bg-danger-50 dark:bg-danger-900/20 rounded-lg">
-                    <span class="text-sm text-slate-600 dark:text-slate-300">❌ الغائبون</span>
-                    <span class="font-bold text-danger-600">{{ stats.teachers_today.absent|default(0) }}</span>
-                </div>
-                <div class="flex items-center justify-between p-3 bg-warning-50 dark:bg-warning-900/20 rounded-lg">
-                    <span class="text-sm text-slate-600 dark:text-slate-300">🟠 المتأخرون</span>
-                    <span class="font-bold text-warning-600">{{ stats.teachers_today.late|default(0) }}</span>
-                </div>
-                <div class="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-700/30 rounded-lg">
-                    <span class="text-sm text-slate-600 dark:text-slate-300">📋 بإذن</span>
-                    <span class="font-bold text-slate-600 dark:text-slate-300">{{ stats.teachers_today.excused|default(0) }}</span>
-                </div>
-            </div>
-            <div class="mt-3 p-3 bg-primary-50 dark:bg-primary-900/20 rounded-lg flex items-center justify-between">
-                <span class="text-sm text-slate-600 dark:text-slate-300">نسبة حضور المعلمين</span>
-                <span class="font-bold text-primary-600">{{ stats.teachers_today.rate|default(0) }}%</span>
-            </div>
-        </div>
-    </div>
-
-    {# ============ قائمة المعلمين مع التخصصات ============ #}
-    {% if stats.teachers_list and stats.teachers_list|length > 0 %}
-    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 overflow-hidden">
-        <div class="px-6 py-4 bg-primary-50 dark:bg-primary-900/20 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between">
-            <h3 class="font-semibold text-slate-700 dark:text-slate-200">👨‍🏫 قائمة المعلمين</h3>
-            <span class="text-sm text-slate-500 dark:text-slate-400">{{ stats.teachers_list|length }} معلم</span>
-        </div>
-        <div class="overflow-x-auto p-4">
-            <table class="w-full text-sm">
-                <thead>
-                    <tr class="border-b border-slate-200 dark:border-slate-700">
-                        <th class="text-right p-2 font-semibold text-slate-600 dark:text-slate-300">#</th>
-                        <th class="text-right p-2 font-semibold text-slate-600 dark:text-slate-300">المعلم</th>
-                        <th class="text-right p-2 font-semibold text-slate-600 dark:text-slate-300">التخصص</th>
-                        <th class="text-right p-2 font-semibold text-slate-600 dark:text-slate-300">المواد</th>
-                        <th class="text-right p-2 font-semibold text-slate-600 dark:text-slate-300">الفصول</th>
-                        <th class="text-right p-2 font-semibold text-slate-600 dark:text-slate-300">الحالة اليوم</th>
-                        <th class="text-right p-2 font-semibold text-slate-600 dark:text-slate-300">الإجراءات</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for teacher in stats.teachers_list %}
-                    <tr class="border-b border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/30">
-                        <td class="p-2 text-slate-500 dark:text-slate-400">{{ loop.index }}</td>
-                        <td class="p-2 font-medium text-slate-700 dark:text-slate-200">{{ teacher.name }}</td>
-                        <td class="p-2">
-                            <span class="px-2 py-1 bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 rounded text-xs">
-                                {{ teacher.specialization|default('غير محدد') }}
+            <div class="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {% for section in stats.sections %}
+                    <div class="bg-slate-50 dark:bg-slate-700/30 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
+                        <div class="flex items-center justify-between mb-2">
+                            <h4 class="font-medium text-slate-700 dark:text-slate-200">
+                                {{ section.name|default('فصل') }}
+                            </h4>
+                            <span class="text-xs bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 px-2 py-0.5 rounded">
+                                {{ section.student_count|default(0) }} طالب
                             </span>
-                        </td>
-                        <td class="p-2">
-                            <div class="flex flex-wrap gap-1">
-                                {% for subject in teacher.subjects|default([]) %}
-                                <span class="px-2 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded text-xs">
-                                    {{ subject }}
-                                </span>
-                                {% endfor %}
-                            </div>
-                        </td>
-                        <td class="p-2 text-slate-600 dark:text-slate-300">{{ teacher.sections_count|default(0) }}</td>
-                        <td class="p-2">
-                            <span class="px-2 py-1 rounded text-xs
-                                {% if teacher.today_status == 'present' %}bg-success-100 text-success-700
-                                {% elif teacher.today_status == 'absent' %}bg-danger-100 text-danger-700
-                                {% elif teacher.today_status == 'late' %}bg-warning-100 text-warning-700
-                                {% elif teacher.today_status == 'excused' %}bg-primary-100 text-primary-700
-                                {% else %}bg-slate-100 text-slate-700{% endif %}">
-                                {{ teacher.today_status_label|default('غير محدد') }}
-                            </span>
-                        </td>
-                        <td class="p-2">
-                            <div class="flex gap-1">
-                                <a href="/deputy/teacher/{{ teacher.id }}/attendance" 
-                                   class="px-2 py-1 bg-success-50 dark:bg-success-900/20 text-success-700 dark:text-success-300 rounded text-xs hover:bg-success-100">
-                                    ✏️
-                                </a>
-                                <a href="/deputy/teacher/{{ teacher.id }}/schedule" 
-                                   class="px-2 py-1 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded text-xs hover:bg-blue-100">
-                                    📅
-                                </a>
-                            </div>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    </div>
-    {% endif %}
-
-    {# ============ الهيكل الأكاديمي (السنة ← المرحلة ← الصف ← الفصل) ============ #}
-    {% if stats.academic_structure and stats.academic_structure|length > 0 %}
-        {% for year_data in stats.academic_structure %}
-            <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 overflow-hidden">
-                {# ============ رأس السنة الدراسية ============ #}
-                <div class="bg-gradient-to-l from-primary-50 to-primary-100 dark:from-primary-900/30 dark:to-primary-800/20 px-6 py-4 border-b border-slate-100 dark:border-slate-700 flex flex-wrap items-center justify-between gap-3">
-                    <div class="flex items-center gap-3">
-                        <span class="text-2xl">📅</span>
-                        <h2 class="text-lg font-bold text-primary-700 dark:text-primary-300">
-                            {{ year_data.year_name|default('السنة الدراسية') }}
-                        </h2>
-                    </div>
-                    <div class="flex flex-wrap items-center gap-4 text-sm">
-                        <span class="bg-white dark:bg-slate-700 px-3 py-1 rounded-full text-slate-600 dark:text-slate-300">
-                            👥 {{ year_data.total_students|default(0) }} طالب
-                        </span>
-                        <span class="bg-white dark:bg-slate-700 px-3 py-1 rounded-full text-slate-600 dark:text-slate-300">
-                            🏫 {{ year_data.total_sections|default(0) }} فصل
-                        </span>
-                        <span class="bg-white dark:bg-slate-700 px-3 py-1 rounded-full text-success-600 dark:text-success-400">
-                            ✅ {{ year_data.attendance.present|default(0) }}
-                        </span>
-                        <span class="bg-white dark:bg-slate-700 px-3 py-1 rounded-full text-danger-600 dark:text-danger-400">
-                            ❌ {{ year_data.attendance.absent|default(0) }}
-                        </span>
-                    </div>
-                </div>
-
-                {# ============ المراحل ============ #}
-                {% for stage in year_data.stages %}
-                    <div class="border-b border-slate-100 dark:border-slate-700 last:border-b-0">
-                        {# رأس المرحلة #}
-                        <div class="bg-slate-50 dark:bg-slate-700/30 px-6 py-2 flex flex-wrap items-center justify-between gap-2">
-                            <h3 class="font-semibold text-slate-700 dark:text-slate-200 flex items-center gap-2">
-                                <span>📚</span> {{ stage.stage_name|default('مرحلة') }}
-                            </h3>
-                            <div class="flex flex-wrap items-center gap-3 text-sm">
-                                <span class="text-slate-500 dark:text-slate-400">👥 {{ stage.total_students|default(0) }}</span>
-                                <span class="text-slate-500 dark:text-slate-400">🏫 {{ stage.total_sections|default(0) }}</span>
-                                <span class="text-success-600">✅ {{ stage.attendance.present|default(0) }}</span>
-                                <span class="text-danger-600">❌ {{ stage.attendance.absent|default(0) }}</span>
-                                <span class="text-warning-600">🟠 {{ stage.attendance.late|default(0) }}</span>
-                            </div>
                         </div>
+                        
+                        {% if section.grade %}
+                            <p class="text-xs text-slate-500 dark:text-slate-400 mb-2">
+                                📖 {{ section.grade.name|default('') }}
+                                {% if section.grade.stage %}
+                                    - {{ section.grade.stage.name|default('') }}
+                                {% endif %}
+                            </p>
+                        {% endif %}
 
-                        {# ============ الصفوف ============ #}
-                        <div class="p-4 space-y-4">
-                            {% for grade in stage.grades %}
-                                <div class="border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden">
-                                    {# رأس الصف #}
-                                    <div class="bg-white dark:bg-slate-800 px-4 py-2 flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 dark:border-slate-700">
-                                        <h4 class="font-semibold text-slate-800 dark:text-white flex items-center gap-2">
-                                            <span>📖</span> {{ grade.grade_name|default('صف') }}
-                                        </h4>
-                                        <div class="flex flex-wrap items-center gap-3 text-sm">
-                                            <span class="text-slate-500 dark:text-slate-400">👥 {{ grade.total_students|default(0) }}</span>
-                                            <span class="text-slate-500 dark:text-slate-400">🏫 {{ grade.total_sections|default(0) }}</span>
-                                            <span class="text-success-600">✅ {{ grade.attendance.present|default(0) }}</span>
-                                            <span class="text-danger-600">❌ {{ grade.attendance.absent|default(0) }}</span>
-                                            <span class="text-warning-600">🟠 {{ grade.attendance.late|default(0) }}</span>
-                                            <span class="text-primary-600">📋 {{ grade.attendance.excused|default(0) }}</span>
-                                        </div>
-                                    </div>
+                        {% if section.teacher %}
+                            <p class="text-xs text-slate-500 dark:text-slate-400 mb-2">
+                                👨‍🏫 المعلم: {{ section.teacher.name|default('') }}
+                            </p>
+                        {% endif %}
 
-                                    {# ============ الفصول (الشعب) ============ #}
-                                    <div class="p-3 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-                                        {% for section in grade.sections %}
-                                            <div class="bg-slate-50 dark:bg-slate-700/30 rounded-lg p-4 border border-slate-200 dark:border-slate-700 hover:shadow-md transition-shadow">
-                                                {# رأس الفصل #}
-                                                <div class="flex items-center justify-between mb-3">
-                                                    <h5 class="font-medium text-slate-700 dark:text-slate-200 flex items-center gap-1">
-                                                        <span>🏫</span> {{ section.section_name|default('فصل') }}
-                                                    </h5>
-                                                    <span class="text-xs bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 px-2 py-0.5 rounded-full">
-                                                        {{ section.total_students|default(0) }} طالب
-                                                    </span>
-                                                </div>
-
-                                                {# إحصائيات الحضور في الفصل #}
-                                                <div class="grid grid-cols-2 gap-1 text-xs mb-3">
-                                                    <div class="flex items-center gap-1 bg-success-50 dark:bg-success-900/20 px-2 py-1 rounded">
-                                                        <span>✅</span>
-                                                        <span class="text-slate-600 dark:text-slate-300">{{ section.attendance.present|default(0) }}</span>
-                                                    </div>
-                                                    <div class="flex items-center gap-1 bg-danger-50 dark:bg-danger-900/20 px-2 py-1 rounded">
-                                                        <span>❌</span>
-                                                        <span class="text-slate-600 dark:text-slate-300">{{ section.attendance.absent|default(0) }}</span>
-                                                    </div>
-                                                    <div class="flex items-center gap-1 bg-warning-50 dark:bg-warning-900/20 px-2 py-1 rounded">
-                                                        <span>🟠</span>
-                                                        <span class="text-slate-600 dark:text-slate-300">{{ section.attendance.late|default(0) }}</span>
-                                                    </div>
-                                                    <div class="flex items-center gap-1 bg-primary-50 dark:bg-primary-900/20 px-2 py-1 rounded">
-                                                        <span>📋</span>
-                                                        <span class="text-slate-600 dark:text-slate-300">{{ section.attendance.excused|default(0) }}</span>
-                                                    </div>
-                                                </div>
-
-                                                {# نسبة الحضور في الفصل #}
-                                                {% if section.total_students|default(0) > 0 %}
-                                                    {% set rate = ((section.attendance.present|default(0) / section.total_students) * 100)|round(1) %}
-                                                    <div class="mb-3">
-                                                        <div class="flex items-center justify-between text-xs">
-                                                            <span class="text-slate-500 dark:text-slate-400">نسبة الحضور</span>
-                                                            <span class="font-bold {% if rate >= 80 %}text-success-600{% elif rate >= 60 %}text-warning-600{% else %}text-danger-600{% endif %}">
-                                                                {{ rate }}%
-                                                            </span>
-                                                        </div>
-                                                        <div class="w-full bg-slate-200 dark:bg-slate-600 rounded-full h-1.5 mt-1">
-                                                            <div class="bg-primary-600 h-1.5 rounded-full transition-all" style="width: {{ rate }}%"></div>
-                                                        </div>
-                                                    </div>
-                                                {% endif %}
-
-                                                {# المعلم المسؤول #}
-                                                {% if section.teacher %}
-                                                <div class="text-xs text-slate-500 dark:text-slate-400 mb-3 flex items-center gap-1">
-                                                    <span>👨‍🏫</span> {{ section.teacher.name|default('') }}
-                                                    <span class="text-slate-400 dark:text-slate-500">({{ section.teacher.specialization|default('') }})</span>
-                                                </div>
-                                                {% endif %}
-
-                                                {# الحصص اليوم #}
-                                                {% if section.periods and section.periods|length > 0 %}
-                                                <details class="mb-3">
-                                                    <summary class="text-xs font-semibold text-primary-600 dark:text-primary-400 cursor-pointer hover:underline">
-                                                        📚 {{ section.periods|length }} حصص اليوم
-                                                    </summary>
-                                                    <div class="mt-2 space-y-1">
-                                                        {% for period in section.periods %}
-                                                        <div class="flex items-center justify-between text-xs bg-white dark:bg-slate-800 p-1.5 rounded border border-slate-200 dark:border-slate-700">
-                                                            <span class="text-slate-600 dark:text-slate-300">{{ period.period_number }}</span>
-                                                            <span class="font-medium text-slate-700 dark:text-slate-200">{{ period.subject }}</span>
-                                                            <span class="text-slate-500 dark:text-slate-400">{{ period.teacher }}</span>
-                                                            <span class="px-1.5 py-0.5 rounded text-xs
-                                                                {% if period.status == 'completed' %}bg-success-100 text-success-700
-                                                                {% elif period.status == 'cancelled' %}bg-danger-100 text-danger-700
-                                                                {% elif period.status == 'delayed' %}bg-warning-100 text-warning-700
-                                                                {% else %}bg-slate-100 text-slate-700{% endif %}">
-                                                                {{ period.status_label|default('قادم') }}
-                                                            </span>
-                                                        </div>
-                                                        {% endfor %}
-                                                    </div>
-                                                </details>
-                                                {% endif %}
-
-                                                {# أزرار الإجراءات #}
-                                                <div class="flex flex-wrap gap-1 mt-2 pt-2 border-t border-slate-200 dark:border-slate-700">
-                                                    <a href="/deputy/section/{{ section.section_id }}/attendance" 
-                                                       class="flex-1 text-center text-xs bg-success-50 dark:bg-success-900/20 text-success-700 dark:text-success-300 px-2 py-1 rounded border border-success-200 dark:border-success-800 hover:bg-success-100 transition-colors">
-                                                        ✏️ تسجيل
-                                                    </a>
-                                                    <a href="/deputy/section/{{ section.section_id }}/students" 
-                                                       class="flex-1 text-center text-xs bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 px-2 py-1 rounded border border-blue-200 dark:border-blue-800 hover:bg-blue-100 transition-colors">
-                                                        👥 طلاب
-                                                    </a>
-                                                    <a href="/deputy/section/{{ section.section_id }}/report" 
-                                                       class="flex-1 text-center text-xs bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300 px-2 py-1 rounded border border-orange-200 dark:border-orange-800 hover:bg-orange-100 transition-colors">
-                                                        📊 تقرير
-                                                    </a>
-                                                </div>
-                                            </div>
-                                        {% endfor %}
-                                    </div>
-
-                                    {# ============ قائمة الطلاب في الصف ============ #}
-                                    {% if grade.students and grade.students|length > 0 %}
-                                    <details class="mx-4 mb-3">
-                                        <summary class="text-sm font-semibold text-slate-600 dark:text-slate-300 cursor-pointer hover:text-primary-600">
-                                            👥 عرض جميع طلاب الصف ({{ grade.students|length }} طالب)
-                                        </summary>
-                                        <div class="mt-2 overflow-x-auto max-h-60 overflow-y-auto">
-                                            <table class="w-full text-xs">
-                                                <thead class="bg-slate-50 dark:bg-slate-700/50 sticky top-0">
-                                                    <tr>
-                                                        <th class="p-2 text-right border-b border-slate-200 dark:border-slate-700">#</th>
-                                                        <th class="p-2 text-right border-b border-slate-200 dark:border-slate-700">الطالب</th>
-                                                        <th class="p-2 text-right border-b border-slate-200 dark:border-slate-700">الفصل</th>
-                                                        <th class="p-2 text-right border-b border-slate-200 dark:border-slate-700">الحالة</th>
-                                                        <th class="p-2 text-center border-b border-slate-200 dark:border-slate-700">✅ حضور</th>
-                                                        <th class="p-2 text-center border-b border-slate-200 dark:border-slate-700">❌ غياب</th>
-                                                        <th class="p-2 text-center border-b border-slate-200 dark:border-slate-700">🟠 تأخير</th>
-                                                        <th class="p-2 text-center border-b border-slate-200 dark:border-slate-700">📋 استئذان</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    {% for student in grade.students %}
-                                                    <tr class="border-b border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/30">
-                                                        <td class="p-2 text-slate-500 dark:text-slate-400">{{ loop.index }}</td>
-                                                        <td class="p-2 font-medium text-slate-700 dark:text-slate-200">{{ student.name }}</td>
-                                                        <td class="p-2 text-slate-600 dark:text-slate-300">{{ student.section }}</td>
-                                                        <td class="p-2">
-                                                            <span class="px-2 py-0.5 rounded text-xs
-                                                                {% if student.today_status == 'present' %}bg-success-100 text-success-700
-                                                                {% elif student.today_status == 'absent' %}bg-danger-100 text-danger-700
-                                                                {% elif student.today_status == 'late' %}bg-warning-100 text-warning-700
-                                                                {% elif student.today_status == 'excused' %}bg-primary-100 text-primary-700
-                                                                {% else %}bg-slate-100 text-slate-700{% endif %}">
-                                                                {{ student.today_status_label|default('غير مسجل') }}
-                                                            </span>
-                                                        </td>
-                                                        <td class="p-2 text-center text-success-600">{{ student.attendance.present|default(0) }}</td>
-                                                        <td class="p-2 text-center text-danger-600">{{ student.attendance.absent|default(0) }}</td>
-                                                        <td class="p-2 text-center text-warning-600">{{ student.attendance.late|default(0) }}</td>
-                                                        <td class="p-2 text-center text-primary-600">{{ student.attendance.excused|default(0) }}</td>
-                                                    </tr>
-                                                    {% endfor %}
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                    </details>
-                                    {% endif %}
-                                </div>
-                            {% endfor %}
+                        {# أزرار الإجراءات #}
+                        <div class="flex flex-wrap gap-1 mt-3 pt-2 border-t border-slate-200 dark:border-slate-700">
+                            <a href="/deputy/section/{{ section.id }}/attendance" 
+                               class="flex-1 text-center text-xs bg-success-50 dark:bg-success-900/20 text-success-700 dark:text-success-300 px-2 py-1 rounded border border-success-200 dark:border-success-800 hover:bg-success-100 transition-colors">
+                                ✏️ تسجيل
+                            </a>
+                            <a href="/deputy/section/{{ section.id }}/students" 
+                               class="flex-1 text-center text-xs bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 px-2 py-1 rounded border border-blue-200 dark:border-blue-800 hover:bg-blue-100 transition-colors">
+                                👥 طلاب
+                            </a>
+                            <a href="/deputy/section/{{ section.id }}/report" 
+                               class="flex-1 text-center text-xs bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300 px-2 py-1 rounded border border-orange-200 dark:border-orange-800 hover:bg-orange-100 transition-colors">
+                                📊 تقرير
+                            </a>
                         </div>
                     </div>
                 {% endfor %}
             </div>
-        {% endfor %}
+        </div>
     {% else %}
-        {# ============ لا توجد بيانات ============ #}
         <div class="bg-blue-50 dark:bg-blue-900/20 border-r-4 border-blue-400 rounded-xl p-8 text-center border border-blue-200 dark:border-blue-800">
             <div class="text-6xl mb-4">📋</div>
-            <h3 class="text-xl font-semibold text-blue-700 dark:text-blue-300">لا توجد بيانات متاحة</h3>
-            <p class="text-blue-600 dark:text-blue-400 mt-2 max-w-md mx-auto">
-                {% if stats.error %}
-                    ❌ {{ stats.error }}
-                {% else %}
-                    لم يتم العثور على أي بيانات للعرض.<br>
-                    تأكد من إضافة الفصول والطلاب والمعلمين أولاً.
-                {% endif %}
+            <h3 class="text-xl font-semibold text-blue-700 dark:text-blue-300">لا توجد فصول</h3>
+            <p class="text-blue-600 dark:text-blue-400 mt-2">
+                لم يتم العثور على أي فصول. تأكد من إضافة الفصول أولاً.
             </p>
-            <div class="mt-4 flex flex-wrap justify-center gap-3">
-                <a href="/onboarding" class="bg-primary-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-primary-700 transition-colors">
-                    🚀 الذهاب للتهيئة
-                </a>
-                <a href="/deputy/debug/simple" class="bg-slate-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-slate-700 transition-colors">
-                    🔍 تصحيح
-                </a>
+        </div>
+    {% endif %}
+
+    {# ============ عرض المعلمين ============ #}
+    {% if stats.teachers and stats.teachers|length > 0 %}
+        <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 overflow-hidden">
+            <div class="px-6 py-4 bg-primary-50 dark:bg-primary-900/20 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between">
+                <h3 class="font-semibold text-slate-700 dark:text-slate-200">👨‍🏫 المعلمون</h3>
+                <span class="text-sm text-slate-500 dark:text-slate-400">{{ stats.teachers|length }} معلم</span>
+            </div>
+            <div class="overflow-x-auto p-4">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="border-b border-slate-200 dark:border-slate-700">
+                            <th class="text-right p-2 font-semibold text-slate-600 dark:text-slate-300">#</th>
+                            <th class="text-right p-2 font-semibold text-slate-600 dark:text-slate-300">المعلم</th>
+                            <th class="text-right p-2 font-semibold text-slate-600 dark:text-slate-300">البريد</th>
+                            <th class="text-right p-2 font-semibold text-slate-600 dark:text-slate-300">الفصول</th>
+                            <th class="text-right p-2 font-semibold text-slate-600 dark:text-slate-300">الإجراءات</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for teacher in stats.teachers %}
+                        <tr class="border-b border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/30">
+                            <td class="p-2 text-slate-500 dark:text-slate-400">{{ loop.index }}</td>
+                            <td class="p-2 font-medium text-slate-700 dark:text-slate-200">{{ teacher.name }}</td>
+                            <td class="p-2 text-slate-600 dark:text-slate-300">{{ teacher.email|default('') }}</td>
+                            <td class="p-2 text-slate-600 dark:text-slate-300">{{ teacher.sections|length|default(0) }}</td>
+                            <td class="p-2">
+                                <div class="flex gap-1">
+                                    <a href="/deputy/teacher/{{ teacher.id }}/attendance" 
+                                       class="px-2 py-1 bg-success-50 dark:bg-success-900/20 text-success-700 dark:text-success-300 rounded text-xs hover:bg-success-100">
+                                        ✏️ حضور
+                                    </a>
+                                    <a href="/deputy/teacher/{{ teacher.id }}/schedule" 
+                                       class="px-2 py-1 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded text-xs hover:bg-blue-100">
+                                        📅 جدول
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    {% endif %}
+
+    {# ============ عرض الطلاب ============ #}
+    {% if stats.students and stats.students|length > 0 %}
+        <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 overflow-hidden">
+            <div class="px-6 py-4 bg-primary-50 dark:bg-primary-900/20 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between">
+                <h3 class="font-semibold text-slate-700 dark:text-slate-200">👥 الطلاب</h3>
+                <span class="text-sm text-slate-500 dark:text-slate-400">{{ stats.students|length }} طالب</span>
+            </div>
+            <div class="overflow-x-auto p-4 max-h-80 overflow-y-auto">
+                <table class="w-full text-sm">
+                    <thead class="sticky top-0 bg-white dark:bg-slate-800">
+                        <tr class="border-b border-slate-200 dark:border-slate-700">
+                            <th class="text-right p-2 font-semibold text-slate-600 dark:text-slate-300">#</th>
+                            <th class="text-right p-2 font-semibold text-slate-600 dark:text-slate-300">الطالب</th>
+                            <th class="text-right p-2 font-semibold text-slate-600 dark:text-slate-300">الفصل</th>
+                            <th class="text-right p-2 font-semibold text-slate-600 dark:text-slate-300">الصف</th>
+                            <th class="text-right p-2 font-semibold text-slate-600 dark:text-slate-300">المرحلة</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for student in stats.students %}
+                        <tr class="border-b border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/30">
+                            <td class="p-2 text-slate-500 dark:text-slate-400">{{ loop.index }}</td>
+                            <td class="p-2 font-medium text-slate-700 dark:text-slate-200">{{ student.name }}</td>
+                            <td class="p-2 text-slate-600 dark:text-slate-300">{{ student.section_name|default('') }}</td>
+                            <td class="p-2 text-slate-600 dark:text-slate-300">{{ student.grade_name|default('') }}</td>
+                            <td class="p-2 text-slate-600 dark:text-slate-300">{{ student.stage_name|default('') }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
             </div>
         </div>
     {% endif %}
@@ -448,9 +199,6 @@
     {# ============ تذييل ============ #}
     <div class="text-center text-xs text-slate-400 dark:text-slate-500 py-4 border-t border-slate-200 dark:border-slate-700">
         آخر تحديث: {{ stats.last_updated|default('الآن') }}
-        {% if stats.data_source %}
-            | المصدر: {{ stats.data_source }}
-        {% endif %}
     </div>
 </div>
 {% endblock %}
