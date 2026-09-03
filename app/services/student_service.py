@@ -2,7 +2,7 @@
 from typing import Optional, List, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, or_, func
-from datetime import datetime, timezone
+from datetime import datetime  # ✅ إزالة timezone
 
 from app.core.exceptions import NotFoundException, ConflictException, ValidationException
 from app.models.students import Student, StudentEnrollment
@@ -242,9 +242,9 @@ class StudentService:
             if hasattr(update_data['birth_date'], 'isoformat'):
                 update_data['birth_date'] = update_data['birth_date'].isoformat()
         
-        # ✅ إذا تم تحديث attendance_status، قم بتحديث attendance_updated_at
+        # ✅ إذا تم تحديث attendance_status، قم بتحديث attendance_updated_at (بدون timezone)
         if 'attendance_status' in update_data:
-            update_data['attendance_updated_at'] = datetime.now(timezone.utc)
+            update_data['attendance_updated_at'] = datetime.now()  # ✅ بدون timezone
         
         student = await self.repo.update(student_id, update_data)
         return student
@@ -271,7 +271,7 @@ class StudentService:
         page: int = 1,
         page_size: int = 20,
         search: Optional[str] = None,
-        status: Optional[str] = None,        # ✅ حالة الحضور
+        status: Optional[str] = None,
         year_id: Optional[str] = None,
         grade_id: Optional[str] = None,
         section_id: Optional[str] = None,
@@ -279,17 +279,6 @@ class StudentService:
     ) -> Dict[str, Any]:
         """
         ✅ جلب قائمة الطلاب مع البحث والترقيم والتصفية.
-        
-        المعاملات:
-            - school_id: معرف المدرسة (إلزامي)
-            - page: رقم الصفحة
-            - page_size: عدد العناصر في الصفحة
-            - search: كلمة البحث (الاسم أو رقم الطالب)
-            - status: حالة الحضور (present, absent, late, permitted, excused)
-            - year_id: تصفية حسب السنة الدراسية
-            - grade_id: تصفية حسب الصف
-            - section_id: تصفية حسب الشعبة
-            - is_active: تصفية حسب حالة النشاط
         """
         
         # ✅ تمرير جميع المعاملات إلى الـ Repository
@@ -301,8 +290,8 @@ class StudentService:
             year_id=year_id,
             grade_id=grade_id,
             section_id=section_id,
-            status=status,        # ✅ تمرير status
-            is_active=is_active,  # ✅ تمرير is_active
+            status=status,
+            is_active=is_active,
         )
         
         items = []
@@ -561,7 +550,7 @@ class StudentService:
         grade_id: Optional[str] = None,
         year_id: Optional[str] = None,
         is_active: Optional[bool] = True,
-        status: Optional[str] = None,  # ✅ إضافة status
+        status: Optional[str] = None,
     ) -> int:
         """✅ حساب عدد الطلاب مع خيارات التصفية."""
         return await self.repo.count(
@@ -896,7 +885,7 @@ class StudentService:
         }
 
     # ============================================================
-    # 1️⃣7️⃣ تحديث حالة الحضور
+    # 1️⃣7️⃣ تحديث حالة الحضور (✅ بدون timezone)
     # ============================================================
 
     async def update_attendance(
@@ -913,15 +902,15 @@ class StudentService:
         if not student:
             raise NotFoundException(f"الطالب {student_id} غير موجود")
         
-        # ✅ تحديث حقل attendance_status في الطالب
+        # ✅ تحديث حقل attendance_status في الطالب (بدون timezone)
         await self.repo.update_attendance(
             student_id=student_id,
             status=status,
-            updated_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(),  # ✅ بدون timezone
         )
 
     # ============================================================
-    # 1️⃣8️⃣ تحديث حالة التأخر
+    # 1️⃣8️⃣ تحديث حالة التأخر (✅ بدون timezone)
     # ============================================================
 
     async def update_late_status(
@@ -937,13 +926,13 @@ class StudentService:
         if not student:
             raise NotFoundException(f"الطالب {student_id} غير موجود")
         
-        # ✅ تحديث حقل attendance_status إلى "late" إذا كان هناك تأخر
+        # ✅ تحديث حقل attendance_status إلى "late" إذا كان هناك تأخر (بدون timezone)
         has_late = any(p.get('status') == 'late' for p in periods)
         if has_late:
             await self.repo.update_attendance(
                 student_id=student_id,
                 status="late",
-                updated_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(),  # ✅ بدون timezone
             )
 
     # ============================================================
