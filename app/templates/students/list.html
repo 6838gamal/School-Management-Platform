@@ -641,7 +641,7 @@
 </div>
 
 <!-- ============================================================ -->
-<!-- JavaScript (Alpine.js)                                        -->
+<!-- JavaScript (Alpine.js) - النسخة المحدثة                      -->
 <!-- ============================================================ -->
 <script>
 function studentsApp() {
@@ -662,17 +662,20 @@ function studentsApp() {
         
         // ---- الإحصائيات ----
         get stats() {
-            const present = this.students.filter(s => s.attendance_status === 'present').length;
-            const absent = this.students.filter(s => s.attendance_status === 'absent').length;
-            const late = this.students.filter(s => s.attendance_status === 'late').length;
-            const permitted = this.students.filter(s => s.attendance_status === 'permitted').length;
-            const totalAssignments = this.students.reduce((sum, s) => sum + (s.assignments_total || 0), 0);
+            const students = Array.isArray(this.students) ? this.students : [];
+            const present = students.filter(s => s.attendance_status === 'present').length;
+            const absent = students.filter(s => s.attendance_status === 'absent').length;
+            const late = students.filter(s => s.attendance_status === 'late').length;
+            const permitted = students.filter(s => s.attendance_status === 'permitted').length;
+            const totalAssignments = students.reduce((sum, s) => sum + (s.assignments_total || 0), 0);
             return { present, absent, late, permitted, totalAssignments };
         },
         
         // ---- التصفية ----
         get filteredStudents() {
-            let filtered = [...this.students];
+            let students = Array.isArray(this.students) ? this.students : [];
+            let filtered = [...students];
+            
             if (this.searchQuery) {
                 const q = this.searchQuery.toLowerCase().trim();
                 filtered = filtered.filter(s => 
@@ -813,14 +816,16 @@ function studentsApp() {
         
         // ---- دوال الحصص ----
         updatePeriodStatus(studentId, periodIndex, status) {
-            const student = this.students.find(s => s.id === studentId);
+            const students = Array.isArray(this.students) ? this.students : [];
+            const student = students.find(s => s.id === studentId);
             if (student && student.periods && student.periods[periodIndex]) {
                 student.periods[periodIndex].status = status;
             }
         },
         
         updateLateTime(studentId, periodIndex, time) {
-            const student = this.students.find(s => s.id === studentId);
+            const students = Array.isArray(this.students) ? this.students : [];
+            const student = students.find(s => s.id === studentId);
             if (student && student.periods && student.periods[periodIndex]) {
                 student.periods[periodIndex].late_time = time;
                 if (time) {
@@ -866,7 +871,25 @@ function studentsApp() {
         
         // ---- تهيئة البيانات ----
         init() {
-            // ✅ التحقق من البيانات
+            // ✅ التأكد من أن students هي مصفوفة
+            if (!Array.isArray(this.students)) {
+                console.warn('⚠️ students ليست مصفوفة، نوعها:', typeof this.students);
+                
+                if (typeof this.students === 'object' && this.students !== null) {
+                    const values = Object.values(this.students);
+                    if (values.length > 0 && values[0] && typeof values[0] === 'object') {
+                        this.students = values;
+                        console.log('✅ تم تحويل الكائن إلى مصفوفة، عدد العناصر:', this.students.length);
+                    } else {
+                        this.students = [];
+                        console.warn('⚠️ القيم ليست كائنات طلاب، تم تعيين مصفوفة فارغة');
+                    }
+                } else {
+                    this.students = [];
+                    console.warn('⚠️ students ليست مصفوفة ولا كائن، تم تعيين مصفوفة فارغة');
+                }
+            }
+            
             console.log('📊 عدد الطلاب:', this.students.length);
             
             if (this.students.length === 0) {
