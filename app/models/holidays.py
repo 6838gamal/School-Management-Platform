@@ -1,8 +1,10 @@
-"""Holiday model - الإجازات الرسمية والعطل"""
-from sqlalchemy import Column, String, Date, Boolean, Text, DateTime, ForeignKey, Integer
+"""Holiday model - الإجازات والعطل الرسمية"""
+from sqlalchemy import Column, String, Date, Boolean, Text, DateTime, ForeignKey, Integer, select
 from sqlalchemy.orm import relationship
+from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import date, datetime
-from typing import Optional
+from typing import Optional, List, Dict, Any
+import uuid
 
 from app.core.database import Base
 from app.models.base import BaseModel
@@ -12,8 +14,13 @@ class Holiday(Base, BaseModel):
     """نموذج الإجازات والعطل الرسمية"""
     __tablename__ = "holidays"
 
-    # ============ الحقول الأساسية ============
-    id = Column(String(36), primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
+    # ============================================================
+    # ============ الحقول الخاصة بالنموذج ============
+    # ============================================================
+    
+    # الحقول الموروثة من BaseModel:
+    # id, created_at, updated_at, is_active, is_deleted, created_by, updated_by
+    
     school_id = Column(String(36), ForeignKey("schools.id", ondelete="CASCADE"), nullable=False, index=True)
     
     # ============ معلومات الإجازة ============
@@ -30,36 +37,30 @@ class Holiday(Base, BaseModel):
     start_date = Column(Date, nullable=True, comment="بداية الإجازة (للإجازات الممتدة)")
     end_date = Column(Date, nullable=True, comment="نهاية الإجازة (للإجازات الممتدة)")
     
-    # ============ التكرار ============
-    recurring_year = Column(Integer, nullable=True, comment="السنة التي تتكرر فيها (للإجازات السنوية)")
+    # ============ التكرار السنوي ============
+    recurring_year = Column(Integer, nullable=True, comment="السنة التي تتكرر فيها")
     recurring_month = Column(Integer, nullable=True, comment="الشهر الذي تتكرر فيه")
     recurring_day = Column(Integer, nullable=True, comment="اليوم الذي تتكرر فيه")
     
-    # ============ أيام الأسبوع المعطلة ============
-    weekly_off_days = Column(String(20), nullable=True, default="5,6", comment="أيام العطل الأسبوعية (مفصولة بفواصل)")
+    # ============ أيام العطل الأسبوعية ============
+    weekly_off_days = Column(String(20), nullable=True, default="5,6", comment="أيام العطل الأسبوعية (0-6 مفصولة بفواصل)")
     # 0=الأحد, 1=الإثنين, 2=الثلاثاء, 3=الأربعاء, 4=الخميس, 5=الجمعة, 6=السبت
     
-    # ============ حالة الإجازة ============
-    is_active = Column(Boolean, default=True, comment="هل الإجازة نشطة")
-    is_deleted = Column(Boolean, default=False, comment="هل تم الحذف")
-    
-    # ============ الطوابع الزمنية ============
-    created_at = Column(DateTime, default=datetime.now, nullable=False)
-    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now, nullable=False)
-    created_by = Column(String(36), nullable=True, comment="من أنشأ")
-    updated_by = Column(String(36), nullable=True, comment="من عدل")
-    
+    # ============================================================
     # ============ العلاقات ============
+    # ============================================================
+    
     school = relationship("School", back_populates="holidays")
     
-    def __repr__(self):
-        return f"<Holiday {self.name} ({self.date})>"
+    # ============================================================
+    # ============ الخصائص (Properties) ============
+    # ============================================================
     
     @property
     def is_weekend(self) -> bool:
         """التحقق مما إذا كانت الإجازة هي عطلة نهاية الأسبوع"""
         if self.weekly_off_days:
-            day_num = self.date.weekday()  # 0=الأحد, 6=السبت
+            day_num = self.date.weekday()
             off_days = [int(d.strip()) for d in self.weekly_off_days.split(',') if d.strip()]
             return day_num in off_days
         return False
@@ -123,10 +124,108 @@ class Holiday(Base, BaseModel):
             return "🔄 متكررة"
         else:
             return "📋 عادية"
+    
+    @property
+    def icon(self) -> str:
+        """أيقونة حسب نوع الإجازة"""
+        if self.is_official:
+            return "🏛️"
+        elif self.is_weekly:
+            return "📆"
+        elif self.is_weekend:
+            return "🏖️"
+        else:
+            return "📋"
+    
+    @property
+    def type_color(self) -> str:
+        """لون حسب نوع الإجازة"""
+        if self.is_official:
+            return "amber"
+        elif self.is_weekly:
+            return "blue"
+        elif self.is_weekend:
+            return "green"
+        else:
+            return "slate"
+    
+    @property
+    def type_bg(self) -> str:
+        """خلفية حسب نوع الإجازة"""
+        if self.is_official:
+            return "bg-amber-100"
+        elif self.is_weekly:
+            return "bg-blue-100"
+        elif self.is_weekend:
+            return "bg-green-100"
+        else:
+            return "bg-slate-100"
+    
+    @property
+    def type_text(self) -> str:
+        """نص حسب نوع الإجازة"""
+        if self.is_official:
+            return "text-amber-700"
+        elif self.is_weekly:
+            return "text-blue-700"
+        elif self.is_weekend:
+            return "text-green-700"
+        else:
+            return "text-slate-700"
+    
+    # ============================================================
+    # ============ الدوال ============
+    # ============================================================
+    
+    def __repr__(self) -> str:
+        return f"<Holiday {self.name} ({self.date})>"
+    
+    def __str__(self) -> str:
+        return f"{self.name} - {self.display_date}"
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """تحويل الإجازة إلى قاموس مع جميع الخصائص"""
+        return {
+            "id": self.id,
+            "school_id": self.school_id,
+            "name": self.name,
+            "date": self.display_date,
+            "day_name": self.day_name,
+            "is_official": self.is_official,
+            "is_weekly": self.is_weekly,
+            "is_recurring": self.is_recurring,
+            "is_weekend": self.is_weekend,
+            "reason": self.reason,
+            "start_date": self.start_date.strftime('%Y-%m-%d') if self.start_date else None,
+            "end_date": self.end_date.strftime('%Y-%m-%d') if self.end_date else None,
+            "duration_days": self.duration_days,
+            "is_multi_day": self.is_multi_day,
+            "status": self.status_label,
+            "type": self.type_label,
+            "icon": self.icon,
+            "type_color": self.type_color,
+            "type_bg": self.type_bg,
+            "type_text": self.type_text,
+            "is_active": self.is_active,
+            "created_at": self.created_at_formatted if hasattr(self, 'created_at_formatted') else str(self.created_at),
+            "updated_at": self.updated_at_formatted if hasattr(self, 'updated_at_formatted') else str(self.updated_at),
+        }
+    
+    def to_summary(self) -> Dict[str, Any]:
+        """ملخص الإجازة"""
+        return {
+            "id": self.id,
+            "name": self.name,
+            "date": self.display_date,
+            "day_name": self.day_name,
+            "status": self.status_label,
+            "type": self.type_label,
+            "icon": self.icon,
+        }
 
 
 # ============================================================
-# ============ دوال مساعدة للإجازات ============
+# ============ دوال مساعدة ============
 # ============================================================
 
 def get_weekly_off_days(school_id: Optional[str] = None) -> List[int]:
@@ -142,8 +241,9 @@ def get_weekly_off_days(school_id: Optional[str] = None) -> List[int]:
     # القيمة الافتراضية: الجمعة (5) والسبت (6)
     default_days = [5, 6]
     
-    # يمكن جلب الإعدادات من قاعدة البيانات حسب المدرسة
-    # return await get_school_weekly_off_days(school_id) or default_days
+    # TODO: جلب الإعدادات من قاعدة البيانات حسب المدرسة
+    # if school_id:
+    #     return await get_school_weekly_off_days(school_id) or default_days
     
     return default_days
 
@@ -163,28 +263,81 @@ def is_weekend(date_obj: date, school_id: Optional[str] = None) -> bool:
     return date_obj.weekday() in off_days
 
 
-def is_holiday(date_obj: date, school_id: str, db: AsyncSession) -> bool:
+def get_holiday_status(holiday_date: date) -> str:
     """
-    التحقق مما إذا كان التاريخ هو إجازة رسمية
+    الحصول على حالة الإجازة
     
     Args:
-        date_obj: التاريخ المراد التحقق منه
-        school_id: معرف المدرسة
-        db: جلسة قاعدة البيانات
+        holiday_date: تاريخ الإجازة
     
     Returns:
-        bool: True إذا كان إجازة
+        str: 'today', 'upcoming', 'past'
     """
-    from sqlalchemy import select
+    today = date.today()
+    if holiday_date == today:
+        return "today"
+    elif holiday_date > today:
+        return "upcoming"
+    else:
+        return "past"
+
+
+def get_holiday_status_label(holiday_date: date) -> str:
+    """
+    الحصول على تسمية حالة الإجازة
     
-    result = db.execute(
-        select(Holiday)
-        .where(Holiday.school_id == school_id)
-        .where(Holiday.date == date_obj.strftime('%Y-%m-%d'))
-        .where(Holiday.is_active == True)
-        .limit(1)
-    )
-    return result.scalar_one_or_none() is not None
+    Args:
+        holiday_date: تاريخ الإجازة
+    
+    Returns:
+        str: التسمية المناسبة
+    """
+    status = get_holiday_status(holiday_date)
+    labels = {
+        "today": "📌 اليوم",
+        "upcoming": "📅 قادمة",
+        "past": "✅ منتهية"
+    }
+    return labels.get(status, "❓ غير معروف")
+
+
+def get_holiday_type_icon(holiday: Holiday) -> str:
+    """
+    الحصول على أيقونة نوع الإجازة
+    
+    Args:
+        holiday: كائن الإجازة
+    
+    Returns:
+        str: الأيقونة المناسبة
+    """
+    return holiday.icon
+
+
+def get_holiday_type_label(holiday: Holiday) -> str:
+    """
+    الحصول على تسمية نوع الإجازة
+    
+    Args:
+        holiday: كائن الإجازة
+    
+    Returns:
+        str: التسمية المناسبة
+    """
+    return holiday.type_label
+
+
+def get_holiday_type_color(holiday: Holiday) -> str:
+    """
+    الحصول على لون نوع الإجازة
+    
+    Args:
+        holiday: كائن الإجازة
+    
+    Returns:
+        str: اللون المناسب
+    """
+    return holiday.type_color
 
 
 async def get_holidays_between(
@@ -234,6 +387,8 @@ async def get_holidays_by_month(
     Returns:
         List[Holiday]: قائمة الإجازات في الشهر
     """
+    from datetime import date, timedelta
+    
     start_date = date(year, month, 1)
     if month == 12:
         end_date = date(year + 1, 1, 1) - timedelta(days=1)
@@ -259,6 +414,8 @@ async def get_holidays_by_year(
     Returns:
         List[Holiday]: قائمة الإجازات في السنة
     """
+    from datetime import date
+    
     start_date = date(year, 1, 1)
     end_date = date(year, 12, 31)
     return await get_holidays_between(db, school_id, start_date, end_date)
@@ -313,6 +470,29 @@ async def get_holiday_by_date(
         select(Holiday)
         .where(Holiday.school_id == school_id)
         .where(Holiday.date == date_obj.strftime('%Y-%m-%d'))
+        .where(Holiday.is_active == True)
+        .limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
+async def get_holiday_by_id(
+    db: AsyncSession,
+    holiday_id: str
+) -> Optional[Holiday]:
+    """
+    جلب الإجازة حسب المعرف
+    
+    Args:
+        db: جلسة قاعدة البيانات
+        holiday_id: معرف الإجازة
+    
+    Returns:
+        Optional[Holiday]: الإجازة إن وجدت
+    """
+    result = await db.execute(
+        select(Holiday)
+        .where(Holiday.id == holiday_id)
         .where(Holiday.is_active == True)
         .limit(1)
     )
@@ -381,12 +561,77 @@ async def create_holiday(
     return holiday
 
 
+async def update_holiday(
+    db: AsyncSession,
+    holiday_id: str,
+    **kwargs
+) -> Optional[Holiday]:
+    """
+    تحديث إجازة
+    
+    Args:
+        db: جلسة قاعدة البيانات
+        holiday_id: معرف الإجازة
+        **kwargs: الحقول المراد تحديثها
+    
+    Returns:
+        Optional[Holiday]: الإجازة المحدثة
+    """
+    holiday = await get_holiday_by_id(db, holiday_id)
+    
+    if not holiday:
+        return None
+    
+    # تحديث الحقول
+    for key, value in kwargs.items():
+        if hasattr(holiday, key) and key not in ['id', 'created_at', 'created_by']:
+            setattr(holiday, key, value)
+    
+    holiday.updated_at = datetime.now()
+    
+    await db.commit()
+    await db.refresh(holiday)
+    
+    return holiday
+
+
 async def delete_holiday(
+    db: AsyncSession,
+    holiday_id: str,
+    deleted_by: Optional[str] = None
+) -> bool:
+    """
+    حذف إجازة (حذف منطقي)
+    
+    Args:
+        db: جلسة قاعدة البيانات
+        holiday_id: معرف الإجازة
+        deleted_by: من قام بالحذف
+    
+    Returns:
+        bool: نجاح العملية
+    """
+    holiday = await get_holiday_by_id(db, holiday_id)
+    
+    if not holiday:
+        return False
+    
+    holiday.is_active = False
+    holiday.is_deleted = True
+    holiday.updated_at = datetime.now()
+    if deleted_by:
+        holiday.updated_by = deleted_by
+    
+    await db.commit()
+    return True
+
+
+async def restore_holiday(
     db: AsyncSession,
     holiday_id: str
 ) -> bool:
     """
-    حذف إجازة (حذف منطقي)
+    استعادة إجازة محذوفة
     
     Args:
         db: جلسة قاعدة البيانات
@@ -396,15 +641,76 @@ async def delete_holiday(
         bool: نجاح العملية
     """
     result = await db.execute(
-        select(Holiday).where(Holiday.id == holiday_id)
+        select(Holiday)
+        .where(Holiday.id == holiday_id)
+        .where(Holiday.is_deleted == True)
+        .limit(1)
     )
     holiday = result.scalar_one_or_none()
     
     if not holiday:
         return False
     
-    holiday.is_active = False
-    holiday.is_deleted = True
+    holiday.is_active = True
+    holiday.is_deleted = False
+    holiday.updated_at = datetime.now()
     
     await db.commit()
     return True
+
+
+async def get_holidays_stats(
+    db: AsyncSession,
+    school_id: str,
+    year: Optional[int] = None
+) -> Dict[str, Any]:
+    """
+    جلب إحصائيات الإجازات
+    
+    Args:
+        db: جلسة قاعدة البيانات
+        school_id: معرف المدرسة
+        year: السنة (اختياري)
+    
+    Returns:
+        Dict[str, Any]: الإحصائيات
+    """
+    if year is None:
+        year = date.today().year
+    
+    start_date = date(year, 1, 1)
+    end_date = date(year, 12, 31)
+    
+    holidays = await get_holidays_between(db, school_id, start_date, end_date)
+    
+    stats = {
+        "total": len(holidays),
+        "official": len([h for h in holidays if h.is_official]),
+        "weekly": len([h for h in holidays if h.is_weekly]),
+        "recurring": len([h for h in holidays if h.is_recurring]),
+        "upcoming": len([h for h in holidays if h.is_future]),
+        "past": len([h for h in holidays if h.is_past]),
+        "today": len([h for h in holidays if h.is_today]),
+        "by_month": {},
+        "by_type": {
+            "official": 0,
+            "weekly": 0,
+            "recurring": 0,
+            "normal": 0
+        }
+    }
+    
+    for holiday in holidays:
+        month = holiday.date.month
+        stats["by_month"][month] = stats["by_month"].get(month, 0) + 1
+        
+        if holiday.is_official:
+            stats["by_type"]["official"] += 1
+        elif holiday.is_weekly:
+            stats["by_type"]["weekly"] += 1
+        elif holiday.is_recurring:
+            stats["by_type"]["recurring"] += 1
+        else:
+            stats["by_type"]["normal"] += 1
+    
+    return stats
