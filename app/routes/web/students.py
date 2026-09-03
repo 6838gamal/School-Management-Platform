@@ -1,6 +1,6 @@
 """Students web routes — shared pages used by director, deputy, and teacher."""
 from fastapi import APIRouter, Depends, Request, Form, HTTPException, File, UploadFile, Query
-from fastapi.responses import RedirectResponse, JSONResponse
+from fastapi.responses import RedirectResponse, JSONResponse, Response
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, or_
@@ -513,6 +513,9 @@ async def export_students(
 @router.get("/stats")
 async def get_student_stats(
     request: Request,
+    year_id: Optional[str] = None,
+    grade_id: Optional[str] = None,
+    section_id: Optional[str] = None,
     user: CurrentUser = Depends(require_any_permission("students.view")),
     db: AsyncSession = Depends(get_db),
 ):
@@ -521,7 +524,12 @@ async def get_student_stats(
     """
     try:
         service = StudentService(db)
-        stats = await service.get_student_stats(user.school_id)
+        stats = await service.get_student_stats(
+            school_id=user.school_id,
+            year_id=year_id,
+            grade_id=grade_id,
+            section_id=section_id
+        )
         return JSONResponse(stats)
     except Exception as e:
         return JSONResponse({
@@ -568,18 +576,26 @@ async def update_student_attendance(
     student_id: str,
     user: CurrentUser = Depends(require_any_permission("students.update")),
     db: AsyncSession = Depends(get_db),
-    status: str = Form(...),
-    date: Optional[str] = Form(None),
 ):
     """
     تحديث حالة حضور الطالب
     """
     try:
+        data = await request.json()
+        status = data.get('status')
+        date = data.get('date', datetime.now().date().isoformat())
+        
+        if not status:
+            return JSONResponse({
+                'success': False,
+                'message': 'حالة الحضور مطلوبة'
+            }, status_code=400)
+        
         service = StudentService(db)
         await service.update_attendance(
             student_id=student_id,
             status=status,
-            date=date or date.today().isoformat(),
+            date=date,
             updated_by=user.id
         )
         return JSONResponse({
@@ -613,10 +629,12 @@ async def update_student_late(
     """
     try:
         data = await request.json()
+        periods = data.get('periods', [])
+        
         service = StudentService(db)
         await service.update_late_status(
             student_id=student_id,
-            periods=data.get('periods', []),
+            periods=periods,
             updated_by=user.id
         )
         return JSONResponse({
@@ -650,10 +668,12 @@ async def update_student_assignments(
     """
     try:
         data = await request.json()
+        assignments = data.get('assignments', [])
+        
         service = StudentService(db)
         await service.update_assignments(
             student_id=student_id,
-            assignments=data.get('assignments', []),
+            assignments=assignments,
             updated_by=user.id
         )
         return JSONResponse({
@@ -687,10 +707,12 @@ async def update_student_activities(
     """
     try:
         data = await request.json()
+        activities = data.get('activities', [])
+        
         service = StudentService(db)
         await service.update_activities(
             student_id=student_id,
-            activities=data.get('activities', []),
+            activities=activities,
             updated_by=user.id
         )
         return JSONResponse({
@@ -952,7 +974,7 @@ async def student_create(
 
 
 # ============================================================
-# 3️⃣ GET /students - قائمة الطلاب
+# 3️⃣ GET /students - قائمة الطلاب (محدثة)
 # ============================================================
 @router.get("")
 async def students_list(
@@ -962,6 +984,7 @@ async def students_list(
     status: Optional[str] = None,
     grade_id: Optional[str] = None,
     year_id: Optional[str] = None,
+    section_id: Optional[str] = None,
     user: CurrentUser = Depends(require_any_permission("students.view")),
     db: AsyncSession = Depends(get_db),
     ctx: dict = Depends(template_context),
@@ -972,6 +995,7 @@ async def students_list(
         # جلب بيانات التصفية
         data = await get_onboarding_data(db, user.school_id)
         
+        # ✅ استدعاء الدالة مع جميع المعاملات
         result = await service.list_students(
             school_id=user.school_id,
             page=page,
@@ -979,7 +1003,9 @@ async def students_list(
             search=search or None,
             status=status,
             grade_id=grade_id,
-            year_id=year_id
+            year_id=year_id,
+            section_id=section_id,
+            is_active=True,
         )
         
         return templates.TemplateResponse(
@@ -995,8 +1021,10 @@ async def students_list(
                 "status_filter": status,
                 "grade_filter": grade_id,
                 "year_filter": year_id,
+                "section_filter": section_id,
                 "grades": data.get("grades", []),
                 "years": data.get("years", []),
+                "sections": data.get("sections", []),
                 "error": None
             },
         )
@@ -1015,8 +1043,10 @@ async def students_list(
                 "status_filter": None,
                 "grade_filter": None,
                 "year_filter": None,
+                "section_filter": None,
                 "grades": [],
                 "years": [],
+                "sections": [],
                 "error": f"حدث خطأ: {str(e)}"
             },
             status_code=400
@@ -1293,7 +1323,7 @@ async def student_delete(
 
 
 # ============================================================
-# 7️⃣ GET /students/{student_id} - تفاصيل الطالب
+# 7️⃣ GET /students/{student_id} - تفاصيل الطالب (محدثة)
 # ============================================================
 @router.get("/{student_id}")
 async def student_detail(
@@ -1305,7 +1335,9 @@ async def student_detail(
 ):
     service = StudentService(db)
     try:
+        # ✅ get_student_detail ترجع dict
         detail = await service.get_student_detail(student_id)
+        
         return templates.TemplateResponse(
             "students/detail.html",
             {**ctx, "title": detail.get("full_name", "تفاصيل الطالب"), "student": detail},
