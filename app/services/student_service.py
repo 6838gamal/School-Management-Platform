@@ -2,7 +2,7 @@
 from typing import Optional, List, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, or_, func
-from datetime import datetime  # ✅ إزالة timezone
+from datetime import datetime
 
 from app.core.exceptions import NotFoundException, ConflictException, ValidationException
 from app.models.students import Student, StudentEnrollment
@@ -19,9 +19,19 @@ class StudentService:
         self.repo = StudentRepository(db)
 
     # ============================================================
+    # ✅ دالة مساعدة لتحويل التواريخ بأمان
+    # ============================================================
+    def _safe_isoformat(self, value):
+        """تحويل التاريخ إلى ISO format بأمان"""
+        if value is None:
+            return None
+        if hasattr(value, 'isoformat'):
+            return value.isoformat()
+        return str(value)
+
+    # ============================================================
     # 1️⃣ إنشاء طالب جديد
     # ============================================================
-
     async def create_student(
         self, 
         data: StudentCreate, 
@@ -29,23 +39,19 @@ class StudentService:
         school_id: str
     ) -> Student:
         """✅ إنشاء طالب جديد مع الحقول الأكاديمية."""
-        # التحقق من عدم تكرار رقم الطالب
         existing = await self.repo.get_by_student_number(data.student_number, school_id)
         if existing:
             raise ConflictException(f"رقم الطالب {data.student_number} موجود بالفعل")
         
-        # التحقق من عدم تكرار الرقم الوطني
         if data.national_id:
             existing = await self.repo.get_by_national_id(data.national_id, school_id)
             if existing:
                 raise ConflictException(f"الرقم الوطني {data.national_id} موجود بالفعل")
         
-        # ✅ التحقق من صحة الحقول الأكاديمية إذا تم توفيرها
         if data.section_id:
             section = await self._get_section(data.section_id, school_id)
             if not section:
                 raise NotFoundException(f"الشعبة {data.section_id} غير موجودة")
-            
             if section.school_id != school_id:
                 raise ValidationException("الشعبة لا تنتمي إلى مدرستك")
         
@@ -53,19 +59,16 @@ class StudentService:
             grade = await self._get_grade(data.grade_id, school_id)
             if not grade:
                 raise NotFoundException(f"الصف {data.grade_id} غير موجود")
-            
             if grade.school_id != school_id:
-                raise ValidationException("الصف لا ينتمي إلى مدرستك")
+                raise ValidationException("الصف لا تنتمي إلى مدرستك")
         
         if data.year_id:
             year = await self._get_year(data.year_id, school_id)
             if not year:
                 raise NotFoundException(f"السنة الدراسية {data.year_id} غير موجودة")
-            
             if year.school_id != school_id:
                 raise ValidationException("السنة الدراسية لا تنتمي إلى مدرستك")
         
-        # ✅ إنشاء الطالب مع جميع الحقول
         student = await self.repo.create(
             school_id=school_id,
             student_number=data.student_number,
@@ -84,11 +87,9 @@ class StudentService:
             phone=getattr(data, 'phone', None),
             address=data.address,
             photo_url=getattr(data, 'photo_url', None),
-            # ✅ الحقول الأكاديمية
             year_id=data.year_id,
             grade_id=data.grade_id,
             section_id=data.section_id,
-            # ✅ حالة الحضور الافتراضية
             attendance_status=getattr(data, 'attendance_status', 'present'),
             created_by=user_id,
         )
@@ -98,7 +99,6 @@ class StudentService:
     # ============================================================
     # 2️⃣ جلب طالب بالمعرف
     # ============================================================
-
     async def get_student(self, student_id: str) -> Optional[Student]:
         """جلب طالب بواسطة المعرف."""
         return await self.repo.get_by_id(student_id)
@@ -106,14 +106,12 @@ class StudentService:
     # ============================================================
     # 3️⃣ جلب تفاصيل الطالب (مدمج مع Academics)
     # ============================================================
-
     async def get_student_detail(self, student_id: str) -> Dict[str, Any]:
         """✅ جلب تفاصيل الطالب مع معلومات من Academics."""
         student = await self.repo.get_by_id(student_id)
         if not student:
             raise NotFoundException(f"الطالب {student_id} غير موجود")
         
-        # جلب التفاصيل الإضافية
         section_name = None
         grade_name = None
         stage_name = None
@@ -138,7 +136,6 @@ class StudentService:
             if year:
                 year_name = year.name
         
-        # ✅ جلب التسجيل النشط
         current_enrollment = None
         try:
             enrollment_stmt = select(StudentEnrollment).where(
@@ -173,10 +170,8 @@ class StudentService:
             "photo_url": getattr(student, 'photo_url', None),
             "is_active": student.is_active,
             "enrollment_status": getattr(student, 'enrollment_status', None),
-            # ✅ حالة الحضور
             "attendance_status": getattr(student, 'attendance_status', None),
-            "attendance_updated_at": getattr(student, 'attendance_updated_at', None),
-            # ✅ الحقول الأكاديمية
+            "attendance_updated_at": self._safe_isoformat(getattr(student, 'attendance_updated_at', None)),
             "year_id": student.year_id,
             "year_name": year_name,
             "grade_id": student.grade_id,
@@ -189,16 +184,15 @@ class StudentService:
                 "year_id": current_enrollment.year_id if current_enrollment else None,
                 "section_id": current_enrollment.section_id if current_enrollment else None,
                 "status": current_enrollment.status if current_enrollment else None,
-                "enrolled_at": current_enrollment.enrolled_at.isoformat() if current_enrollment and current_enrollment.enrolled_at else None,
+                "enrolled_at": self._safe_isoformat(current_enrollment.enrolled_at) if current_enrollment else None,
             } if current_enrollment else None,
-            "created_at": student.created_at.isoformat() if student.created_at else None,
-            "updated_at": student.updated_at.isoformat() if student.updated_at else None,
+            "created_at": self._safe_isoformat(student.created_at),
+            "updated_at": self._safe_isoformat(student.updated_at),
         }
 
     # ============================================================
     # 4️⃣ تحديث بيانات الطالب
     # ============================================================
-
     async def update_student(
         self, 
         student_id: str, 
@@ -209,7 +203,6 @@ class StudentService:
         if not student:
             raise NotFoundException(f"الطالب {student_id} غير موجود")
         
-        # ✅ التحقق من صحة الحقول الأكاديمية إذا تم توفيرها
         if data.section_id is not None:
             if data.section_id:
                 section = await self._get_section(data.section_id, student.school_id)
@@ -234,17 +227,14 @@ class StudentService:
                 if year.school_id != student.school_id:
                     raise ValidationException("السنة الدراسية لا تنتمي إلى مدرستك")
         
-        # تحديث الحقول
         update_data = data.model_dump(exclude_unset=True)
         
-        # تحويل birth_date إذا كان موجوداً
         if 'birth_date' in update_data and update_data['birth_date']:
             if hasattr(update_data['birth_date'], 'isoformat'):
                 update_data['birth_date'] = update_data['birth_date'].isoformat()
         
-        # ✅ إذا تم تحديث attendance_status، قم بتحديث attendance_updated_at (بدون timezone)
         if 'attendance_status' in update_data:
-            update_data['attendance_updated_at'] = datetime.now()  # ✅ بدون timezone
+            update_data['attendance_updated_at'] = datetime.now()
         
         student = await self.repo.update(student_id, update_data)
         return student
@@ -252,7 +242,6 @@ class StudentService:
     # ============================================================
     # 5️⃣ حذف الطالب (تعطيل)
     # ============================================================
-
     async def delete_student(self, student_id: str) -> None:
         """حذف الطالب (تعطيل فقط)."""
         student = await self.repo.get_by_id(student_id)
@@ -262,9 +251,8 @@ class StudentService:
         await self.repo.update(student_id, {"is_active": False})
 
     # ============================================================
-    # 6️⃣ قائمة الطلاب مع البحث والترقيم 🔥 (تم التحديث)
+    # 6️⃣ قائمة الطلاب مع البحث والترقيم
     # ============================================================
-
     async def list_students(
         self,
         school_id: str,
@@ -277,11 +265,8 @@ class StudentService:
         section_id: Optional[str] = None,
         is_active: Optional[bool] = True,
     ) -> Dict[str, Any]:
-        """
-        ✅ جلب قائمة الطلاب مع البحث والترقيم والتصفية.
-        """
+        """✅ جلب قائمة الطلاب مع البحث والترقيم والتصفية."""
         
-        # ✅ تمرير جميع المعاملات إلى الـ Repository
         students, total = await self.repo.list_by_school(
             school_id=school_id,
             page=page,
@@ -301,25 +286,21 @@ class StudentService:
             year_name = None
             attendance_status = None
             
-            # جلب اسم الشعبة
             if student.section_id:
                 section = await self._get_section(student.section_id)
                 if section:
                     section_name = section.name
             
-            # جلب اسم الصف
             if student.grade_id:
                 grade = await self._get_grade(student.grade_id)
                 if grade:
                     grade_name = grade.name
             
-            # جلب اسم السنة
             if student.year_id:
                 year = await self._get_year(student.year_id)
                 if year:
                     year_name = year.name
             
-            # ✅ جلب حالة الحضور من الطالب
             attendance_status = getattr(student, 'attendance_status', None)
             
             items.append({
@@ -348,9 +329,8 @@ class StudentService:
                 "section_id": student.section_id,
                 "section_name": section_name,
                 "attendance_status": attendance_status,
-                "created_at": student.created_at.isoformat() if student.created_at else None,
-                "updated_at": student.updated_at.isoformat() if student.updated_at else None,
-                # ✅ بيانات إضافية للواجهة
+                "created_at": self._safe_isoformat(student.created_at),
+                "updated_at": self._safe_isoformat(student.updated_at),
                 "assignments_total": 8,
                 "assignments_completed": 5,
                 "activities_total": 4,
@@ -383,15 +363,12 @@ class StudentService:
     # ============================================================
     # 7️⃣ جلب جميع الطلاب (بدون ترقيم) - للتصدير
     # ============================================================
-
     async def get_all_students(
         self,
         school_id: str,
         is_active: Optional[bool] = True,
     ) -> List[Student]:
-        """
-        ✅ جلب جميع الطلاب بدون ترقيم (للاستخدام في التصدير).
-        """
+        """✅ جلب جميع الطلاب بدون ترقيم (للاستخدام في التصدير)."""
         students, _ = await self.repo.list_by_school(
             school_id=school_id,
             page=1,
@@ -403,7 +380,6 @@ class StudentService:
     # ============================================================
     # 8️⃣ جلب الطلاب حسب الشعبة
     # ============================================================
-
     async def get_by_section(
         self,
         school_id: str,
@@ -422,7 +398,6 @@ class StudentService:
     # ============================================================
     # 9️⃣ جلب الطلاب حسب الصف
     # ============================================================
-
     async def get_by_grade(
         self,
         school_id: str,
@@ -441,7 +416,6 @@ class StudentService:
     # ============================================================
     # 🔟 جلب الطلاب حسب السنة
     # ============================================================
-
     async def get_by_year(
         self,
         school_id: str,
@@ -458,7 +432,6 @@ class StudentService:
     # ============================================================
     # 1️⃣1️⃣ جلب الطلاب مع التفاصيل (للتكامل مع Attendance)
     # ============================================================
-
     async def get_students_with_details(
         self,
         school_id: str,
@@ -467,9 +440,7 @@ class StudentService:
         include_attendance: bool = False,
         date: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
-        """
-        ✅ جلب الطلاب مع تفاصيل إضافية من Academics.
-        """
+        """✅ جلب الطلاب مع تفاصيل إضافية من Academics."""
         if section_id:
             students = await self.repo.list_by_section(
                 school_id=school_id,
@@ -542,7 +513,6 @@ class StudentService:
     # ============================================================
     # 1️⃣2️⃣ حساب عدد الطلاب
     # ============================================================
-
     async def count_students(
         self,
         school_id: str,
@@ -565,15 +535,12 @@ class StudentService:
     # ============================================================
     # 1️⃣3️⃣ نقل طالب بين الشعب (Transfer)
     # ============================================================
-
     async def transfer_student(
         self,
         school_id: str,
         req: TransferRequest
     ) -> Dict[str, Any]:
-        """
-        ✅ نقل طالب بين الشعب.
-        """
+        """✅ نقل طالب بين الشعب."""
         student = await self.repo.get_by_id(req.student_id)
         if not student:
             raise NotFoundException(f"الطالب {req.student_id} غير موجود")
@@ -622,7 +589,6 @@ class StudentService:
     # ============================================================
     # 1️⃣4️⃣ البحث عن طالب
     # ============================================================
-
     async def search_students(
         self,
         school_id: str,
@@ -665,7 +631,6 @@ class StudentService:
     # ============================================================
     # 1️⃣5️⃣ إحصائيات الطلاب
     # ============================================================
-
     async def get_student_stats(
         self,
         school_id: str,
@@ -673,9 +638,7 @@ class StudentService:
         grade_id: Optional[str] = None,
         section_id: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """
-        ✅ جلب إحصائيات الطلاب مع التصفية حسب السنة والصف والشعبة.
-        """
+        """✅ جلب إحصائيات الطلاب مع التصفية حسب السنة والصف والشعبة."""
         total = await self.repo.count(
             school_id=school_id,
             year_id=year_id,
@@ -684,7 +647,6 @@ class StudentService:
             is_active=True,
         )
         
-        # حساب الذكور
         males_stmt = select(func.count()).select_from(Student).where(
             Student.school_id == school_id,
             Student.is_active == True,
@@ -698,7 +660,6 @@ class StudentService:
             males_stmt = males_stmt.where(Student.section_id == section_id)
         males = await self.db.scalar(males_stmt) or 0
         
-        # حساب الإناث
         females_stmt = select(func.count()).select_from(Student).where(
             Student.school_id == school_id,
             Student.is_active == True,
@@ -712,7 +673,6 @@ class StudentService:
             females_stmt = females_stmt.where(Student.section_id == section_id)
         females = await self.db.scalar(females_stmt) or 0
         
-        # ✅ إحصائيات الحضور
         present_count = await self.repo.count(
             school_id=school_id,
             year_id=year_id,
@@ -754,7 +714,6 @@ class StudentService:
             is_active=True,
         )
         
-        # إحصائيات السنوات
         years_stats = []
         if not year_id:
             years = await self._get_years(school_id)
@@ -771,7 +730,6 @@ class StudentService:
                         "student_count": count,
                     })
         
-        # إحصائيات الصفوف
         grades_stats = []
         if not grade_id:
             grades = await self._get_grades(school_id, year_id)
@@ -789,7 +747,6 @@ class StudentService:
                         "student_count": count,
                     })
         
-        # إحصائيات الشعب
         sections_stats = []
         if not section_id:
             sections = await self._get_sections(school_id, year_id, grade_id)
@@ -829,17 +786,12 @@ class StudentService:
     # ============================================================
     # 1️⃣6️⃣ الحصول على إحصائيات طالب محدد (للواجهة)
     # ============================================================
-
     async def get_student_detailed_stats(self, student_id: str) -> Dict[str, Any]:
-        """
-        ✅ الحصول على إحصائيات مفصلة لطالب محدد.
-        تشمل: الحضور، الواجبات، الأنشطة، التأخر.
-        """
+        """✅ الحصول على إحصائيات مفصلة لطالب محدد."""
         student = await self.repo.get_by_id(student_id)
         if not student:
             raise NotFoundException(f"الطالب {student_id} غير موجود")
         
-        # ✅ إحصائيات الحضور
         attendance_stats = {
             "overall_percentage": 85,
             "present_days": 42,
@@ -850,7 +802,6 @@ class StudentService:
             "monthly_total": 22,
         }
         
-        # ✅ إحصائيات الواجبات
         assignments_stats = {
             "total": 8,
             "completed": 6,
@@ -858,7 +809,6 @@ class StudentService:
             "graded": 4,
         }
         
-        # ✅ إحصائيات الأنشطة
         activities_stats = {
             "total": 5,
             "completed": 3,
@@ -866,7 +816,6 @@ class StudentService:
             "cancelled": 0,
         }
         
-        # ✅ إحصائيات التأخر
         late_stats = {
             "total": 8,
             "morning": 5,
@@ -885,9 +834,8 @@ class StudentService:
         }
 
     # ============================================================
-    # 1️⃣7️⃣ تحديث حالة الحضور (✅ بدون timezone)
+    # 1️⃣7️⃣ تحديث حالة الحضور
     # ============================================================
-
     async def update_attendance(
         self,
         student_id: str,
@@ -895,94 +843,73 @@ class StudentService:
         date: str,
         updated_by: str,
     ) -> None:
-        """
-        ✅ تحديث حالة حضور الطالب.
-        """
+        """✅ تحديث حالة حضور الطالب."""
         student = await self.repo.get_by_id(student_id)
         if not student:
             raise NotFoundException(f"الطالب {student_id} غير موجود")
         
-        # ✅ تحديث حقل attendance_status في الطالب (بدون timezone)
         await self.repo.update_attendance(
             student_id=student_id,
             status=status,
-            updated_at=datetime.now(),  # ✅ بدون timezone
+            updated_at=datetime.now(),
         )
 
     # ============================================================
-    # 1️⃣8️⃣ تحديث حالة التأخر (✅ بدون timezone)
+    # 1️⃣8️⃣ تحديث حالة التأخر
     # ============================================================
-
     async def update_late_status(
         self,
         student_id: str,
         periods: List[Dict[str, Any]],
         updated_by: str,
     ) -> None:
-        """
-        ✅ تحديث حالة التأخر للطالب (حسب الحصص).
-        """
+        """✅ تحديث حالة التأخر للطالب (حسب الحصص)."""
         student = await self.repo.get_by_id(student_id)
         if not student:
             raise NotFoundException(f"الطالب {student_id} غير موجود")
         
-        # ✅ تحديث حقل attendance_status إلى "late" إذا كان هناك تأخر (بدون timezone)
         has_late = any(p.get('status') == 'late' for p in periods)
         if has_late:
             await self.repo.update_attendance(
                 student_id=student_id,
                 status="late",
-                updated_at=datetime.now(),  # ✅ بدون timezone
+                updated_at=datetime.now(),
             )
 
     # ============================================================
     # 1️⃣9️⃣ تحديث الواجبات
     # ============================================================
-
     async def update_assignments(
         self,
         student_id: str,
         assignments: List[Dict[str, Any]],
         updated_by: str,
     ) -> None:
-        """
-        ✅ تحديث واجبات الطالب.
-        """
+        """✅ تحديث واجبات الطالب."""
         student = await self.repo.get_by_id(student_id)
         if not student:
             raise NotFoundException(f"الطالب {student_id} غير موجود")
-        
-        # يمكن حفظ الواجبات في جدول منفصل
-        # هذا يعتمد على هيكل قاعدة البيانات الخاصة بك
         pass
 
     # ============================================================
     # 2️⃣0️⃣ تحديث الأنشطة
     # ============================================================
-
     async def update_activities(
         self,
         student_id: str,
         activities: List[Dict[str, Any]],
         updated_by: str,
     ) -> None:
-        """
-        ✅ تحديث أنشطة الطالب.
-        """
+        """✅ تحديث أنشطة الطالب."""
         student = await self.repo.get_by_id(student_id)
         if not student:
             raise NotFoundException(f"الطالب {student_id} غير موجود")
-        
-        # يمكن حفظ الأنشطة في جدول منفصل
-        # هذا يعتمد على هيكل قاعدة البيانات الخاصة بك
         pass
 
     # ============================================================
     # 🔧 دوال مساعدة للجلب من Academics
     # ============================================================
-
     async def _get_section(self, section_id: str, school_id: Optional[str] = None) -> Optional[Section]:
-        """جلب الشعبة من قاعدة البيانات."""
         stmt = select(Section).where(Section.id == section_id)
         if school_id:
             stmt = stmt.where(Section.school_id == school_id)
@@ -990,7 +917,6 @@ class StudentService:
         return result.scalar_one_or_none()
 
     async def _get_grade(self, grade_id: str, school_id: Optional[str] = None) -> Optional[Grade]:
-        """جلب الصف من قاعدة البيانات."""
         stmt = select(Grade).where(Grade.id == grade_id)
         if school_id:
             stmt = stmt.where(Grade.school_id == school_id)
@@ -998,13 +924,11 @@ class StudentService:
         return result.scalar_one_or_none()
 
     async def _get_stage(self, stage_id: str) -> Optional[Stage]:
-        """جلب المرحلة من قاعدة البيانات."""
         stmt = select(Stage).where(Stage.id == stage_id)
         result = await self.db.execute(stmt)
         return result.scalar_one_or_none()
 
     async def _get_year(self, year_id: str, school_id: Optional[str] = None) -> Optional[AcademicYear]:
-        """جلب السنة الدراسية من قاعدة البيانات."""
         stmt = select(AcademicYear).where(AcademicYear.id == year_id)
         if school_id:
             stmt = stmt.where(AcademicYear.school_id == school_id)
@@ -1012,7 +936,6 @@ class StudentService:
         return result.scalar_one_or_none()
 
     async def _get_years(self, school_id: str) -> List[AcademicYear]:
-        """جلب جميع السنوات الدراسية للمدرسة."""
         stmt = select(AcademicYear).where(
             AcademicYear.school_id == school_id,
             AcademicYear.is_active == True
@@ -1021,7 +944,6 @@ class StudentService:
         return list(result.scalars().all())
 
     async def _get_grades(self, school_id: str, year_id: Optional[str] = None) -> List[Grade]:
-        """جلب جميع الصفوف للمدرسة."""
         stmt = select(Grade).where(
             Grade.school_id == school_id,
             Grade.is_active == True
@@ -1033,7 +955,6 @@ class StudentService:
         return list(result.scalars().all())
 
     async def _get_sections(self, school_id: str, year_id: Optional[str] = None, grade_id: Optional[str] = None) -> List[Section]:
-        """جلب جميع الشعب للمدرسة."""
         stmt = select(Section).where(
             Section.school_id == school_id,
             Section.is_active == True
