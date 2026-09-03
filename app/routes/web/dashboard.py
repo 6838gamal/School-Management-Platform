@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, Request, Query
 from fastapi.responses import RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 from typing import Optional
 
 from app.core.database import get_db
@@ -48,9 +48,6 @@ async def dashboard_router(
     user: CurrentUser = Depends(require_user),
     db: AsyncSession = Depends(get_db),
     ctx: dict = Depends(template_context),
-    target_date: Optional[str] = Query(None, description="تاريخ محدد للعرض"),
-    days: Optional[int] = Query(30, description="عدد الأيام للعرض"),
-    month: Optional[str] = Query(None, description="شهر محدد للعرض"),
 ):
     """التوجيه إلى لوحة التحكم المناسبة حسب دور المستخدم"""
     service = DashboardService(db)
@@ -73,14 +70,8 @@ async def dashboard_router(
         )
     
     elif role == "deputy":
-        # جلب البيانات مع المعاملات
-        stats = await service.deputy_stats(
-            school_id=user.school_id,
-            user_id=user.id,
-            target_date=target_date,
-            days=days,
-            month=month
-        )
+        # استدعاء الدالة بدون معاملات إضافية
+        stats = await service.deputy_stats(user.school_id, user.id)
         
         return templates.TemplateResponse(
             "deputy/dashboard.html",
@@ -88,9 +79,7 @@ async def dashboard_router(
                 **ctx, 
                 "title": "لوحة تحكم الوكيل",
                 "stats": stats,
-                "selected_date": target_date or date.today().isoformat(),
-                "selected_month": month or date.today().strftime("%Y-%m"),
-                "filter_days": days,
+                "selected_date": date.today().isoformat(),
                 "role_name": "وكيل",
                 "role_icon": "👨‍🏫",
                 "user": user,
@@ -165,6 +154,7 @@ async def deputy_section_attendance(
     
     section = await section_repo.get_by_id(section_id)
     if not section:
+        from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="الفصل غير موجود")
     
     students = await student_repo.get_by_section(section_id)
@@ -201,6 +191,7 @@ async def deputy_section_students(
     
     section = await section_repo.get_by_id(section_id)
     if not section:
+        from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="الفصل غير موجود")
     
     students = await student_repo.get_by_section(section_id)
@@ -260,6 +251,7 @@ async def deputy_teacher_attendance(
     teacher_repo = TeacherRepository(db)
     teacher = await teacher_repo.get_by_id(teacher_id)
     if not teacher:
+        from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="المعلم غير موجود")
     
     return templates.TemplateResponse(
@@ -290,6 +282,7 @@ async def deputy_teacher_schedule(
     teacher_repo = TeacherRepository(db)
     teacher = await teacher_repo.get_by_id(teacher_id)
     if not teacher:
+        from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="المعلم غير موجود")
     
     service = DashboardService(db)
@@ -312,18 +305,13 @@ async def export_deputy_report(
     request: Request,
     user: CurrentUser = Depends(require_user),
     db: AsyncSession = Depends(get_db),
-    target_date: Optional[str] = Query(None),
 ):
     """تصدير تقرير الوكيل"""
     if user.primary_role != "deputy":
         raise ForbiddenException("غير مصرح")
     
     service = DashboardService(db)
-    stats = await service.deputy_stats(
-        school_id=user.school_id,
-        user_id=user.id,
-        target_date=target_date
-    )
+    stats = await service.deputy_stats(user.school_id, user.id)
     
     # يمكن تحويل البيانات إلى CSV أو Excel أو PDF
     return JSONResponse(content={
