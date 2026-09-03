@@ -4,7 +4,7 @@
 from typing import List, Optional, Tuple
 from sqlalchemy import select, func, and_, or_
 from sqlalchemy.ext.asyncio import AsyncSession
-from datetime import datetime, timezone
+from datetime import datetime  # ✅ إزالة timezone
 
 from app.models.students import Student, StudentEnrollment
 from app.repositories.base import BaseRepository
@@ -49,22 +49,11 @@ class StudentRepository(BaseRepository[Student]):
         year_id: Optional[str] = None,
         grade_id: Optional[str] = None,
         section_id: Optional[str] = None,
-        status: Optional[str] = None,  # ✅ إضافة معامل status
-        is_active: Optional[bool] = True,  # ✅ إضافة معامل is_active
+        status: Optional[str] = None,
+        is_active: Optional[bool] = True,
     ) -> Tuple[List[Student], int]:
         """
         ✅ جلب قائمة الطلاب في مدرسة مع البحث والترقيم والتصفية.
-        
-        المعاملات:
-            - school_id: معرف المدرسة (إلزامي)
-            - page: رقم الصفحة
-            - page_size: عدد العناصر في الصفحة
-            - search: كلمة البحث
-            - year_id: تصفية حسب السنة
-            - grade_id: تصفية حسب الصف
-            - section_id: تصفية حسب الشعبة
-            - status: تصفية حسب حالة الحضور (present, absent, late, permitted, excused)
-            - is_active: تصفية حسب حالة النشاط
         """
         stmt = select(Student).where(Student.school_id == school_id)
         count_stmt = select(func.count()).select_from(Student).where(Student.school_id == school_id)
@@ -181,7 +170,7 @@ class StudentRepository(BaseRepository[Student]):
         return list(result.scalars().all())
 
     # ============================================================
-    # ✅ create - محدثة مع attendance_status
+    # ✅ create - محدثة (✅ بدون timezone)
     # ============================================================
     async def create(
         self,
@@ -206,9 +195,21 @@ class StudentRepository(BaseRepository[Student]):
         guardian_relation: Optional[str] = None,
         phone: Optional[str] = None,
         photo_url: Optional[str] = None,
-        attendance_status: Optional[str] = "present",  # ✅ إضافة attendance_status
+        attendance_status: Optional[str] = "present",
     ) -> Student:
         """✅ إنشاء طالب جديد مع جميع الحقول."""
+        
+        # ✅ معالجة birth_date إذا كان نصاً
+        birth_date_parsed = None
+        if birth_date:
+            if isinstance(birth_date, str):
+                try:
+                    birth_date_parsed = datetime.strptime(birth_date, '%Y-%m-%d').date()
+                except ValueError:
+                    birth_date_parsed = None
+            elif isinstance(birth_date, date):
+                birth_date_parsed = birth_date
+        
         student = Student(
             school_id=school_id,
             student_number=student_number,
@@ -218,7 +219,7 @@ class StudentRepository(BaseRepository[Student]):
             first_name_ar=first_name_ar,
             last_name_ar=last_name_ar,
             gender=gender,
-            birth_date=birth_date,
+            birth_date=birth_date_parsed,  # ✅ استخدام التاريخ المحلل
             nationality=nationality,
             guardian_name=guardian_name,
             guardian_phone=guardian_phone,
@@ -227,13 +228,11 @@ class StudentRepository(BaseRepository[Student]):
             phone=phone,
             address=address,
             photo_url=photo_url,
-            # ✅ الحقول الأكاديمية
             year_id=year_id,
             grade_id=grade_id,
             section_id=section_id,
-            # ✅ حالة الحضور
             attendance_status=attendance_status,
-            attendance_updated_at=datetime.now(timezone.utc),
+            attendance_updated_at=datetime.now(),  # ✅ بدون timezone
             is_active=True,
             enrollment_status="active",
         )
@@ -241,7 +240,7 @@ class StudentRepository(BaseRepository[Student]):
         await self.db.flush()
         await self.db.refresh(student)
         
-        # ✅ إذا تم تحديد شعبة وسنة، إنشاء تسجيل في StudentEnrollment
+        # ✅ إذا تم تحديد شعبة وسنة، إنشاء تسجيل
         if section_id and year_id:
             enrollment = StudentEnrollment(
                 student_id=student.id,
@@ -250,7 +249,7 @@ class StudentRepository(BaseRepository[Student]):
                 section_id=section_id,
                 grade_id=grade_id,
                 status="active",
-                enrolled_at=datetime.now(timezone.utc).date(),
+                enrolled_at=datetime.now().date(),  # ✅ بدون timezone
             )
             self.db.add(enrollment)
             await self.db.flush()
@@ -258,7 +257,7 @@ class StudentRepository(BaseRepository[Student]):
         return student
 
     # ============================================================
-    # ✅ update - محدثة مع attendance_status
+    # ✅ update - محدثة (✅ بدون timezone)
     # ============================================================
     async def update(self, id: str, data: dict) -> Optional[Student]:
         """✅ تحديث بيانات طالب مع الحقول الأكاديمية وحالة الحضور."""
@@ -274,7 +273,7 @@ class StudentRepository(BaseRepository[Student]):
             'phone', 'address', 'photo_url',
             'year_id', 'grade_id', 'section_id',
             'is_active', 'enrollment_status',
-            'attendance_status', 'attendance_updated_at',  # ✅ إضافة حالة الحضور
+            'attendance_status', 'attendance_updated_at',
         ]
         
         for key, value in data.items():
@@ -283,7 +282,7 @@ class StudentRepository(BaseRepository[Student]):
         
         # ✅ إذا تم تحديث attendance_status، قم بتحديث attendance_updated_at
         if 'attendance_status' in data and data['attendance_status'] is not None:
-            student.attendance_updated_at = datetime.now(timezone.utc)
+            student.attendance_updated_at = datetime.now()  # ✅ بدون timezone
         
         await self.db.flush()
         await self.db.refresh(student)
@@ -312,7 +311,7 @@ class StudentRepository(BaseRepository[Student]):
         grade_id: Optional[str] = None,
         year_id: Optional[str] = None,
         is_active: Optional[bool] = True,
-        status: Optional[str] = None,  # ✅ إضافة status
+        status: Optional[str] = None,
     ) -> int:
         """✅ حساب عدد الطلاب مع خيارات التصفية."""
         stmt = select(func.count()).select_from(Student).where(
@@ -337,7 +336,7 @@ class StudentRepository(BaseRepository[Student]):
         return (await self.db.execute(stmt)).scalar() or 0
 
     # ============================================================
-    # ✅ update_attendance - تحديث حالة الحضور
+    # ✅ update_attendance - تحديث حالة الحضور (✅ بدون timezone)
     # ============================================================
     async def update_attendance(
         self,
@@ -351,7 +350,7 @@ class StudentRepository(BaseRepository[Student]):
             return None
         
         student.attendance_status = status
-        student.attendance_updated_at = updated_at or datetime.now(timezone.utc)
+        student.attendance_updated_at = updated_at or datetime.now()  # ✅ بدون timezone
         
         await self.db.flush()
         await self.db.refresh(student)
@@ -451,7 +450,7 @@ class EnrollmentRepository(BaseRepository[StudentEnrollment]):
             year_id=year_id,
             grade_id=grade_id,
             status="active",
-            enrolled_at=datetime.now(timezone.utc).date(),
+            enrolled_at=datetime.now().date(),  # ✅ بدون timezone
         )
         self.db.add(enrollment)
         await self.db.flush()
@@ -477,8 +476,6 @@ class EnrollmentRepository(BaseRepository[StudentEnrollment]):
     ) -> StudentEnrollment:
         """
         نقل طالب إلى شعبة جديدة.
-        
-        يتم تعطيل التسجيل الحالي وإنشاء تسجيل جديد.
         """
         # تعطيل التسجيلات النشطة
         await self.deactivate_all(student_id)
@@ -491,7 +488,7 @@ class EnrollmentRepository(BaseRepository[StudentEnrollment]):
             year_id=year_id,
             grade_id=grade_id,
             status="active",
-            enrolled_at=datetime.now(timezone.utc).date(),
+            enrolled_at=datetime.now().date(),  # ✅ بدون timezone
         )
         self.db.add(enrollment)
         await self.db.flush()
@@ -505,7 +502,6 @@ class EnrollmentRepository(BaseRepository[StudentEnrollment]):
         is_active: bool = True,
     ) -> List[Student]:
         """✅ جلب الطلاب المسجلين في شعبة معينة."""
-        # جلب student_id من StudentEnrollment
         enrollment_stmt = select(StudentEnrollment.student_id).where(
             StudentEnrollment.section_id == section_id,
             StudentEnrollment.year_id == year_id,
@@ -517,7 +513,6 @@ class EnrollmentRepository(BaseRepository[StudentEnrollment]):
         if not student_ids:
             return []
         
-        # جلب الطلاب من جدول Student
         student_stmt = select(Student).where(
             Student.id.in_(student_ids),
             Student.is_active == is_active
