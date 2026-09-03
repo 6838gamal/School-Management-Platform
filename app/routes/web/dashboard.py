@@ -12,10 +12,13 @@ from app.core.dependencies import CurrentUser, require_user, template_context
 from app.core.exceptions import ForbiddenException
 from app.services.academic_service import AcademicService
 from app.services.report_service import DashboardService
-from app.models import (
-    User, School, Section, Grade, Stage, AcademicYear,
-    Student, Teacher, Subject, Attendance, Period, Schedule
-)
+from app.models.users import User
+from app.models.schools import School
+from app.models.academics import Section, Grade, Stage, AcademicYear, Subject, Period
+from app.models.students import Student
+from app.models.teachers import Teacher
+from app.models.schedules import Schedule
+from app.models.attendance import StudentAttendance, TeacherAttendance
 
 router = APIRouter(prefix="", tags=["dashboard"])
 templates = Jinja2Templates(directory="app/templates")
