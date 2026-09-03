@@ -1,5 +1,5 @@
 """Holiday model - الإجازات الرسمية والعطل"""
-from sqlalchemy import Column, String, Date, Boolean, Text, DateTime, ForeignKey
+from sqlalchemy import Column, String, Date, Boolean, Text, DateTime, ForeignKey, Integer
 from sqlalchemy.orm import relationship
 from datetime import date, datetime
 from typing import Optional
