@@ -1,9 +1,9 @@
-"""Dashboard and web routes."""
+"""Dashboard and web routes - Complete implementation with teacher routes"""
 from fastapi import APIRouter, Depends, Request, HTTPException, Query, Form
 from fastapi.responses import RedirectResponse, JSONResponse, FileResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_, or_
+from sqlalchemy import select, func, and_, or_, text
 from datetime import date, datetime, timedelta
 from typing import Optional, List, Dict, Any
 import json
@@ -22,13 +22,15 @@ from app.models.academics import (
 from app.models.students import Student, StudentEnrollment
 from app.models.teachers import Teacher, TeacherAssignment
 from app.models.attendance import StudentAttendance, TeacherAttendance
+from app.models.schedules import ScheduleEntry
+from app.models.holidays import Holiday
 
 router = APIRouter(prefix="", tags=["dashboard"])
 templates = Jinja2Templates(directory="app/templates")
 
 
 # ============================================================
-# مسار التهيئة (Onboarding)
+# ============ مسار التهيئة (Onboarding) ============
 # ============================================================
 @router.get("/onboarding")
 async def onboarding_page(
@@ -51,7 +53,7 @@ async def onboarding_page(
 
 
 # ============================================================
-# المسار الرئيسي للوحة التحكم
+# ============ المسار الرئيسي للوحة التحكم ============
 # ============================================================
 @router.get("/dashboard")
 async def dashboard_router(
@@ -836,7 +838,6 @@ async def student_profile(
     if user.primary_role not in ["deputy", "director", "teacher"]:
         raise ForbiddenException("غير مصرح")
     
-    # جلب بيانات الطالب
     student_result = await db.execute(
         select(Student).where(Student.id == student_id)
     )
@@ -845,7 +846,6 @@ async def student_profile(
     if not student:
         raise HTTPException(status_code=404, detail="الطالب غير موجود")
     
-    # جلب بيانات الطالب الكاملة
     student_data = await get_student_full_data(db, student_id)
     
     return templates.TemplateResponse(
@@ -872,7 +872,6 @@ async def student_attendance_report(
     if user.primary_role not in ["deputy", "director", "teacher"]:
         raise ForbiddenException("غير مصرح")
     
-    # جلب بيانات الطالب
     student_result = await db.execute(
         select(Student).where(Student.id == student_id)
     )
@@ -881,7 +880,6 @@ async def student_attendance_report(
     if not student:
         raise HTTPException(status_code=404, detail="الطالب غير موجود")
     
-    # جلب تقرير الحضور
     attendance_data = await get_student_attendance_report(db, student_id, days)
     
     return templates.TemplateResponse(
@@ -909,7 +907,6 @@ async def student_transfer_page(
     if user.primary_role not in ["deputy", "director"]:
         raise ForbiddenException("غير مصرح")
     
-    # جلب بيانات الطالب
     student_result = await db.execute(
         select(Student).where(Student.id == student_id)
     )
@@ -918,7 +915,6 @@ async def student_transfer_page(
     if not student:
         raise HTTPException(status_code=404, detail="الطالب غير موجود")
     
-    # جلب الخيارات المتاحة للنقل
     transfer_options = await get_transfer_options(db, student.school_id, student)
     
     return templates.TemplateResponse(
@@ -946,11 +942,10 @@ async def student_transfer(
     
     try:
         data = await request.form()
-        transfer_type = data.get("transfer_type")  # grade / stage / section / school
+        transfer_type = data.get("transfer_type")
         target_id = data.get("target_id")
         reason = data.get("reason", "")
         
-        # تنفيذ النقل
         result = await execute_student_transfer(
             db, student_id, transfer_type, target_id, reason, user.id
         )
@@ -979,7 +974,6 @@ async def section_transfer_page(
     if user.primary_role not in ["deputy", "director"]:
         raise ForbiddenException("غير مصرح")
     
-    # جلب بيانات الفصل
     section_result = await db.execute(
         select(Section).where(Section.id == section_id)
     )
@@ -988,7 +982,6 @@ async def section_transfer_page(
     if not section:
         raise HTTPException(status_code=404, detail="الفصل غير موجود")
     
-    # جلب خيارات النقل
     transfer_options = await get_transfer_options(db, section.school_id, section)
     
     return templates.TemplateResponse(
@@ -1020,7 +1013,6 @@ async def section_transfer(
         target_id = data.get("target_id")
         reason = data.get("reason", "")
         
-        # جلب جميع طلاب الفصل
         students_result = await db.execute(
             select(Student)
             .where(Student.section_id == section_id)
@@ -1081,7 +1073,6 @@ async def get_student_full_data(
     student_id: str
 ) -> Dict[str, Any]:
     """جلب بيانات الطالب الكاملة"""
-    # جلب الطالب
     student_result = await db.execute(
         select(Student).where(Student.id == student_id)
     )
@@ -1090,7 +1081,6 @@ async def get_student_full_data(
     if not student:
         return {}
     
-    # جلب التسجيلات
     enrollments_result = await db.execute(
         select(StudentEnrollment)
         .where(StudentEnrollment.student_id == student_id)
@@ -1098,10 +1088,7 @@ async def get_student_full_data(
     )
     enrollments = enrollments_result.scalars().all()
     
-    # جلب إحصائيات الحضور
     attendance_stats = await get_student_attendance_summary(db, student_id)
-    
-    # جلب الحضور اليومي (آخر 30 يوم)
     daily_attendance = await get_student_daily_attendance(db, student_id, 30)
     
     return {
@@ -1148,7 +1135,6 @@ async def get_student_attendance_report(
     start_date = today - timedelta(days=days)
     start_date_str = start_date.strftime('%Y-%m-%d')
     
-    # جلب سجلات الحضور
     result = await db.execute(
         select(StudentAttendance)
         .where(StudentAttendance.student_id == student_id)
@@ -1157,7 +1143,6 @@ async def get_student_attendance_report(
     )
     attendances = result.scalars().all()
     
-    # إنشاء قاموس للحضور
     attendance_map = {att.date: att.status for att in attendances}
     
     for i in range(days - 1, -1, -1):
@@ -1224,7 +1209,6 @@ async def get_transfer_options(
     entity: Any
 ) -> Dict[str, Any]:
     """جلب خيارات النقل المتاحة"""
-    # جلب جميع السنوات الدراسية
     years_result = await db.execute(
         select(AcademicYear)
         .where(AcademicYear.school_id == school_id)
@@ -1232,7 +1216,6 @@ async def get_transfer_options(
     )
     years = years_result.scalars().all()
     
-    # جلب جميع المراحل
     stages_result = await db.execute(
         select(Stage)
         .where(Stage.school_id == school_id)
@@ -1240,7 +1223,6 @@ async def get_transfer_options(
     )
     stages = stages_result.scalars().all()
     
-    # جلب جميع الصفوف
     grades_result = await db.execute(
         select(Grade)
         .where(Grade.school_id == school_id)
@@ -1248,7 +1230,6 @@ async def get_transfer_options(
     )
     grades = grades_result.scalars().all()
     
-    # جلب جميع الفصول
     sections_result = await db.execute(
         select(Section)
         .where(Section.school_id == school_id)
@@ -1256,7 +1237,6 @@ async def get_transfer_options(
     )
     sections = sections_result.scalars().all()
     
-    # جلب جميع المدارس (للنقل بين المدارس)
     schools_result = await db.execute(
         select(School)
         .where(School.id != school_id)
@@ -1282,7 +1262,6 @@ async def execute_student_transfer(
     user_id: str
 ) -> Dict[str, Any]:
     """تنفيذ نقل الطالب"""
-    # جلب الطالب
     student_result = await db.execute(
         select(Student).where(Student.id == student_id)
     )
@@ -1291,7 +1270,6 @@ async def execute_student_transfer(
     if not student:
         raise ValueError("الطالب غير موجود")
     
-    # إنهاء التسجيل الحالي
     current_enrollment = await db.execute(
         select(StudentEnrollment)
         .where(StudentEnrollment.student_id == student_id)
@@ -1306,7 +1284,6 @@ async def execute_student_transfer(
         current.ended_at = date.today()
         current.notes = f"تم النقل: {reason}"
     
-    # تحديث بيانات الطالب حسب نوع النقل
     if transfer_type == 'grade':
         student.grade_id = target_id
     elif transfer_type == 'section':
@@ -1316,7 +1293,6 @@ async def execute_student_transfer(
     elif transfer_type == 'school':
         student.school_id = target_id
     
-    # إنشاء تسجيل جديد
     new_enrollment = StudentEnrollment(
         student_id=student_id,
         school_id=student.school_id,
@@ -1370,8 +1346,9 @@ async def export_deputy_report(
 
 
 # ============================================================
-# مسارات الوكيل المباشرة
+# ============ مسارات الوكيل المباشرة ============
 # ============================================================
+
 @router.get("/deputy/dashboard")
 async def deputy_dashboard_redirect(
     request: Request,
@@ -1561,8 +1538,23 @@ async def deputy_debug_simple(
 
 
 # ============================================================
-# مسارات الأدوار الأخرى
+# ============ مسارات المعلم ============
 # ============================================================
+
+@router.get("/teacher/dashboard")
+async def teacher_dashboard_redirect(
+    request: Request,
+    user: CurrentUser = Depends(require_user),
+):
+    if user.primary_role != "teacher":
+        raise ForbiddenException("هذه الصفحة مخصصة للمعلم فقط")
+    return RedirectResponse("/dashboard", status_code=302)
+
+
+# ============================================================
+# ============ مسارات الأدوار الأخرى ============
+# ============================================================
+
 @router.get("/director/dashboard")
 async def director_dashboard_redirect(
     request: Request,
@@ -1580,14 +1572,4 @@ async def activities_dashboard_redirect(
 ):
     if user.primary_role != "activities_manager":
         raise ForbiddenException("هذه الصفحة مخصصة لمسؤول الأنشطة فقط")
-    return RedirectResponse("/dashboard", status_code=302)
-
-
-@router.get("/teacher/dashboard")
-async def teacher_dashboard_redirect(
-    request: Request,
-    user: CurrentUser = Depends(require_user),
-):
-    if user.primary_role != "teacher":
-        raise ForbiddenException("هذه الصفحة مخصصة للمعلم فقط")
     return RedirectResponse("/dashboard", status_code=302)
