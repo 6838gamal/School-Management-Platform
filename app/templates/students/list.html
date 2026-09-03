@@ -647,7 +647,7 @@
 function studentsApp() {
     return {
         // ---- البيانات الأساسية ----
-        students: {{ students | tojson | safe }},
+        students: {{ students | safe }},
         searchQuery: '',
         filterStatus: '',
         filterGrade: '',
@@ -676,8 +676,8 @@ function studentsApp() {
             if (this.searchQuery) {
                 const q = this.searchQuery.toLowerCase().trim();
                 filtered = filtered.filter(s => 
-                    s.full_name.toLowerCase().includes(q) ||
-                    s.student_number.toLowerCase().includes(q) ||
+                    (s.full_name && s.full_name.toLowerCase().includes(q)) ||
+                    (s.student_number && s.student_number.toLowerCase().includes(q)) ||
                     (s.national_id && s.national_id.includes(q))
                 );
             }
@@ -824,10 +824,9 @@ function studentsApp() {
             if (student && student.periods && student.periods[periodIndex]) {
                 student.periods[periodIndex].late_time = time;
                 if (time) {
-                    // حساب المدة التقريبية
                     const [hours, mins] = time.split(':').map(Number);
                     const totalMinutes = hours * 60 + mins;
-                    const startMinutes = 8 * 60; // 8:00 صباحاً
+                    const startMinutes = 8 * 60;
                     const diff = Math.max(0, totalMinutes - startMinutes);
                     if (diff > 0) {
                         student.periods[periodIndex].late_duration = diff >= 60 ? 
@@ -867,7 +866,22 @@ function studentsApp() {
         
         // ---- تهيئة البيانات ----
         init() {
+            // ✅ التحقق من البيانات
+            console.log('📊 عدد الطلاب:', this.students.length);
+            
+            if (this.students.length === 0) {
+                console.warn('⚠️ لا توجد بيانات للطلاب');
+                return;
+            }
+            
+            console.log('📋 أول طالب:', this.students[0]);
+            
             this.students.forEach(student => {
+                if (!student.id) {
+                    console.warn('⚠️ طالب بدون ID:', student);
+                    return;
+                }
+                
                 if (!student.attendance_status) {
                     const statuses = ['present', 'present', 'absent', 'late', 'permitted', 'present', 'excused'];
                     student.attendance_status = statuses[Math.floor(Math.random() * statuses.length)];
@@ -881,7 +895,7 @@ function studentsApp() {
                     student.activities_completed = Math.floor(Math.random() * student.activities_total);
                 }
                 if (!student.initials) {
-                    const names = student.full_name.split(' ');
+                    const names = student.full_name ? student.full_name.split(' ') : ['طالب'];
                     student.initials = names.map(n => n[0]).join('').substring(0, 3);
                 }
                 if (!student.attendance_stats) {
@@ -916,6 +930,8 @@ function studentsApp() {
                     };
                 }
             });
+            
+            console.log('✅ تم تهيئة البيانات بنجاح');
         }
     };
 }
