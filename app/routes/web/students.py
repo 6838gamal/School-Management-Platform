@@ -12,6 +12,7 @@ from datetime import datetime, date
 import pandas as pd
 import io
 import pdfplumber
+import json
 from pathlib import Path
 
 from app.core.database import get_db
@@ -36,6 +37,25 @@ templates = Jinja2Templates(directory="app/templates")
 # 🔴 IMPORTANT: الترتيب مهم جداً!
 #    المسارات الثابتة (مثل /new, /import, /export) يجب أن تأتي قبل المسارات الديناميكية (مثل /{student_id})
 # ============================================================
+
+# ============================================================
+# دالة مساعدة لتحويل البيانات إلى JSON آمن
+# ============================================================
+def safe_to_json(obj):
+    """تحويل الكائنات إلى صيغة JSON آمنة (معالجة التواريخ)"""
+    if isinstance(obj, dict):
+        return {k: safe_to_json(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [safe_to_json(item) for item in obj]
+    elif isinstance(obj, datetime):
+        return obj.isoformat()
+    elif isinstance(obj, date):
+        return obj.isoformat()
+    elif hasattr(obj, '__str__'):
+        return str(obj)
+    else:
+        return obj
+
 
 # ============================================================
 # دالة مساعدة لجلب بيانات الفصول والسنوات والصفوف والفترات
@@ -530,7 +550,7 @@ async def get_student_stats(
             grade_id=grade_id,
             section_id=section_id
         )
-        return JSONResponse(stats)
+        return JSONResponse(safe_to_json(stats))
     except Exception as e:
         return JSONResponse({
             'success': False,
@@ -554,7 +574,7 @@ async def get_student_stats_detail(
     try:
         service = StudentService(db)
         stats = await service.get_student_detailed_stats(student_id)
-        return JSONResponse(stats)
+        return JSONResponse(safe_to_json(stats))
     except NotFoundException as e:
         return JSONResponse({
             'success': False,
@@ -583,7 +603,7 @@ async def update_student_attendance(
     try:
         data = await request.json()
         status = data.get('status')
-        date = data.get('date', datetime.now().date().isoformat())
+        date_val = data.get('date', datetime.now().date().isoformat())
         
         if not status:
             return JSONResponse({
@@ -595,7 +615,7 @@ async def update_student_attendance(
         await service.update_attendance(
             student_id=student_id,
             status=status,
-            date=date,
+            date=date_val,
             updated_by=user.id
         )
         return JSONResponse({
@@ -761,9 +781,9 @@ async def student_new(
                 **ctx, 
                 "title": "إضافة طالب", 
                 "mode": "create", 
-                "sections": sections_data, 
-                "years": data.get("years", []),
-                "grades": data.get("grades", []),
+                "sections": safe_to_json(sections_data), 
+                "years": safe_to_json(data.get("years", [])),
+                "grades": safe_to_json(data.get("grades", [])),
                 "student": None,
                 "error": None
             },
@@ -842,9 +862,9 @@ async def student_create(
                 **ctx, 
                 "title": "إضافة طالب", 
                 "mode": "create", 
-                "sections": sections_data, 
-                "years": data.get("years", []),
-                "grades": data.get("grades", []),
+                "sections": safe_to_json(sections_data), 
+                "years": safe_to_json(data.get("years", [])),
+                "grades": safe_to_json(data.get("grades", [])),
                 "student": None,
                 "error": "الرجاء تصحيح الأخطاء التالية:<br>• " + "<br>• ".join(errors.values())
             },
@@ -887,9 +907,9 @@ async def student_create(
                 **ctx, 
                 "title": "إضافة طالب", 
                 "mode": "create", 
-                "sections": sections_data, 
-                "years": data.get("years", []),
-                "grades": data.get("grades", []),
+                "sections": safe_to_json(sections_data), 
+                "years": safe_to_json(data.get("years", [])),
+                "grades": safe_to_json(data.get("grades", [])),
                 "student": None,
                 "error": str(e)
             },
@@ -912,9 +932,9 @@ async def student_create(
                 **ctx, 
                 "title": "إضافة طالب", 
                 "mode": "create", 
-                "sections": sections_data, 
-                "years": data.get("years", []),
-                "grades": data.get("grades", []),
+                "sections": safe_to_json(sections_data), 
+                "years": safe_to_json(data.get("years", [])),
+                "grades": safe_to_json(data.get("grades", [])),
                 "student": None,
                 "error": str(e)
             },
@@ -937,9 +957,9 @@ async def student_create(
                 **ctx, 
                 "title": "إضافة طالب", 
                 "mode": "create", 
-                "sections": sections_data, 
-                "years": data.get("years", []),
-                "grades": data.get("grades", []),
+                "sections": safe_to_json(sections_data), 
+                "years": safe_to_json(data.get("years", [])),
+                "grades": safe_to_json(data.get("grades", [])),
                 "student": None,
                 "error": str(e)
             },
@@ -963,9 +983,9 @@ async def student_create(
                 **ctx, 
                 "title": "إضافة طالب", 
                 "mode": "create", 
-                "sections": sections_data, 
-                "years": data.get("years", []),
-                "grades": data.get("grades", []),
+                "sections": safe_to_json(sections_data), 
+                "years": safe_to_json(data.get("years", [])),
+                "grades": safe_to_json(data.get("grades", [])),
                 "student": None,
                 "error": f"حدث خطأ غير متوقع: {str(e)}"
             },
@@ -995,7 +1015,6 @@ async def students_list(
         # جلب بيانات التصفية
         data = await get_onboarding_data(db, user.school_id)
         
-        # ✅ استدعاء الدالة مع جميع المعاملات
         result = await service.list_students(
             school_id=user.school_id,
             page=page,
@@ -1008,12 +1027,15 @@ async def students_list(
             is_active=True,
         )
         
+        # ✅ تحويل البيانات إلى JSON آمن للاستخدام في Alpine.js
+        students_safe = safe_to_json(result.get("items", []))
+        
         return templates.TemplateResponse(
             "students/list.html",
             {
                 **ctx, 
                 "title": "الطلاب", 
-                "students": result.get("items", []), 
+                "students": students_safe,
                 "total": result.get("total", 0),
                 "page": page, 
                 "page_size": 20, 
@@ -1022,9 +1044,9 @@ async def students_list(
                 "grade_filter": grade_id,
                 "year_filter": year_id,
                 "section_filter": section_id,
-                "grades": data.get("grades", []),
-                "years": data.get("years", []),
-                "sections": data.get("sections", []),
+                "grades": safe_to_json(data.get("grades", [])),
+                "years": safe_to_json(data.get("years", [])),
+                "sections": safe_to_json(data.get("sections", [])),
                 "error": None
             },
         )
@@ -1085,10 +1107,10 @@ async def student_edit(
                 **ctx, 
                 "title": "تعديل طالب", 
                 "mode": "edit", 
-                "student": detail, 
-                "sections": sections_data, 
-                "years": data.get("years", []),
-                "grades": data.get("grades", []),
+                "student": safe_to_json(detail), 
+                "sections": safe_to_json(sections_data), 
+                "years": safe_to_json(data.get("years", [])),
+                "grades": safe_to_json(data.get("grades", [])),
                 "error": None
             },
         )
@@ -1161,10 +1183,10 @@ async def student_update(
                     **ctx, 
                     "title": "تعديل طالب", 
                     "mode": "edit", 
-                    "student": detail,
-                    "sections": sections_data, 
-                    "years": data.get("years", []),
-                    "grades": data.get("grades", []),
+                    "student": safe_to_json(detail),
+                    "sections": safe_to_json(sections_data), 
+                    "years": safe_to_json(data.get("years", [])),
+                    "grades": safe_to_json(data.get("grades", [])),
                     "error": "الرجاء تصحيح الأخطاء التالية:<br>• " + "<br>• ".join(errors.values())
                 },
                 status_code=422
@@ -1220,10 +1242,10 @@ async def student_update(
                     **ctx, 
                     "title": "تعديل طالب", 
                     "mode": "edit", 
-                    "student": detail,
-                    "sections": sections_data, 
-                    "years": data.get("years", []),
-                    "grades": data.get("grades", []),
+                    "student": safe_to_json(detail),
+                    "sections": safe_to_json(sections_data), 
+                    "years": safe_to_json(data.get("years", [])),
+                    "grades": safe_to_json(data.get("grades", [])),
                     "error": str(e)
                 },
                 status_code=409
@@ -1253,10 +1275,10 @@ async def student_update(
                     **ctx, 
                     "title": "تعديل طالب", 
                     "mode": "edit", 
-                    "student": detail,
-                    "sections": sections_data, 
-                    "years": data.get("years", []),
-                    "grades": data.get("grades", []),
+                    "student": safe_to_json(detail),
+                    "sections": safe_to_json(sections_data), 
+                    "years": safe_to_json(data.get("years", [])),
+                    "grades": safe_to_json(data.get("grades", [])),
                     "error": str(e)
                 },
                 status_code=422
@@ -1287,10 +1309,10 @@ async def student_update(
                     **ctx, 
                     "title": "تعديل طالب", 
                     "mode": "edit", 
-                    "student": detail,
-                    "sections": sections_data, 
-                    "years": data.get("years", []),
-                    "grades": data.get("grades", []),
+                    "student": safe_to_json(detail),
+                    "sections": safe_to_json(sections_data), 
+                    "years": safe_to_json(data.get("years", [])),
+                    "grades": safe_to_json(data.get("grades", [])),
                     "error": f"حدث خطأ غير متوقع: {str(e)}"
                 },
                 status_code=500
@@ -1323,7 +1345,7 @@ async def student_delete(
 
 
 # ============================================================
-# 7️⃣ GET /students/{student_id} - تفاصيل الطالب (محدثة)
+# 7️⃣ GET /students/{student_id} - تفاصيل الطالب
 # ============================================================
 @router.get("/{student_id}")
 async def student_detail(
@@ -1335,12 +1357,11 @@ async def student_detail(
 ):
     service = StudentService(db)
     try:
-        # ✅ get_student_detail ترجع dict
         detail = await service.get_student_detail(student_id)
         
         return templates.TemplateResponse(
             "students/detail.html",
-            {**ctx, "title": detail.get("full_name", "تفاصيل الطالب"), "student": detail},
+            {**ctx, "title": detail.get("full_name", "تفاصيل الطالب"), "student": safe_to_json(detail)},
         )
     except NotFoundException as e:
         return templates.TemplateResponse(
@@ -1413,10 +1434,10 @@ async def debug_all_students(
                 "is_active": student.is_active if hasattr(student, 'is_active') else True
             })
         
-        return JSONResponse({
+        return JSONResponse(safe_to_json({
             "total": len(result),
             "students": result
-        })
+        }))
         
     except Exception as e:
         return JSONResponse({
