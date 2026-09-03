@@ -260,11 +260,14 @@ async def get_attendance_stats(
     target_date: date
 ) -> Dict[str, Any]:
     """جلب إحصائيات الحضور ليوم محدد"""
+    # تحويل التاريخ إلى نص
+    target_date_str = target_date.strftime('%Y-%m-%d')
+    
     # جلب جميع سجلات الحضور لهذا اليوم
     result = await db.execute(
         select(StudentAttendance)
         .where(StudentAttendance.school_id == school_id)
-        .where(StudentAttendance.date == target_date)
+        .where(StudentAttendance.date == target_date_str)
     )
     attendances = result.scalars().all()
     
@@ -307,6 +310,7 @@ async def get_weekly_attendance(
     
     for i in range(6, -1, -1):
         d = today - timedelta(days=i)
+        date_str = d.strftime('%Y-%m-%d')
         
         # جلب إحصائيات اليوم
         result = await db.execute(
@@ -317,7 +321,7 @@ async def get_weekly_attendance(
             )
             .select_from(StudentAttendance)
             .where(StudentAttendance.school_id == school_id)
-            .where(StudentAttendance.date == d)
+            .where(StudentAttendance.date == date_str)
         )
         row = result.first()
         
@@ -480,12 +484,14 @@ async def build_section_data(
     )
     students = students_result.scalars().all()
     
-    # جلب الحصص اليوم
+    # جلب الحصص اليوم - تحويل التاريخ إلى نص
     today = date.today()
+    today_str = today.strftime('%Y-%m-%d')
+    
     periods_result = await db.execute(
         select(Period)
         .where(Period.section_id == section_id)
-        .where(Period.date == today)
+        .where(Period.date == today_str)
         .order_by(Period.period_number)
     )
     periods = periods_result.scalars().all()
@@ -545,6 +551,8 @@ async def get_section_attendance(
 ) -> Dict[str, int]:
     """جلب إحصائيات الحضور لشعبة معينة اليوم"""
     today = date.today()
+    today_str = today.strftime('%Y-%m-%d')
+    
     result = await db.execute(
         select(
             func.count().filter(StudentAttendance.status == 'present').label('present'),
@@ -556,7 +564,7 @@ async def get_section_attendance(
         )
         .select_from(StudentAttendance)
         .where(StudentAttendance.section_id == section_id)
-        .where(StudentAttendance.date == today)
+        .where(StudentAttendance.date == today_str)
     )
     row = result.first()
     
@@ -577,6 +585,7 @@ async def get_student_attendance_summary(
     """جلب ملخص حضور طالب معين (آخر 30 يوم)"""
     # جلب آخر 30 يوم
     start_date = date.today() - timedelta(days=30)
+    start_date_str = start_date.strftime('%Y-%m-%d')
     
     result = await db.execute(
         select(
@@ -587,7 +596,7 @@ async def get_student_attendance_summary(
         )
         .select_from(StudentAttendance)
         .where(StudentAttendance.student_id == student_id)
-        .where(StudentAttendance.date >= start_date)
+        .where(StudentAttendance.date >= start_date_str)
     )
     row = result.first()
     
@@ -605,10 +614,12 @@ async def get_student_today_status(
 ) -> str:
     """جلب حالة الطالب اليوم"""
     today = date.today()
+    today_str = today.strftime('%Y-%m-%d')
+    
     result = await db.execute(
         select(StudentAttendance.status)
         .where(StudentAttendance.student_id == student_id)
-        .where(StudentAttendance.date == today)
+        .where(StudentAttendance.date == today_str)
     )
     status = result.scalar_one_or_none()
     return status or 'غير مسجل'
@@ -620,10 +631,12 @@ async def get_teacher_daily_status(
 ) -> Dict[str, str]:
     """جلب حالة المعلم اليوم"""
     today = date.today()
+    today_str = today.strftime('%Y-%m-%d')
+    
     result = await db.execute(
         select(TeacherAttendance)
         .where(TeacherAttendance.teacher_id == teacher_id)
-        .where(TeacherAttendance.date == today)
+        .where(TeacherAttendance.date == today_str)
     )
     attendance = result.scalar_one_or_none()
     
