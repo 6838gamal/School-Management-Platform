@@ -14,10 +14,11 @@ from app.services.academic_service import AcademicService
 from app.services.report_service import DashboardService
 from app.models.users import User
 from app.models.schools import School
-from app.models.academics import Section, Grade, Stage, AcademicYear, Subject, Period
+from app.models.academics import (
+    AcademicYear, Stage, Grade, Section, Subject, Period, Room
+)
 from app.models.students import Student
-from app.models.teachers import Teacher
-from app.models.schedules import Schedule
+from app.models.teachers import Teacher, TeacherAssignment
 from app.models.attendance import StudentAttendance, TeacherAttendance
 
 router = APIRouter(prefix="", tags=["dashboard"])
@@ -60,10 +61,8 @@ async def dashboard_router(
     """التوجيه إلى لوحة التحكم المناسبة حسب دور المستخدم"""
     service = DashboardService(db)
     
-    # الحصول على الدور الأساسي للمستخدم
     role = user.primary_role
     
-    # التوجيه حسب الدور
     if role == "director":
         stats = await service.director_stats(user.school_id, user.id)
         return templates.TemplateResponse(
@@ -78,9 +77,7 @@ async def dashboard_router(
         )
     
     elif role == "deputy":
-        # جلب البيانات الكاملة للوكيل
         stats = await get_deputy_full_stats(db, user.school_id, user.id)
-        
         return templates.TemplateResponse(
             "deputy/dashboard.html",
             {
@@ -124,7 +121,6 @@ async def dashboard_router(
             },
         )
     
-    # إذا كان الدور غير معروف
     raise ForbiddenException("دور غير معروف")
 
 
@@ -137,64 +133,43 @@ async def get_deputy_full_stats(
     school_id: str,
     user_id: str
 ) -> Dict[str, Any]:
-    """
-    جلب جميع البيانات المطلوبة للوكيل مع الهيكل الأكاديمي الكامل
-    """
+    """جلب جميع البيانات المطلوبة للوكيل مع الهيكل الأكاديمي الكامل"""
     today = date.today()
-    
-    # ============ 1. البيانات الأساسية ============
-    # جلب المدرسة
-    school_result = await db.execute(
-        select(School).where(School.id == school_id)
-    )
-    school = school_result.scalar_one_or_none()
     
     # جلب السنة الدراسية النشطة (أو الأحدث)
     academic_year = await get_active_or_latest_academic_year(db, school_id)
     
-    # ============ 2. الإحصائيات العامة ============
-    # جلب عدد الطلاب
-    students_result = await db.execute(
+    # الإحصائيات العامة
+    total_students = await db.scalar(
         select(func.count()).select_from(Student)
         .where(Student.school_id == school_id)
         .where(Student.is_active == True)
-    )
-    total_students = students_result.scalar() or 0
+    ) or 0
     
-    # جلب عدد المعلمين
-    teachers_result = await db.execute(
+    total_teachers = await db.scalar(
         select(func.count()).select_from(Teacher)
         .where(Teacher.school_id == school_id)
         .where(Teacher.is_active == True)
-    )
-    total_teachers = teachers_result.scalar() or 0
+    ) or 0
     
-    # جلب عدد الفصول
-    sections_result = await db.execute(
+    total_sections = await db.scalar(
         select(func.count()).select_from(Section)
         .where(Section.school_id == school_id)
-    )
-    total_sections = sections_result.scalar() or 0
+    ) or 0
     
-    # جلب عدد المواد
-    subjects_result = await db.execute(
+    total_subjects = await db.scalar(
         select(func.count()).select_from(Subject)
         .where(Subject.school_id == school_id)
-    )
-    total_subjects = subjects_result.scalar() or 0
+    ) or 0
     
-    # ============ 3. إحصائيات الحضور اليوم ============
+    # إحصائيات الحضور
     attendance_stats = await get_attendance_stats(db, school_id, today)
-    
-    # ============ 4. بيانات الأسبوع ============
     weekly_data = await get_weekly_attendance(db, school_id)
     
-    # ============ 5. الهيكل الأكاديمي الكامل ============
-    academic_structure = await build_academic_structure(db, school_id)
+    # الهيكل الأكاديمي
+    academic_structure = await build_academic_structure(db, school_id, academic_year.id if academic_year else None)
     
-    # ============ 6. تجميع النتيجة ============
     return {
-        # معلومات عامة
         'academic_year': academic_year.name if academic_year else 'السنة الحالية',
         'current_date': today.strftime('%Y-%m-%d'),
         'last_updated': datetime.now().strftime('%Y-%m-%d %H:%M'),
@@ -202,8 +177,6 @@ async def get_deputy_full_stats(
         'total_teachers': total_teachers,
         'total_sections': total_sections,
         'total_subjects': total_subjects,
-        
-        # إحصائيات الحضور
         'total_present': attendance_stats.get('present', 0),
         'total_absent': attendance_stats.get('absent', 0),
         'total_late': attendance_stats.get('late', 0),
@@ -211,13 +184,8 @@ async def get_deputy_full_stats(
         'total_sick': attendance_stats.get('sick', 0),
         'total_late_arrival': attendance_stats.get('late_arrival', 0),
         'attendance_rate': attendance_stats.get('rate', 0),
-        
-        # بيانات الأسبوع
         'weekly_days': weekly_data,
-        
-        # الهيكل الأكاديمي
         'academic_structure': academic_structure,
-        
         'error': None
     }
 
@@ -226,30 +194,25 @@ async def get_active_or_latest_academic_year(
     db: AsyncSession,
     school_id: str
 ) -> Optional[AcademicYear]:
-    """
-    جلب السنة الدراسية النشطة، أو الأحدث إذا لم توجد سنة نشطة
-    """
-    # أولاً: محاولة جلب السنة النشطة
-    year_result = await db.execute(
+    """جلب السنة الدراسية النشطة، أو الأحدث"""
+    result = await db.execute(
         select(AcademicYear)
         .where(AcademicYear.school_id == school_id)
-        .where(AcademicYear.is_active == True)
-        .order_by(AcademicYear.start_date.desc())
+        .where(AcademicYear.is_current == True)
         .limit(1)
     )
-    academic_year = year_result.scalar_one_or_none()
+    year = result.scalar_one_or_none()
     
-    # إذا لم يتم العثور على سنة نشطة، جلب أحدث سنة
-    if not academic_year:
-        year_result = await db.execute(
+    if not year:
+        result = await db.execute(
             select(AcademicYear)
             .where(AcademicYear.school_id == school_id)
             .order_by(AcademicYear.start_date.desc())
             .limit(1)
         )
-        academic_year = year_result.scalar_one_or_none()
+        year = result.scalar_one_or_none()
     
-    return academic_year
+    return year
 
 
 async def get_attendance_stats(
@@ -258,30 +221,21 @@ async def get_attendance_stats(
     target_date: date
 ) -> Dict[str, Any]:
     """جلب إحصائيات الحضور ليوم محدد"""
-    target_date_str = target_date.strftime('%Y-%m-%d')
+    date_str = target_date.strftime('%Y-%m-%d')
     
     result = await db.execute(
         select(StudentAttendance)
         .where(StudentAttendance.school_id == school_id)
-        .where(StudentAttendance.date == target_date_str)
+        .where(StudentAttendance.date == date_str)
     )
     attendances = result.scalars().all()
     
-    stats = {
-        'present': 0,
-        'absent': 0,
-        'late': 0,
-        'excused': 0,
-        'sick': 0,
-        'late_arrival': 0,
-        'rate': 0
-    }
-    
+    stats = {'present': 0, 'absent': 0, 'late': 0, 'excused': 0, 'sick': 0, 'late_arrival': 0, 'rate': 0}
     total = 0
+    
     for att in attendances:
-        status = att.status
-        if status in stats:
-            stats[status] += 1
+        if att.status in stats:
+            stats[att.status] += 1
             total += 1
     
     if total > 0:
@@ -298,10 +252,7 @@ async def get_weekly_attendance(
     days = []
     today = date.today()
     
-    day_names = {
-        0: 'الأحد', 1: 'الإثنين', 2: 'الثلاثاء',
-        3: 'الأربعاء', 4: 'الخميس', 5: 'الجمعة', 6: 'السبت'
-    }
+    day_names = {0: 'الأحد', 1: 'الإثنين', 2: 'الثلاثاء', 3: 'الأربعاء', 4: 'الخميس', 5: 'الجمعة', 6: 'السبت'}
     
     for i in range(6, -1, -1):
         d = today - timedelta(days=i)
@@ -333,85 +284,113 @@ async def get_weekly_attendance(
 
 async def build_academic_structure(
     db: AsyncSession,
-    school_id: str
+    school_id: str,
+    year_id: Optional[str]
 ) -> List[Dict[str, Any]]:
     """
-    بناء الهيكل الأكاديمي: المرحلة ← الصف ← الشعبة
-    (بدون الاعتماد على علاقات مع السنة الدراسية)
+    بناء الهيكل الأكاديمي: السنة ← المرحلة ← الصف ← الشعبة
+    باستخدام العلاقات الصحيحة من النماذج
     """
     structure = []
     
-    # ============ 1. جلب جميع المراحل ============
-    stages_result = await db.execute(
-        select(Stage)
-        .where(Stage.school_id == school_id)
-        .order_by(Stage.order)
-    )
-    stages = stages_result.scalars().all()
+    # جلب السنوات الدراسية
+    years_query = select(AcademicYear).where(AcademicYear.school_id == school_id)
+    if year_id:
+        years_query = years_query.where(AcademicYear.id == year_id)
+    years_query = years_query.order_by(AcademicYear.start_date.desc())
     
-    for stage in stages:
-        stage_data = {
-            'stage_id': stage.id,
-            'stage_name': stage.name,
+    years_result = await db.execute(years_query)
+    years = years_result.scalars().all()
+    
+    for year in years:
+        year_data = {
+            'year_id': year.id,
+            'year_name': year.name,
             'total_students': 0,
             'total_sections': 0,
             'attendance': {'present': 0, 'absent': 0, 'late': 0},
-            'grades': []
+            'stages': []
         }
         
-        # ============ 2. جلب الصفوف لكل مرحلة ============
-        grades_result = await db.execute(
-            select(Grade)
-            .where(Grade.stage_id == stage.id)
-            .order_by(Grade.order)
+        # جلب المراحل لهذه السنة (year_id)
+        stages_result = await db.execute(
+            select(Stage)
+            .where(Stage.school_id == school_id)
+            .where(Stage.year_id == year.id)
+            .order_by(Stage.order)
         )
-        grades = grades_result.scalars().all()
+        stages = stages_result.scalars().all()
         
-        for grade in grades:
-            grade_data = {
-                'grade_id': grade.id,
-                'grade_name': grade.name,
+        for stage in stages:
+            stage_data = {
+                'stage_id': stage.id,
+                'stage_name': stage.name,
                 'total_students': 0,
                 'total_sections': 0,
-                'attendance': {'present': 0, 'absent': 0, 'late': 0, 'excused': 0},
-                'sections': []
+                'attendance': {'present': 0, 'absent': 0, 'late': 0},
+                'grades': []
             }
             
-            # ============ 3. جلب الفصول (الشعب) لكل صف ============
-            sections_result = await db.execute(
-                select(Section)
-                .where(Section.grade_id == grade.id)
-                .order_by(Section.name)
+            # جلب الصفوف لهذه المرحلة (stage_id)
+            grades_result = await db.execute(
+                select(Grade)
+                .where(Grade.stage_id == stage.id)
+                .where(Grade.year_id == year.id)
+                .order_by(Grade.order)
             )
-            sections = sections_result.scalars().all()
+            grades = grades_result.scalars().all()
             
-            for section in sections:
-                # ============ 4. بناء بيانات كل شعبة ============
-                section_data = await build_section_data(db, section.id)
-                grade_data['sections'].append(section_data)
+            for grade in grades:
+                grade_data = {
+                    'grade_id': grade.id,
+                    'grade_name': grade.name,
+                    'total_students': 0,
+                    'total_sections': 0,
+                    'attendance': {'present': 0, 'absent': 0, 'late': 0, 'excused': 0},
+                    'sections': []
+                }
                 
-                # تجميع الإحصائيات
-                grade_data['total_students'] += section_data.get('total_students', 0)
-                grade_data['total_sections'] += 1
+                # جلب الفصول (الشعب) لهذا الصف (grade_id)
+                sections_result = await db.execute(
+                    select(Section)
+                    .where(Section.grade_id == grade.id)
+                    .order_by(Section.name)
+                )
+                sections = sections_result.scalars().all()
+                
+                for section in sections:
+                    section_data = await build_section_data(db, section.id, year.id)
+                    grade_data['sections'].append(section_data)
+                    
+                    grade_data['total_students'] += section_data.get('total_students', 0)
+                    grade_data['total_sections'] += 1
+                    for key in ['present', 'absent', 'late']:
+                        grade_data['attendance'][key] += section_data.get('attendance', {}).get(key, 0)
+                
+                stage_data['grades'].append(grade_data)
+                stage_data['total_students'] += grade_data['total_students']
+                stage_data['total_sections'] += grade_data['total_sections']
                 for key in ['present', 'absent', 'late']:
-                    grade_data['attendance'][key] += section_data.get('attendance', {}).get(key, 0)
+                    stage_data['attendance'][key] += grade_data['attendance'][key]
             
-            stage_data['grades'].append(grade_data)
-            stage_data['total_students'] += grade_data['total_students']
-            stage_data['total_sections'] += grade_data['total_sections']
+            year_data['stages'].append(stage_data)
+            year_data['total_students'] += stage_data['total_students']
+            year_data['total_sections'] += stage_data['total_sections']
             for key in ['present', 'absent', 'late']:
-                stage_data['attendance'][key] += grade_data['attendance'][key]
+                year_data['attendance'][key] += stage_data['attendance'][key]
         
-        structure.append(stage_data)
+        structure.append(year_data)
     
     return structure
 
 
 async def build_section_data(
     db: AsyncSession,
-    section_id: str
+    section_id: str,
+    year_id: str
 ) -> Dict[str, Any]:
     """بناء بيانات الشعبة كاملة مع المعلمين والطلاب والحصص"""
+    
     # جلب الشعبة
     section_result = await db.execute(
         select(Section).where(Section.id == section_id)
@@ -421,63 +400,52 @@ async def build_section_data(
     if not section:
         return {}
     
-    # ============ جلب المعلمين ============
-    # محاولة جلب المعلمين المرتبطين مباشرة بالشعبة
+    # ============ جلب المعلمين من خلال TeacherAssignment ============
     teachers_result = await db.execute(
         select(Teacher)
-        .where(Teacher.section_id == section_id)
+        .join(TeacherAssignment, TeacherAssignment.teacher_id == Teacher.id)
+        .where(TeacherAssignment.section_id == section_id)
+        .where(TeacherAssignment.year_id == year_id)
+        .where(TeacherAssignment.status == 'active')
         .where(Teacher.is_active == True)
+        .distinct()
     )
     teachers = teachers_result.scalars().all()
-    
-    # إذا لم يوجد معلمون، جلب المعلمين من خلال الحصص
-    if not teachers:
-        try:
-            schedule_result = await db.execute(
-                select(Teacher)
-                .join(Period, Period.teacher_id == Teacher.id)
-                .where(Period.section_id == section_id)
-                .where(Teacher.is_active == True)
-                .distinct()
-            )
-            teachers = schedule_result.scalars().all()
-        except:
-            pass
     
     # ============ جلب الطلاب ============
     students_result = await db.execute(
         select(Student)
         .where(Student.section_id == section_id)
+        .where(Student.year_id == year_id)
         .where(Student.is_active == True)
-        .order_by(Student.name)
+        .order_by(Student.first_name)
     )
     students = students_result.scalars().all()
     
-    # ============ جلب الحصص اليوم ============
+    # ============ جلب الحصص (Periods) ============
     today = date.today()
     today_str = today.strftime('%Y-%m-%d')
     
     try:
         periods_result = await db.execute(
             select(Period)
-            .where(Period.section_id == section_id)
-            .where(Period.date == today_str)
-            .order_by(Period.period_number)
+            .where(Period.school_id == section.school_id)
+            .order_by(Period.order)
         )
         periods = periods_result.scalars().all()
     except:
         periods = []
     
     # ============ إحصائيات الحضور للشعبة ============
-    attendance_stats = await get_section_attendance(db, section_id)
+    attendance_stats = await get_section_attendance(db, section_id, today_str)
     
     # ============ بيانات الطلاب ============
     students_data = []
     for student in students:
         student_attendance = await get_student_attendance_summary(db, student.id)
-        student_today_status = await get_student_today_status(db, student.id)
+        student_today_status = await get_student_today_status(db, student.id, today_str)
         students_data.append({
-            'name': student.name,
+            'name': student.full_name,
             'attendance': student_attendance,
             'today_status': student_today_status
         })
@@ -485,10 +453,10 @@ async def build_section_data(
     # ============ بيانات المعلمين ============
     teachers_data = []
     for teacher in teachers:
-        teacher_status = await get_teacher_daily_status(db, teacher.id)
+        teacher_status = await get_teacher_daily_status(db, teacher.id, today_str)
         teachers_data.append({
-            'name': teacher.name,
-            'specialization': getattr(teacher, 'specialization', 'غير محدد'),
+            'name': teacher.full_name,
+            'specialization': teacher.specialization or 'غير محدد',
             'status': teacher_status.get('status', 'present'),
             'status_label': get_status_label(teacher_status.get('status', 'present'))
         })
@@ -497,11 +465,11 @@ async def build_section_data(
     periods_data = []
     for period in periods:
         periods_data.append({
-            'period_number': f'الحصة {period.period_number}',
-            'subject': period.subject.name if hasattr(period, 'subject') and period.subject else '',
-            'teacher': period.teacher.name if hasattr(period, 'teacher') and period.teacher else '',
-            'status': getattr(period, 'status', 'scheduled'),
-            'status_label': get_period_status_label(getattr(period, 'status', None))
+            'period_number': period.order,
+            'name': period.name,
+            'start_time': period.start_time,
+            'end_time': period.end_time,
+            'is_break': period.is_break
         })
     
     return {
@@ -517,12 +485,10 @@ async def build_section_data(
 
 async def get_section_attendance(
     db: AsyncSession,
-    section_id: str
+    section_id: str,
+    date_str: str
 ) -> Dict[str, int]:
-    """جلب إحصائيات الحضور لشعبة معينة اليوم"""
-    today = date.today()
-    today_str = today.strftime('%Y-%m-%d')
-    
+    """جلب إحصائيات الحضور لشعبة معينة في تاريخ محدد"""
     try:
         result = await db.execute(
             select(
@@ -535,7 +501,7 @@ async def get_section_attendance(
             )
             .select_from(StudentAttendance)
             .where(StudentAttendance.section_id == section_id)
-            .where(StudentAttendance.date == today_str)
+            .where(StudentAttendance.date == date_str)
         )
         row = result.first()
         
@@ -548,21 +514,14 @@ async def get_section_attendance(
             'late_arrival': row.late_arrival or 0
         }
     except:
-        return {
-            'present': 0,
-            'absent': 0,
-            'late': 0,
-            'excused': 0,
-            'sick': 0,
-            'late_arrival': 0
-        }
+        return {'present': 0, 'absent': 0, 'late': 0, 'excused': 0, 'sick': 0, 'late_arrival': 0}
 
 
 async def get_student_attendance_summary(
     db: AsyncSession,
     student_id: str
 ) -> Dict[str, int]:
-    """جلب ملخص حضور طالب معين (آخر 30 يوم)"""
+    """جلب ملخص حضور طالب (آخر 30 يوم)"""
     start_date = date.today() - timedelta(days=30)
     start_date_str = start_date.strftime('%Y-%m-%d')
     
@@ -579,35 +538,22 @@ async def get_student_attendance_summary(
             .where(StudentAttendance.date >= start_date_str)
         )
         row = result.first()
-        
-        return {
-            'present': row.present or 0,
-            'absent': row.absent or 0,
-            'late': row.late or 0,
-            'excused': row.excused or 0
-        }
+        return {'present': row.present or 0, 'absent': row.absent or 0, 'late': row.late or 0, 'excused': row.excused or 0}
     except:
-        return {
-            'present': 0,
-            'absent': 0,
-            'late': 0,
-            'excused': 0
-        }
+        return {'present': 0, 'absent': 0, 'late': 0, 'excused': 0}
 
 
 async def get_student_today_status(
     db: AsyncSession,
-    student_id: str
+    student_id: str,
+    date_str: str
 ) -> str:
-    """جلب حالة الطالب اليوم"""
-    today = date.today()
-    today_str = today.strftime('%Y-%m-%d')
-    
+    """جلب حالة الطالب في تاريخ محدد"""
     try:
         result = await db.execute(
             select(StudentAttendance.status)
             .where(StudentAttendance.student_id == student_id)
-            .where(StudentAttendance.date == today_str)
+            .where(StudentAttendance.date == date_str)
         )
         status = result.scalar_one_or_none()
         return status or 'غير مسجل'
@@ -617,20 +563,17 @@ async def get_student_today_status(
 
 async def get_teacher_daily_status(
     db: AsyncSession,
-    teacher_id: str
+    teacher_id: str,
+    date_str: str
 ) -> Dict[str, str]:
-    """جلب حالة المعلم اليوم"""
-    today = date.today()
-    today_str = today.strftime('%Y-%m-%d')
-    
+    """جلب حالة المعلم في تاريخ محدد"""
     try:
         result = await db.execute(
             select(TeacherAttendance)
             .where(TeacherAttendance.teacher_id == teacher_id)
-            .where(TeacherAttendance.date == today_str)
+            .where(TeacherAttendance.date == date_str)
         )
         attendance = result.scalar_one_or_none()
-        
         if attendance:
             return {'status': attendance.status}
         return {'status': 'present'}
@@ -651,18 +594,6 @@ def get_status_label(status: str) -> str:
     return labels.get(status, 'غير محدد')
 
 
-def get_period_status_label(status: Optional[str]) -> str:
-    """تحويل حالة الحصة إلى تسمية عربية"""
-    labels = {
-        'scheduled': 'مجدولة',
-        'completed': 'منفذة',
-        'cancelled': 'ملغية',
-        'delayed': 'متأخرة',
-        'in_progress': 'قيد التنفيذ'
-    }
-    return labels.get(status, 'قادم')
-
-
 # ============================================================
 # مسارات الوكيل المباشرة
 # ============================================================
@@ -671,7 +602,6 @@ async def deputy_dashboard_redirect(
     request: Request,
     user: CurrentUser = Depends(require_user),
 ):
-    """إعادة توجيه إلى لوحة تحكم الوكيل"""
     if user.primary_role != "deputy":
         raise ForbiddenException("هذه الصفحة مخصصة للوكيل فقط")
     return RedirectResponse("/dashboard", status_code=302)
@@ -685,7 +615,6 @@ async def deputy_section_attendance(
     db: AsyncSession = Depends(get_db),
     ctx: dict = Depends(template_context),
 ):
-    """صفحة تسجيل حضور فصل معين"""
     if user.primary_role != "deputy":
         raise ForbiddenException("هذه الصفحة مخصصة للوكيل فقط")
     
@@ -721,7 +650,6 @@ async def deputy_section_students(
     db: AsyncSession = Depends(get_db),
     ctx: dict = Depends(template_context),
 ):
-    """صفحة عرض طلاب فصل معين"""
     if user.primary_role != "deputy":
         raise ForbiddenException("هذه الصفحة مخصصة للوكيل فقط")
     
@@ -757,7 +685,6 @@ async def deputy_section_report(
     db: AsyncSession = Depends(get_db),
     ctx: dict = Depends(template_context),
 ):
-    """تقرير فصل معين"""
     if user.primary_role != "deputy":
         raise ForbiddenException("هذه الصفحة مخصصة للوكيل فقط")
     
@@ -783,7 +710,6 @@ async def deputy_teacher_attendance(
     db: AsyncSession = Depends(get_db),
     ctx: dict = Depends(template_context),
 ):
-    """صفحة حضور معلم معين"""
     if user.primary_role != "deputy":
         raise ForbiddenException("هذه الصفحة مخصصة للوكيل فقط")
     
@@ -813,7 +739,6 @@ async def deputy_teacher_schedule(
     db: AsyncSession = Depends(get_db),
     ctx: dict = Depends(template_context),
 ):
-    """جدول معلم معين"""
     if user.primary_role != "deputy":
         raise ForbiddenException("هذه الصفحة مخصصة للوكيل فقط")
     
@@ -845,12 +770,10 @@ async def export_deputy_report(
     user: CurrentUser = Depends(require_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """تصدير تقرير الوكيل"""
     if user.primary_role != "deputy":
         raise ForbiddenException("غير مصرح")
     
     stats = await get_deputy_full_stats(db, user.school_id, user.id)
-    
     return JSONResponse(content={
         "status": "success",
         "data": stats,
@@ -865,12 +788,10 @@ async def deputy_debug_simple(
     user: CurrentUser = Depends(require_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """صفحة تصحيح بسيطة لعرض البيانات الخام"""
     if user.primary_role != "deputy":
         raise ForbiddenException("غير مصرح")
     
     stats = await get_deputy_full_stats(db, user.school_id, user.id)
-    
     return templates.TemplateResponse(
         "deputy/debug.html",
         {
@@ -890,7 +811,6 @@ async def director_dashboard_redirect(
     request: Request,
     user: CurrentUser = Depends(require_user),
 ):
-    """إعادة توجيه إلى لوحة تحكم المدير"""
     if user.primary_role != "director":
         raise ForbiddenException("هذه الصفحة مخصصة للمدير فقط")
     return RedirectResponse("/dashboard", status_code=302)
@@ -901,7 +821,6 @@ async def activities_dashboard_redirect(
     request: Request,
     user: CurrentUser = Depends(require_user),
 ):
-    """إعادة توجيه إلى لوحة تحكم مسؤول الأنشطة"""
     if user.primary_role != "activities_manager":
         raise ForbiddenException("هذه الصفحة مخصصة لمسؤول الأنشطة فقط")
     return RedirectResponse("/dashboard", status_code=302)
@@ -912,46 +831,6 @@ async def teacher_dashboard_redirect(
     request: Request,
     user: CurrentUser = Depends(require_user),
 ):
-    """إعادة توجيه إلى لوحة تحكم المعلم"""
     if user.primary_role != "teacher":
         raise ForbiddenException("هذه الصفحة مخصصة للمعلم فقط")
     return RedirectResponse("/dashboard", status_code=302)
-
-
-# ============================================================
-# دوال مساعدة
-# ============================================================
-def convert_stats_to_dashboard(stats: dict, school_id: str) -> dict:
-    """
-    تحويل بيانات stats من DashboardService إلى الهيكل المطلوب للقالب
-    (للتوافق مع الإصدارات السابقة)
-    """
-    from datetime import date as _date
-    
-    sections = []
-    
-    if "sections" in stats:
-        for section in stats.get("sections", []):
-            sections.append({
-                "stage_name": section.get("stage_name", "المرحلة"),
-                "grade_name": section.get("grade_name", "الصف"),
-                "section_name": section.get("section_name", "فصل"),
-                "enrolled_count": section.get("enrolled_count", 0),
-                "periods_today": section.get("periods_today", [])
-            })
-    
-    analytics = {
-        "present": stats.get("present_count", 0),
-        "absent": stats.get("absent_count", 0),
-        "late": stats.get("late_count", 0),
-        "late_arrivals": stats.get("late_arrivals_count", 0),
-        "excused": stats.get("excused_count", 0),
-        "other": stats.get("other_count", 0),
-        "total_records": stats.get("total_records", 0)
-    }
-    
-    return {
-        "date": _date.today().isoformat(),
-        "sections": sections,
-        "analytics": analytics
-    }
