@@ -23,6 +23,45 @@
         </div>
     </div>
 
+    {# ============ شريط الفلاتر ============ #}
+    <div class="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-100 dark:border-slate-700">
+        <div class="flex flex-wrap items-center gap-4">
+            <div class="flex items-center gap-2">
+                <label class="text-sm font-semibold text-slate-600 dark:text-slate-300">📊 عرض:</label>
+                <select id="filter_days" onchange="updateFilter()" class="border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200">
+                    <option value="7">7 أيام</option>
+                    <option value="15">15 يوم</option>
+                    <option value="30" selected>30 يوم</option>
+                    <option value="60">60 يوم</option>
+                    <option value="90">90 يوم</option>
+                </select>
+            </div>
+            
+            <div class="flex items-center gap-2">
+                <label class="text-sm font-semibold text-slate-600 dark:text-slate-300">📆 الشهر:</label>
+                <input type="month" id="selected_month" value="{{ selected_month|default(stats.current_date[:7]) }}" 
+                       class="border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200"
+                       onchange="updateMonth()">
+            </div>
+
+            <div class="flex items-center gap-2">
+                <label class="text-sm font-semibold text-slate-600 dark:text-slate-300">📅 التاريخ:</label>
+                <input type="date" id="selected_date" value="{{ selected_date|default(stats.current_date) }}" 
+                       class="border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200"
+                       onchange="updateDate()">
+            </div>
+
+            <div class="flex gap-2 mr-auto">
+                <button onclick="exportReport()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-1.5 rounded-lg text-sm transition-colors flex items-center gap-1">
+                    📄 إرفاق تقرير
+                </button>
+                <button onclick="printReport()" class="bg-slate-600 hover:bg-slate-700 text-white px-4 py-1.5 rounded-lg text-sm transition-colors flex items-center gap-1">
+                    🖨️ طباعة
+                </button>
+            </div>
+        </div>
+    </div>
+
     {# ============ عرض الأخطاء ============ #}
     {% if stats.error %}
     <div class="bg-red-50 dark:bg-red-900/20 border-r-4 border-red-400 rounded-xl p-4 border border-red-200 dark:border-red-800">
@@ -121,6 +160,26 @@
             </div>
         </div>
     </div>
+
+    {# ============ أيام الأسبوع ============ #}
+    {% if stats.weekly_days %}
+    <div class="bg-white dark:bg-slate-800 rounded-xl p-5 border border-slate-100 dark:border-slate-700">
+        <h3 class="font-semibold text-slate-700 dark:text-slate-200 mb-4">📅 أيام الأسبوع</h3>
+        <div class="grid grid-cols-7 gap-2">
+            {% for day in stats.weekly_days %}
+                <div class="text-center p-2 border border-slate-200 dark:border-slate-700 rounded-lg {% if day.is_today %}bg-primary-50 dark:bg-primary-900/20 border-primary-400{% endif %}">
+                    <div class="text-sm font-semibold text-slate-700 dark:text-slate-200">{{ day.day }}</div>
+                    <div class="text-xs text-slate-500 dark:text-slate-400">{{ day.date }}</div>
+                    <div class="mt-1 text-xs">
+                        <span class="text-success-600">✅ {{ day.present|default(0) }}</span>
+                        <span class="text-danger-600">❌ {{ day.absent|default(0) }}</span>
+                        <span class="text-warning-600">🟠 {{ day.late|default(0) }}</span>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
 
     {# ============ المعلمون الغائبون ============ #}
     {% if stats.absent_teachers and stats.absent_teachers|length > 0 %}
@@ -327,13 +386,13 @@
                                                     </details>
                                                     {% endif %}
 
-                                                    {# ============ جدول الطلاب مع الحضور والغياب ============ #}
+                                                    {# ============ جدول الطلاب مع التفاصيل الكاملة ============ #}
                                                     {% if section.students and section.students|length > 0 %}
                                                     <details class="mb-3" open>
                                                         <summary class="text-sm font-semibold text-slate-700 dark:text-slate-200 cursor-pointer hover:text-primary-600 flex items-center gap-1">
                                                             👥 الطلاب ({{ section.students|length }})
                                                         </summary>
-                                                        <div class="mt-2 overflow-x-auto max-h-60 overflow-y-auto">
+                                                        <div class="mt-2 overflow-x-auto max-h-80 overflow-y-auto">
                                                             <table class="w-full text-xs border border-slate-200 dark:border-slate-700 rounded">
                                                                 <thead class="bg-slate-100 dark:bg-slate-700/50 sticky top-0">
                                                                     <tr>
@@ -343,18 +402,25 @@
                                                                         <th class="p-2 text-center border-b border-slate-200 dark:border-slate-700">❌ غياب</th>
                                                                         <th class="p-2 text-center border-b border-slate-200 dark:border-slate-700">🟠 تأخير</th>
                                                                         <th class="p-2 text-center border-b border-slate-200 dark:border-slate-700">📋 استئذان</th>
+                                                                        <th class="p-2 text-center border-b border-slate-200 dark:border-slate-700">🏥 حالة صحية</th>
                                                                         <th class="p-2 text-center border-b border-slate-200 dark:border-slate-700">الحالة اليوم</th>
+                                                                        <th class="p-2 text-center border-b border-slate-200 dark:border-slate-700">الإجراءات</th>
                                                                     </tr>
                                                                 </thead>
                                                                 <tbody>
                                                                     {% for student in section.students %}
                                                                     <tr class="border-b border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/30">
                                                                         <td class="p-2 text-slate-500 dark:text-slate-400">{{ loop.index }}</td>
-                                                                        <td class="p-2 font-medium text-slate-700 dark:text-slate-200">{{ student.name }}</td>
+                                                                        <td class="p-2 font-medium text-slate-700 dark:text-slate-200">
+                                                                            <a href="/deputy/student/{{ student.id }}/profile" class="hover:text-primary-600 hover:underline">
+                                                                                {{ student.name }}
+                                                                            </a>
+                                                                        </td>
                                                                         <td class="p-2 text-center text-success-600">{{ student.attendance.present|default(0) }}</td>
                                                                         <td class="p-2 text-center text-danger-600">{{ student.attendance.absent|default(0) }}</td>
                                                                         <td class="p-2 text-center text-warning-600">{{ student.attendance.late|default(0) }}</td>
                                                                         <td class="p-2 text-center text-primary-600">{{ student.attendance.excused|default(0) }}</td>
+                                                                        <td class="p-2 text-center text-purple-600">{{ student.attendance.sick|default(0) }}</td>
                                                                         <td class="p-2 text-center">
                                                                             <span class="px-2 py-0.5 rounded text-xs
                                                                                 {% if student.today_status == 'present' %}bg-success-100 text-success-700
@@ -366,6 +432,25 @@
                                                                                 {% else %}bg-slate-100 text-slate-700{% endif %}">
                                                                                 {{ student.today_status_label|default('غير مسجل') }}
                                                                             </span>
+                                                                        </td>
+                                                                        <td class="p-2 text-center">
+                                                                            <div class="flex flex-wrap gap-1 justify-center">
+                                                                                <a href="/deputy/student/{{ student.id }}/profile" 
+                                                                                   class="px-1.5 py-0.5 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded text-xs hover:bg-blue-100 transition-colors"
+                                                                                   title="عرض الملف الشخصي">
+                                                                                    👤
+                                                                                </a>
+                                                                                <a href="/deputy/student/{{ student.id }}/attendance-report" 
+                                                                                   class="px-1.5 py-0.5 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 rounded text-xs hover:bg-green-100 transition-colors"
+                                                                                   title="تقرير الحضور">
+                                                                                    📊
+                                                                                </a>
+                                                                                <a href="/deputy/student/{{ student.id }}/transfer" 
+                                                                                   class="px-1.5 py-0.5 bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300 rounded text-xs hover:bg-orange-100 transition-colors"
+                                                                                   title="نقل الطالب">
+                                                                                    🔄
+                                                                                </a>
+                                                                            </div>
                                                                         </td>
                                                                     </tr>
                                                                     {% endfor %}
@@ -392,6 +477,10 @@
                                                         <a href="/deputy/section/{{ section.section_id }}/report" 
                                                            class="flex-1 text-center text-xs bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300 px-2 py-1.5 rounded border border-orange-200 dark:border-orange-800 hover:bg-orange-100 transition-colors">
                                                             📊 تقرير
+                                                        </a>
+                                                        <a href="/deputy/section/{{ section.section_id }}/transfer" 
+                                                           class="flex-1 text-center text-xs bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 px-2 py-1.5 rounded border border-purple-200 dark:border-purple-800 hover:bg-purple-100 transition-colors">
+                                                            🔄 نقل
                                                         </a>
                                                     </div>
                                                 </div>
@@ -446,9 +535,48 @@ function toggleElement(id) {
     }
 }
 
+// ============ تحديث الفلتر ============
+function updateFilter() {
+    const days = document.getElementById('filter_days').value;
+    const currentUrl = new URL(window.location.href);
+    currentUrl.searchParams.set('days', days);
+    window.location.href = currentUrl.toString();
+}
+
+// ============ تحديث الشهر ============
+function updateMonth() {
+    const month = document.getElementById('selected_month').value;
+    if (month) {
+        const currentUrl = new URL(window.location.href);
+        currentUrl.searchParams.set('month', month);
+        window.location.href = currentUrl.toString();
+    }
+}
+
+// ============ تحديث التاريخ ============
+function updateDate() {
+    const date = document.getElementById('selected_date').value;
+    if (date) {
+        const currentUrl = new URL(window.location.href);
+        currentUrl.searchParams.set('target_date', date);
+        window.location.href = currentUrl.toString();
+    }
+}
+
+// ============ تصدير التقرير ============
+function exportReport() {
+    const date = document.getElementById('selected_date').value;
+    const url = `/deputy/dashboard/export/report?date=${date}`;
+    window.open(url, '_blank');
+}
+
+// ============ طباعة ============
+function printReport() {
+    window.print();
+}
+
 // ============ فتح جميع التفاصيل افتراضياً ============
 document.addEventListener('DOMContentLoaded', function() {
-    // فتح جميع تفاصيل الحصص والمعلمين والطلاب
     document.querySelectorAll('details').forEach(function(detail) {
         detail.open = true;
     });
@@ -500,7 +628,7 @@ details[open] summary::before {
     background: #64748b;
 }
 
-/* ============ تأثير hover على البطاقات ============ */
+/* ============ تأثير hover ============ */
 .hover\:shadow-lg:hover {
     box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
 }
@@ -518,6 +646,22 @@ details[open] summary::before {
     position: sticky;
     top: 0;
     z-index: 10;
+}
+
+/* ============ تنسيقات الطباعة ============ */
+@media print {
+    .no-print {
+        display: none !important;
+    }
+    .bg-white {
+        background: white !important;
+    }
+    .shadow {
+        box-shadow: none !important;
+    }
+    .border {
+        border: 1px solid #ddd !important;
+    }
 }
 </style>
 {% endblock %}
