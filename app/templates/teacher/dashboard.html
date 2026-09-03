@@ -1,17 +1,819 @@
 {% extends "layouts/teacher.html" %}
+{% block title %}{{ title }}{% endblock %}
+
 {% block content %}
-<div class="space-y-6">
-    <h1 class="text-2xl font-bold text-slate-800 dark:text-white">لوحة تحكم المعلم</h1>
-    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div class="bg-white dark:bg-slate-800 rounded-xl p-5 border border-slate-100 dark:border-slate-700">
-            <p class="text-slate-400 text-sm">حصص اليوم</p><p class="text-3xl font-bold text-primary-600">{{ stats.today_lessons }}</p>
+<div class="space-y-6" dir="rtl">
+    
+    {# ============================================================ #}
+    {# ============ رأس الصفحة مع السنة الدراسية ============ #}
+    {# ============================================================ #}
+    <div class="flex flex-wrap items-center justify-between gap-4 bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-100 dark:border-slate-700">
+        <div>
+            <h1 class="text-2xl font-bold text-slate-800 dark:text-white">📚 لوحة تحكم المعلم</h1>
+            <p class="text-slate-400 text-sm mt-1">
+                السنة الدراسية: <span class="font-semibold text-primary-600">{{ stats.academic_year|default('غير محددة') }}</span>
+                {% if stats.teacher_name %}
+                - {{ stats.teacher_name }}
+                {% endif %}
+            </p>
         </div>
-        <div class="bg-white dark:bg-slate-800 rounded-xl p-5 border border-slate-100 dark:border-slate-700">
-            <p class="text-slate-400 text-sm">إجمالي الحصص</p><p class="text-3xl font-bold text-slate-800 dark:text-white">{{ stats.total_lessons }}</p>
+        <div class="flex flex-wrap items-center gap-3">
+            <span class="bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 px-3 py-1.5 rounded-lg text-sm flex items-center gap-2">
+                <span>📅</span> {{ stats.current_date|default('اليوم') }}
+            </span>
+            <span class="bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-3 py-1.5 rounded-lg text-sm">
+                📖 {{ stats.total_lessons|default(0) }} حصة
+            </span>
+            <span class="bg-warning-50 dark:bg-warning-900/20 text-warning-600 dark:text-warning-300 px-3 py-1.5 rounded-lg text-sm">
+                🔔 {{ stats.unread_notifications|default(0) }}
+            </span>
         </div>
-        <div class="bg-white dark:bg-slate-800 rounded-xl p-5 border border-slate-100 dark:border-slate-700">
-            <p class="text-slate-400 text-sm">إشعارات غير مقروءة</p><p class="text-3xl font-bold text-warning-600">{{ stats.unread_notifications }}</p>
+    </div>
+
+    {# ============================================================ #}
+    {# ============ شريط التنقل العلوي ============ #}
+    {# ============================================================ #}
+    <div class="bg-white dark:bg-slate-800 rounded-xl p-3 border border-slate-100 dark:border-slate-700">
+        <div class="flex flex-wrap items-center gap-2">
+            <button onclick="switchTab('lessons')" 
+                    class="tab-btn px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 bg-primary-600 text-white" 
+                    data-tab="lessons">
+                📚 الحصص
+            </button>
+            <button onclick="switchTab('exams')" 
+                    class="tab-btn px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600" 
+                    data-tab="exams">
+                📝 الاختبارات
+            </button>
+            <button onclick="switchTab('preparation')" 
+                    class="tab-btn px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600" 
+                    data-tab="preparation">
+                📋 التحضير
+            </button>
+            <button onclick="switchTab('reports')" 
+                    class="tab-btn px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600" 
+                    data-tab="reports">
+                📊 التقارير
+            </button>
+            
+            <div class="flex-1"></div>
+            
+            {# أزرار التنقل بين الأسابيع #}
+            <div class="flex items-center gap-2 bg-slate-50 dark:bg-slate-700/30 rounded-lg p-1">
+                <button onclick="changeWeek(-1)" 
+                        class="px-3 py-1.5 rounded-lg text-sm bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors border border-slate-200 dark:border-slate-600">
+                    ← الأسبوع السابق
+                </button>
+                <span class="text-sm font-semibold text-slate-700 dark:text-slate-200 px-2">
+                    {{ stats.current_week_label|default('الأسبوع الحالي') }}
+                </span>
+                <button onclick="changeWeek(1)" 
+                        class="px-3 py-1.5 rounded-lg text-sm bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors border border-slate-200 dark:border-slate-600">
+                    الأسبوع التالي →
+                </button>
+            </div>
+        </div>
+    </div>
+
+    {# ============================================================ #}
+    {# ============ عرض الأخطاء ============ #}
+    {# ============================================================ #}
+    {% if stats.error %}
+    <div class="bg-red-50 dark:bg-red-900/20 border-r-4 border-red-400 rounded-xl p-4 border border-red-200 dark:border-red-800">
+        <div class="flex items-center gap-3">
+            <span class="text-2xl">❌</span>
+            <div>
+                <h3 class="font-bold text-red-700 dark:text-red-300">حدث خطأ</h3>
+                <p class="text-red-600 dark:text-red-400">{{ stats.error }}</p>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    {# ============================================================ #}
+    {# ============ تبويب الحصص (الأساسي) ============ #}
+    {# ============================================================ #}
+    <div id="tab-lessons" class="tab-content">
+        
+        {# ============ أيام الأسبوع ============ #}
+        <div class="grid grid-cols-1 md:grid-cols-7 gap-3">
+            {% for day in stats.week_days %}
+            <div class="day-card bg-white dark:bg-slate-800 rounded-xl border {% if day.is_today %}border-primary-400 ring-2 ring-primary-400 ring-offset-2{% elif day.is_weekend or day.is_holiday %}border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/10{% else %}border-slate-100 dark:border-slate-700{% endif %} overflow-hidden">
+                
+                {# رأس اليوم #}
+                <div class="px-3 py-2 {% if day.is_today %}bg-primary-50 dark:bg-primary-900/20{% elif day.is_weekend or day.is_holiday %}bg-amber-50 dark:bg-amber-900/20{% else %}bg-slate-50 dark:bg-slate-700/30{% endif %} border-b border-slate-100 dark:border-slate-700">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <div class="text-sm font-semibold text-slate-700 dark:text-slate-200">{{ day.day_name }}</div>
+                            <div class="text-xs text-slate-400">{{ day.date }}</div>
+                        </div>
+                        {% if day.is_today %}
+                        <span class="text-xs bg-primary-600 text-white px-2 py-0.5 rounded-full">اليوم</span>
+                        {% elif day.is_weekend %}
+                        <span class="text-xs bg-amber-500 text-white px-2 py-0.5 rounded-full">عطلة</span>
+                        {% elif day.is_holiday %}
+                        <span class="text-xs bg-green-500 text-white px-2 py-0.5 rounded-full">{{ day.holiday_name|default('إجازة') }}</span>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                {# محتوى اليوم #}
+                <div class="p-2 space-y-1.5 max-h-96 overflow-y-auto">
+                    {% if day.is_weekend or day.is_holiday %}
+                        <div class="text-center py-4 text-slate-400 dark:text-slate-500 text-sm">
+                            🏖️ {{ day.holiday_name|default('يوم عطلة') }}
+                            <div class="text-xs mt-1">{{ day.holiday_reason|default('') }}</div>
+                        </div>
+                    {% elif day.lessons and day.lessons|length > 0 %}
+                        {% for lesson in day.lessons %}
+                        <div class="lesson-item bg-slate-50 dark:bg-slate-700/30 rounded-lg p-2 border-r-4 
+                                    {% if lesson.is_completed %}border-success-500{% else %}border-primary-500{% endif %}
+                                    hover:shadow-md transition-shadow cursor-pointer"
+                             onclick="openLessonModal('{{ lesson.id }}')">
+                            <div class="flex items-center justify-between">
+                                <div class="flex-1">
+                                    <div class="font-medium text-sm text-slate-700 dark:text-slate-200">
+                                        {{ lesson.subject_name }}
+                                    </div>
+                                    <div class="text-xs text-slate-400 flex items-center gap-2">
+                                        <span>🏫 {{ lesson.section_name }}</span>
+                                        <span>⏰ {{ lesson.start_time }} - {{ lesson.end_time }}</span>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-1.5">
+                                    {% if lesson.is_completed %}
+                                    <span class="text-xs bg-success-100 text-success-700 px-2 py-0.5 rounded-full">✅ منتهية</span>
+                                    {% else %}
+                                    <span class="text-xs bg-primary-100 text-primary-700 px-2 py-0.5 rounded-full">⏳ قادمة</span>
+                                    {% endif %}
+                                    <span class="text-xs text-slate-400">{{ lesson.attendance_count|default(0) }}/{{ lesson.total_students|default(0) }}</span>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="text-center py-4 text-slate-400 dark:text-slate-500 text-sm">
+                            📭 لا توجد حصص
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        {# ============================================================ #}
+        {# ============ الفصل المحدد وعرض الطلاب ============ #}
+        {# ============================================================ #}
+        <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 overflow-hidden mt-6">
+            
+            {# رأس الفصل #}
+            <div class="bg-gradient-to-l from-indigo-600 to-indigo-700 dark:from-indigo-700 dark:to-indigo-800 px-6 py-4 text-white flex flex-wrap items-center justify-between gap-3">
+                <div class="flex items-center gap-3">
+                    <span class="text-2xl">🏫</span>
+                    <div>
+                        <h2 class="text-lg font-bold">{{ stats.selected_section_name|default('الفصل المختار') }}</h2>
+                        <p class="text-sm text-white/70">{{ stats.selected_section_info|default('') }}</p>
+                    </div>
+                </div>
+                <div class="flex flex-wrap items-center gap-3 text-sm">
+                    <span class="bg-white/20 px-3 py-1 rounded-full">👥 {{ stats.students|length|default(0) }} طالب</span>
+                    <span class="bg-green-500/30 px-3 py-1 rounded-full">✅ {{ stats.today_present|default(0) }}</span>
+                    <span class="bg-red-500/30 px-3 py-1 rounded-full">❌ {{ stats.today_absent|default(0) }}</span>
+                    <span class="bg-amber-500/30 px-3 py-1 rounded-full">🟠 {{ stats.today_late|default(0) }}</span>
+                </div>
+            </div>
+
+            {# ============ جدول الطلاب ============ #}
+            <div class="overflow-x-auto p-4">
+                <table class="w-full text-sm" id="students-table">
+                    <thead class="bg-slate-50 dark:bg-slate-700/30 sticky top-0">
+                        <tr>
+                            <th class="p-3 text-right border-b border-slate-200 dark:border-slate-700">#</th>
+                            <th class="p-3 text-right border-b border-slate-200 dark:border-slate-700">الطالب</th>
+                            <th class="p-3 text-center border-b border-slate-200 dark:border-slate-700">✅ حاضر</th>
+                            <th class="p-3 text-center border-b border-slate-200 dark:border-slate-700">❌ غائب</th>
+                            <th class="p-3 text-center border-b border-slate-200 dark:border-slate-700">🟠 متأخر</th>
+                            <th class="p-3 text-center border-b border-slate-200 dark:border-slate-700">📋 بعذر</th>
+                            <th class="p-3 text-center border-b border-slate-200 dark:border-slate-700">حالة اليوم</th>
+                            <th class="p-3 text-center border-b border-slate-200 dark:border-slate-700">الملاحظات</th>
+                            <th class="p-3 text-center border-b border-slate-200 dark:border-slate-700">الإجراءات</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for student in stats.students %}
+                        <tr class="border-b border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">
+                            <td class="p-3 text-slate-500 dark:text-slate-400">{{ loop.index }}</td>
+                            
+                            {# اسم الطالب - قابل للنقر #}
+                            <td class="p-3">
+                                <button onclick="openStudentModal('{{ student.id }}')" 
+                                        class="text-slate-700 dark:text-slate-200 hover:text-primary-600 dark:hover:text-primary-400 hover:underline font-medium text-right">
+                                    {{ student.name }}
+                                </button>
+                            </td>
+                            
+                            {# إحصائيات الحضور #}
+                            <td class="p-3 text-center text-success-600 font-semibold">{{ student.present|default(0) }}</td>
+                            <td class="p-3 text-center text-danger-600 font-semibold">{{ student.absent|default(0) }}</td>
+                            <td class="p-3 text-center text-warning-600 font-semibold">{{ student.late|default(0) }}</td>
+                            <td class="p-3 text-center text-primary-600 font-semibold">{{ student.excused|default(0) }}</td>
+                            
+                            {# حالة اليوم #}
+                            <td class="p-3 text-center">
+                                <span class="px-2 py-1 rounded-full text-xs font-medium
+                                    {% if student.today_status == 'present' %}bg-success-100 text-success-700
+                                    {% elif student.today_status == 'absent' %}bg-danger-100 text-danger-700
+                                    {% elif student.today_status == 'late' %}bg-warning-100 text-warning-700
+                                    {% elif student.today_status == 'excused' %}bg-primary-100 text-primary-700
+                                    {% elif student.today_status == 'sick' %}bg-purple-100 text-purple-700
+                                    {% else %}bg-slate-100 text-slate-700{% endif %}">
+                                    {{ student.today_status_label|default('غير مسجل') }}
+                                </span>
+                            </td>
+                            
+                            {# الملاحظات #}
+                            <td class="p-3 text-center">
+                                {% if student.notes %}
+                                <button onclick="showNotes('{{ student.id }}')" 
+                                        class="text-blue-600 dark:text-blue-400 hover:underline text-xs">
+                                    📝 عرض ({{ student.notes_count|default(0) }})
+                                </button>
+                                {% else %}
+                                <span class="text-slate-400 text-xs">-</span>
+                                {% endif %}
+                            </td>
+                            
+                            {# الإجراءات #}
+                            <td class="p-3 text-center">
+                                <div class="flex flex-wrap gap-1 justify-center">
+                                    <button onclick="openStudentModal('{{ student.id }}')" 
+                                            class="px-2 py-1 bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-300 rounded text-xs hover:bg-primary-100 transition-colors"
+                                            title="تسجيل حضور">
+                                        ✏️
+                                    </button>
+                                    <button onclick="openNotesModal('{{ student.id }}')" 
+                                            class="px-2 py-1 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 rounded text-xs hover:bg-amber-100 transition-colors"
+                                            title="إضافة ملاحظة">
+                                        📝
+                                    </button>
+                                    <button onclick="viewStudentProfile('{{ student.id }}')" 
+                                            class="px-2 py-1 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded text-xs hover:bg-blue-100 transition-colors"
+                                            title="الملف الشخصي">
+                                        👤
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                
+                {% if not stats.students %}
+                <div class="text-center py-8 text-slate-400 dark:text-slate-500">
+                    📭 لا يوجد طلاب مسجلين في هذا الفصل
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    {# ============================================================ #}
+    {# ============ تبويب الاختبارات ============ #}
+    {# ============================================================ #}
+    <div id="tab-exams" class="tab-content hidden">
+        <div class="bg-white dark:bg-slate-800 rounded-xl p-6 border border-slate-100 dark:border-slate-700">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-xl font-bold text-slate-800 dark:text-white">📝 جدول الاختبارات</h2>
+                <button class="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg text-sm transition-colors">
+                    ➕ إضافة اختبار
+                </button>
+            </div>
+            
+            <div class="space-y-3">
+                {% for exam in stats.exams|default([]) %}
+                <div class="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-700/30 rounded-lg border border-slate-200 dark:border-slate-700">
+                    <div>
+                        <h4 class="font-semibold text-slate-700 dark:text-slate-200">{{ exam.title }}</h4>
+                        <div class="text-sm text-slate-400 flex items-center gap-3 mt-1">
+                            <span>📚 {{ exam.subject }}</span>
+                            <span>🏫 {{ exam.section }}</span>
+                            <span>📅 {{ exam.date }}</span>
+                            <span>⏰ {{ exam.time }}</span>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="px-3 py-1 rounded-full text-xs font-medium
+                            {% if exam.status == 'upcoming' %}bg-primary-100 text-primary-700
+                            {% elif exam.status == 'completed' %}bg-success-100 text-success-700
+                            {% else %}bg-warning-100 text-warning-700{% endif %}">
+                            {{ exam.status_label }}
+                        </span>
+                        <button class="text-blue-600 dark:text-blue-400 hover:underline text-sm">📊 نتائج</button>
+                    </div>
+                </div>
+                {% else %}
+                <div class="text-center py-8 text-slate-400 dark:text-slate-500">
+                    📭 لا توجد اختبارات حالياً
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    {# ============================================================ #}
+    {# ============ تبويب التحضير ============ #}
+    {# ============================================================ #}
+    <div id="tab-preparation" class="tab-content hidden">
+        <div class="bg-white dark:bg-slate-800 rounded-xl p-6 border border-slate-100 dark:border-slate-700">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-xl font-bold text-slate-800 dark:text-white">📋 خطط التحضير</h2>
+                <button class="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg text-sm transition-colors">
+                    ➕ إضافة خطة
+                </button>
+            </div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {% for plan in stats.preparation_plans|default([]) %}
+                <div class="p-4 border border-slate-200 dark:border-slate-700 rounded-lg hover:shadow-md transition-shadow">
+                    <h4 class="font-semibold text-slate-700 dark:text-slate-200">{{ plan.title }}</h4>
+                    <div class="text-sm text-slate-400 mt-2 space-y-1">
+                        <div>📚 {{ plan.subject }} - 🏫 {{ plan.section }}</div>
+                        <div>📅 {{ plan.date }} | ⏰ {{ plan.duration }}</div>
+                        <div class="text-xs text-slate-500 mt-2">{{ plan.objectives|truncate(100) }}</div>
+                    </div>
+                    <div class="mt-3 flex gap-2">
+                        <button class="text-primary-600 dark:text-primary-400 text-sm hover:underline">✏️ تعديل</button>
+                        <button class="text-blue-600 dark:text-blue-400 text-sm hover:underline">📄 عرض</button>
+                    </div>
+                </div>
+                {% else %}
+                <div class="col-span-2 text-center py-8 text-slate-400 dark:text-slate-500">
+                    📭 لا توجد خطط تحضير حالياً
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    {# ============================================================ #}
+    {# ============ تبويب التقارير ============ #}
+    {# ============================================================ #}
+    <div id="tab-reports" class="tab-content hidden">
+        <div class="bg-white dark:bg-slate-800 rounded-xl p-6 border border-slate-100 dark:border-slate-700">
+            <h2 class="text-xl font-bold text-slate-800 dark:text-white mb-4">📊 التقارير والإحصائيات</h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                <div class="text-center p-4 bg-slate-50 dark:bg-slate-700/30 rounded-lg">
+                    <p class="text-2xl font-bold text-primary-600">{{ stats.total_lessons|default(0) }}</p>
+                    <p class="text-xs text-slate-400">إجمالي الحصص</p>
+                </div>
+                <div class="text-center p-4 bg-slate-50 dark:bg-slate-700/30 rounded-lg">
+                    <p class="text-2xl font-bold text-success-600">{{ stats.completed_lessons|default(0) }}</p>
+                    <p class="text-xs text-slate-400">حصص منتهية</p>
+                </div>
+                <div class="text-center p-4 bg-slate-50 dark:bg-slate-700/30 rounded-lg">
+                    <p class="text-2xl font-bold text-warning-600">{{ stats.attendance_rate|default(0) }}%</p>
+                    <p class="text-xs text-slate-400">نسبة الحضور</p>
+                </div>
+                <div class="text-center p-4 bg-slate-50 dark:bg-slate-700/30 rounded-lg">
+                    <p class="text-2xl font-bold text-amber-600">{{ stats.avg_exam_score|default(0) }}%</p>
+                    <p class="text-xs text-slate-400">متوسط الاختبارات</p>
+                </div>
+            </div>
+            
+            <div class="flex gap-3 flex-wrap">
+                <button onclick="exportReport('pdf')" class="bg-danger-600 hover:bg-danger-700 text-white px-4 py-2 rounded-lg text-sm transition-colors flex items-center gap-2">
+                    📄 PDF
+                </button>
+                <button onclick="exportReport('excel')" class="bg-success-600 hover:bg-success-700 text-white px-4 py-2 rounded-lg text-sm transition-colors flex items-center gap-2">
+                    📊 Excel
+                </button>
+                <button onclick="exportReport('json')" class="bg-slate-600 hover:bg-slate-700 text-white px-4 py-2 rounded-lg text-sm transition-colors flex items-center gap-2">
+                    💾 JSON
+                </button>
+                <button onclick="window.print()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm transition-colors flex items-center gap-2">
+                    🖨️ طباعة
+                </button>
+            </div>
+        </div>
+    </div>
+
+    {# ============================================================ #}
+    {# ============ تذييل ============ #}
+    {# ============================================================ #}
+    <div class="text-center text-xs text-slate-400 dark:text-slate-500 py-4 border-t border-slate-200 dark:border-slate-700">
+        آخر تحديث: {{ stats.last_updated|default('الآن') }}
+        {% if stats.can_modify_previous %}
+        | <span class="text-amber-600 dark:text-amber-400">✏️ يمكن تعديل البيانات السابقة</span>
+        {% endif %}
+    </div>
+</div>
+
+{# ============================================================ #}
+{# ============ Modal: تسجيل حضور الطالب ============ #}
+{# ============================================================ #}
+<div id="studentModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm hidden items-center justify-center z-50 p-4" onclick="closeModal('studentModal', event)">
+    <div class="bg-white dark:bg-slate-800 rounded-2xl max-w-md w-full max-h-[90vh] overflow-y-auto shadow-2xl" onclick="event.stopPropagation()">
+        <div class="sticky top-0 bg-white dark:bg-slate-800 px-6 py-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between rounded-t-2xl">
+            <h3 class="text-xl font-bold text-slate-800 dark:text-white" id="studentModalTitle">تسجيل حضور الطالب</h3>
+            <button onclick="closeModal('studentModal')" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-2xl">×</button>
+        </div>
+        
+        <div class="p-6 space-y-4">
+            <div>
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">👤 الطالب</label>
+                <input type="text" id="studentModalName" class="w-full border border-slate-300 dark:border-slate-600 rounded-lg px-4 py-2 bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200" readonly>
+            </div>
+            
+            <div>
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">📅 التاريخ</label>
+                <input type="date" id="studentModalDate" class="w-full border border-slate-300 dark:border-slate-600 rounded-lg px-4 py-2 bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200">
+            </div>
+            
+            <div>
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">✅ الحالة</label>
+                <div class="grid grid-cols-2 gap-2">
+                    <button onclick="selectStatus('present')" class="status-btn px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-success-50 dark:hover:bg-success-900/20 transition-colors text-center" data-status="present">
+                        ✅ حاضر
+                    </button>
+                    <button onclick="selectStatus('absent')" class="status-btn px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-danger-50 dark:hover:bg-danger-900/20 transition-colors text-center" data-status="absent">
+                        ❌ غائب
+                    </button>
+                    <button onclick="selectStatus('late')" class="status-btn px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-warning-50 dark:hover:bg-warning-900/20 transition-colors text-center" data-status="late">
+                        🟠 متأخر
+                    </button>
+                    <button onclick="selectStatus('excused')" class="status-btn px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors text-center" data-status="excused">
+                        📋 بعذر
+                    </button>
+                    <button onclick="selectStatus('sick')" class="status-btn px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors text-center" data-status="sick">
+                        🏥 مريض
+                    </button>
+                    <button onclick="selectStatus('unrecorded')" class="status-btn px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors text-center" data-status="unrecorded">
+                        ⚪ غير محدد
+                    </button>
+                </div>
+            </div>
+            
+            <div>
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">📝 ملاحظات</label>
+                <textarea id="studentModalNotes" rows="3" class="w-full border border-slate-300 dark:border-slate-600 rounded-lg px-4 py-2 bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200" placeholder="أدخل أي ملاحظات هنا..."></textarea>
+            </div>
+            
+            <input type="hidden" id="studentModalId" value="">
+            <input type="hidden" id="studentModalSelectedStatus" value="">
+            
+            <button onclick="saveStudentAttendance()" class="w-full bg-primary-600 hover:bg-primary-700 text-white px-6 py-2.5 rounded-lg font-medium transition-colors">
+                💾 حفظ
+            </button>
         </div>
     </div>
 </div>
+
+{# ============================================================ #}
+{# ============ Modal: إضافة ملاحظة ============ #}
+{# ============================================================ #}
+<div id="notesModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm hidden items-center justify-center z-50 p-4" onclick="closeModal('notesModal', event)">
+    <div class="bg-white dark:bg-slate-800 rounded-2xl max-w-md w-full max-h-[90vh] overflow-y-auto shadow-2xl" onclick="event.stopPropagation()">
+        <div class="sticky top-0 bg-white dark:bg-slate-800 px-6 py-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between rounded-t-2xl">
+            <h3 class="text-xl font-bold text-slate-800 dark:text-white">📝 إضافة ملاحظة</h3>
+            <button onclick="closeModal('notesModal')" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-2xl">×</button>
+        </div>
+        
+        <div class="p-6 space-y-4">
+            <div>
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">👤 الطالب</label>
+                <input type="text" id="notesModalName" class="w-full border border-slate-300 dark:border-slate-600 rounded-lg px-4 py-2 bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200" readonly>
+            </div>
+            
+            <div>
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">📅 التاريخ</label>
+                <input type="date" id="notesModalDate" class="w-full border border-slate-300 dark:border-slate-600 rounded-lg px-4 py-2 bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200">
+            </div>
+            
+            <div>
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">📝 الملاحظة</label>
+                <textarea id="notesModalContent" rows="4" class="w-full border border-slate-300 dark:border-slate-600 rounded-lg px-4 py-2 bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200" placeholder="أدخل الملاحظة هنا..."></textarea>
+            </div>
+            
+            <input type="hidden" id="notesModalStudentId" value="">
+            
+            <button onclick="saveNotes()" class="w-full bg-amber-600 hover:bg-amber-700 text-white px-6 py-2.5 rounded-lg font-medium transition-colors">
+                💾 حفظ الملاحظة
+            </button>
+        </div>
+    </div>
+</div>
+
+{# ============================================================ #}
+{# ============ JavaScript ============ #}
+{# ============================================================ #}
+<script>
+// ============ التبويبات ============
+function switchTab(tabName) {
+    // إخفاء كل المحتوى
+    document.querySelectorAll('.tab-content').forEach(el => {
+        el.classList.add('hidden');
+    });
+    
+    // إظهار التبويب المطلوب
+    const target = document.getElementById('tab-' + tabName);
+    if (target) {
+        target.classList.remove('hidden');
+    }
+    
+    // تحديث حالة الأزرار
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.remove('bg-primary-600', 'text-white');
+        btn.classList.add('bg-slate-100', 'dark:bg-slate-700', 'text-slate-600', 'dark:text-slate-300');
+    });
+    
+    const activeBtn = document.querySelector(`.tab-btn[data-tab="${tabName}"]`);
+    if (activeBtn) {
+        activeBtn.classList.remove('bg-slate-100', 'dark:bg-slate-700', 'text-slate-600', 'dark:text-slate-300');
+        activeBtn.classList.add('bg-primary-600', 'text-white');
+    }
+}
+
+// ============ التنقل بين الأسابيع ============
+function changeWeek(direction) {
+    const currentUrl = new URL(window.location.href);
+    const weekParam = currentUrl.searchParams.get('week_offset') || '0';
+    let offset = parseInt(weekParam) + direction;
+    currentUrl.searchParams.set('week_offset', offset);
+    window.location.href = currentUrl.toString();
+}
+
+// ============ Modal: الطالب ============
+function openStudentModal(studentId) {
+    const modal = document.getElementById('studentModal');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    document.body.style.overflow = 'hidden';
+    
+    // جلب بيانات الطالب عبر AJAX
+    fetch(`/teacher/student/${studentId}/data`)
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('studentModalId').value = studentId;
+            document.getElementById('studentModalName').value = data.name || '';
+            document.getElementById('studentModalDate').value = data.today_date || new Date().toISOString().split('T')[0];
+            document.getElementById('studentModalNotes').value = data.notes || '';
+            
+            // تعيين الحالة الحالية
+            const status = data.today_status || 'unrecorded';
+            selectStatus(status);
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('حدث خطأ في جلب بيانات الطالب');
+        });
+}
+
+function selectStatus(status) {
+    document.querySelectorAll('.status-btn').forEach(btn => {
+        btn.classList.remove('ring-2', 'ring-primary-500', 'bg-primary-50', 'dark:bg-primary-900/20');
+        btn.classList.add('border-slate-200', 'dark:border-slate-700');
+    });
+    
+    const selected = document.querySelector(`.status-btn[data-status="${status}"]`);
+    if (selected) {
+        selected.classList.remove('border-slate-200', 'dark:border-slate-700');
+        selected.classList.add('ring-2', 'ring-primary-500', 'bg-primary-50', 'dark:bg-primary-900/20');
+    }
+    
+    document.getElementById('studentModalSelectedStatus').value = status;
+}
+
+function saveStudentAttendance() {
+    const studentId = document.getElementById('studentModalId').value;
+    const date = document.getElementById('studentModalDate').value;
+    const status = document.getElementById('studentModalSelectedStatus').value;
+    const notes = document.getElementById('studentModalNotes').value;
+    
+    if (!status || status === 'unrecorded') {
+        alert('الرجاء اختيار حالة الحضور');
+        return;
+    }
+    
+    fetch('/teacher/attendance/save', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCsrfToken()
+        },
+        body: JSON.stringify({
+            student_id: studentId,
+            date: date,
+            status: status,
+            notes: notes
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            closeModal('studentModal');
+            location.reload();
+        } else {
+            alert(data.message || 'حدث خطأ في حفظ البيانات');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('حدث خطأ في حفظ البيانات');
+    });
+}
+
+// ============ Modal: الملاحظات ============
+function openNotesModal(studentId) {
+    const modal = document.getElementById('notesModal');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    document.body.style.overflow = 'hidden';
+    
+    fetch(`/teacher/student/${studentId}/data`)
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('notesModalStudentId').value = studentId;
+            document.getElementById('notesModalName').value = data.name || '';
+            document.getElementById('notesModalDate').value = new Date().toISOString().split('T')[0];
+            document.getElementById('notesModalContent').value = '';
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('حدث خطأ في جلب بيانات الطالب');
+        });
+}
+
+function saveNotes() {
+    const studentId = document.getElementById('notesModalStudentId').value;
+    const date = document.getElementById('notesModalDate').value;
+    const content = document.getElementById('notesModalContent').value;
+    
+    if (!content.trim()) {
+        alert('الرجاء إدخال الملاحظة');
+        return;
+    }
+    
+    fetch('/teacher/student/notes/save', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCsrfToken()
+        },
+        body: JSON.stringify({
+            student_id: studentId,
+            date: date,
+            content: content
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            closeModal('notesModal');
+            location.reload();
+        } else {
+            alert(data.message || 'حدث خطأ في حفظ الملاحظة');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('حدث خطأ في حفظ الملاحظة');
+    });
+}
+
+// ============ دوال مساعدة ============
+function closeModal(modalId, event) {
+    if (event && event.target !== event.currentTarget) return;
+    const modal = document.getElementById(modalId);
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+    document.body.style.overflow = 'auto';
+}
+
+function getCsrfToken() {
+    const meta = document.querySelector('meta[name="csrf-token"]');
+    return meta ? meta.content : '';
+}
+
+function viewStudentProfile(studentId) {
+    window.location.href = `/teacher/student/${studentId}/profile`;
+}
+
+function showNotes(studentId) {
+    window.location.href = `/teacher/student/${studentId}/notes`;
+}
+
+function openLessonModal(lessonId) {
+    window.location.href = `/teacher/lesson/${lessonId}`;
+}
+
+function exportReport(type) {
+    const url = `/teacher/report/export?type=${type}`;
+    window.open(url, '_blank');
+}
+
+// ============ تهيئة عند التحميل ============
+document.addEventListener('DOMContentLoaded', function() {
+    // تعيين التبويب الافتراضي
+    switchTab('lessons');
+    
+    // تعيين التاريخ الافتراضي في المودالات
+    const today = new Date().toISOString().split('T')[0];
+    document.querySelectorAll('input[type="date"]').forEach(el => {
+        if (!el.value) {
+            el.value = today;
+        }
+    });
+});
+
+// ============ اختصارات لوحة المفاتيح ============
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        document.querySelectorAll('.fixed.inset-0').forEach(modal => {
+            if (!modal.classList.contains('hidden')) {
+                const modalId = modal.id;
+                closeModal(modalId);
+            }
+        });
+    }
+});
+</script>
+
+{# ============================================================ #}
+{# ============ Styles إضافية ============ #}
+{# ============================================================ #}
+<style>
+/* ============ تنسيقات البطاقات ============ */
+.day-card {
+    transition: all 0.3s ease;
+}
+.day-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px -5px rgba(0,0,0,0.1);
+}
+
+/* ============ تنسيقات الجدول ============ */
+#students-table tbody tr {
+    transition: background-color 0.2s ease;
+}
+
+/* ============ تنسيقات المودال ============ */
+.modal-overlay {
+    animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.modal-content {
+    animation: slideUp 0.3s ease;
+}
+
+@keyframes slideUp {
+    from { 
+        opacity: 0;
+        transform: translateY(30px);
+    }
+    to { 
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* ============ تنسيقات الطباعة ============ */
+@media print {
+    .no-print { display: none !important; }
+    .day-card { break-inside: avoid; }
+    #students-table { font-size: 10px; }
+}
+
+/* ============ تنسيقات التمرير ============ */
+::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
+}
+::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 10px;
+}
+::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: #a1a1a1;
+}
+
+.dark ::-webkit-scrollbar-track {
+    background: #1e293b;
+}
+.dark ::-webkit-scrollbar-thumb {
+    background: #475569;
+}
+.dark ::-webkit-scrollbar-thumb:hover {
+    background: #64748b;
+}
+</style>
 {% endblock %}
