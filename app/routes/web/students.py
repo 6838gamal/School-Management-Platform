@@ -40,10 +40,10 @@ templates = Jinja2Templates(directory="app/templates")
 # ============================================================
 
 # ============================================================
-# دالة مساعدة لتحويل البيانات إلى JSON آمن
+# دالة مساعدة لتحويل البيانات إلى JSON آمن (لـ JSONResponse فقط)
 # ============================================================
 def safe_to_json(obj):
-    """تحويل الكائنات إلى صيغة JSON آمنة (معالجة التواريخ)"""
+    """تحويل الكائنات إلى صيغة JSON آمنة (معالجة التواريخ) - للاستخدام مع JSONResponse فقط"""
     if isinstance(obj, dict):
         return {k: safe_to_json(v) for k, v in obj.items()}
     elif isinstance(obj, list):
@@ -89,7 +89,6 @@ def parse_birth_date(value):
             parts = value.split('/')
             if len(parts) == 3:
                 try:
-                    # محاولة كـ DD/MM/YYYY
                     return f"{parts[2].zfill(4)}-{parts[1].zfill(2)}-{parts[0].zfill(2)}"
                 except:
                     pass
@@ -233,7 +232,7 @@ def get_field_value(row, field_name: str, column_mappings: dict):
 
 
 # ============================================================
-# 📥 POST /students/import - استيراد الطلاب من ملف (محدث)
+# 📥 POST /students/import - استيراد الطلاب من ملف
 # ============================================================
 @router.post("/import")
 async def import_students(
@@ -271,7 +270,6 @@ async def import_students(
         errors = []
         
         if filename.endswith('.csv'):
-            # قراءة CSV
             try:
                 text = content.decode('utf-8')
                 lines = [line.strip() for line in text.split('\n') if line.strip()]
@@ -284,11 +282,9 @@ async def import_students(
                         'errors': ['الملف لا يحتوي على بيانات كافية']
                     }, status_code=400)
                 
-                # استخراج العناوين
                 headers = [h.strip() for h in lines[0].split(',')]
                 print(f"📋 العناوين المستخرجة: {headers}")
                 
-                # معالجة الصفوف
                 for idx, line in enumerate(lines[1:], start=2):
                     if line.strip():
                         values = [v.strip() for v in line.split(',')]
@@ -296,10 +292,9 @@ async def import_students(
                             row = dict(zip(headers, values))
                             data.append(row)
                         else:
-                            errors.append(f"الصف {idx}: عدد الأعمدة غير متطابق (متوقع {len(headers)}, وجد {len(values)})")
+                            errors.append(f"الصف {idx}: عدد الأعمدة غير متطابق")
                             
             except UnicodeDecodeError:
-                # محاولة بترميز آخر
                 try:
                     text = content.decode('windows-1256')
                     lines = [line.strip() for line in text.split('\n') if line.strip()]
@@ -316,14 +311,10 @@ async def import_students(
                     errors.append(f"خطأ في قراءة الملف: {str(e)}")
                     
         elif filename.endswith('.xlsx') or filename.endswith('.xls'):
-            # قراءة Excel
             try:
                 df = pd.read_excel(io.BytesIO(content), engine='openpyxl' if filename.endswith('.xlsx') else 'xlrd')
-                
-                # تحويل DataFrame إلى قائمة من القواميس
                 data = df.to_dict('records')
                 
-                # تحويل جميع القيم إلى سلاسل نصية
                 for row in data:
                     for key, value in row.items():
                         if pd.isna(value):
@@ -337,7 +328,6 @@ async def import_students(
                 errors.append(f"خطأ في قراءة ملف Excel: {str(e)}")
                 
         elif filename.endswith('.pdf'):
-            # قراءة PDF
             try:
                 with pdfplumber.open(io.BytesIO(content)) as pdf:
                     text = ''
@@ -352,12 +342,11 @@ async def import_students(
         else:
             return JSONResponse({
                 'success': False,
-                'message': 'نوع الملف غير مدعوم. يرجى استخدام CSV, Excel, أو PDF',
+                'message': 'نوع الملف غير مدعوم',
                 'imported': 0,
                 'errors': ['نوع الملف غير مدعوم']
             }, status_code=400)
         
-        # التحقق من وجود بيانات
         if not data:
             return JSONResponse({
                 'success': False,
@@ -368,16 +357,13 @@ async def import_students(
         
         print(f"📊 عدد الصفوف المستخرجة: {len(data)}")
         
-        # ============================================================
-        # ✅ أسماء الأعمدة المدعومة (عربي وإنجليزي)
-        # ============================================================
         column_mappings = {
             'student_number': ['رقم الطالب', 'student_number', 'Student Number', 'StudentNumber', 'الرقم'],
             'national_id': ['الرقم الوطني', 'national_id', 'National ID', 'NationalID', 'الهوية'],
             'first_name': ['الاسم الأول', 'first_name', 'First Name', 'FirstName', 'الاسم'],
             'last_name': ['اسم العائلة', 'last_name', 'Last Name', 'LastName', 'العائلة', 'اللقب'],
             'gender': ['الجنس', 'gender', 'Gender'],
-            'birth_date': ['تاريخ الميلاد', 'birth_date', 'Birth Date', 'BirthDate', 'تاريخ الميلاد'],
+            'birth_date': ['تاريخ الميلاد', 'birth_date', 'Birth Date', 'BirthDate'],
             'guardian_name': ['اسم ولي الأمر', 'guardian_name', 'Guardian Name', 'GuardianName', 'ولي الأمر'],
             'guardian_phone': ['هاتف ولي الأمر', 'guardian_phone', 'Guardian Phone', 'GuardianPhone', 'هاتف ولي'],
             'guardian_email': ['البريد الإلكتروني لولي الأمر', 'guardian_email', 'Guardian Email', 'GuardianEmail', 'بريد ولي'],
@@ -387,26 +373,18 @@ async def import_students(
             'section_name': ['الشعبة', 'section', 'Section', 'الفصل'],
         }
         
-        # ============================================================
-        # ✅ معالجة البيانات واستيرادها
-        # ============================================================
-        
         imported_count = 0
         import_errors = []
         
         for idx, row in enumerate(data, start=2):
             try:
-                # استخراج البيانات
                 student_number = get_field_value(row, 'student_number', column_mappings)
                 national_id = get_field_value(row, 'national_id', column_mappings)
                 first_name = get_field_value(row, 'first_name', column_mappings)
                 last_name = get_field_value(row, 'last_name', column_mappings)
                 gender = get_field_value(row, 'gender', column_mappings)
-                
-                # ✅ معالجة تاريخ الميلاد بشكل صحيح
                 birth_date_raw = get_field_value(row, 'birth_date', column_mappings)
                 birth_date = parse_birth_date(birth_date_raw) if birth_date_raw else None
-                
                 guardian_name = get_field_value(row, 'guardian_name', column_mappings)
                 guardian_phone = get_field_value(row, 'guardian_phone', column_mappings)
                 guardian_email = get_field_value(row, 'guardian_email', column_mappings)
@@ -417,15 +395,11 @@ async def import_students(
                 
                 print(f"🔍 الصف {idx}: رقم={student_number}, الاسم={first_name} {last_name}, تاريخ الميلاد={birth_date}")
                 
-                # ✅ التحقق من الحقول المطلوبة
                 field_errors = []
-                
                 if not student_number:
                     field_errors.append("رقم الطالب مطلوب")
-                
                 if not first_name:
                     field_errors.append("الاسم الأول مطلوب")
-                
                 if not last_name:
                     field_errors.append("اسم العائلة مطلوب")
                 
@@ -433,7 +407,6 @@ async def import_students(
                     import_errors.append(f"الصف {idx}: " + "، ".join(field_errors))
                     continue
                 
-                # ✅ الحصول على المعرفات من الأسماء
                 year_id = None
                 if year_name:
                     year_id = await get_year_id_by_name(db, user.school_id, year_name)
@@ -455,7 +428,6 @@ async def import_students(
                         import_errors.append(f"الصف {idx}: الشعبة '{section_name}' غير موجودة")
                         continue
                 
-                # ✅ التحقق من تكرار رقم الطالب
                 existing = await db.execute(
                     select(Student).where(
                         Student.student_number == student_number,
@@ -466,7 +438,6 @@ async def import_students(
                     import_errors.append(f"الصف {idx}: رقم الطالب '{student_number}' موجود بالفعل")
                     continue
                 
-                # ✅ إنشاء بيانات الطالب
                 student_data = StudentCreate(
                     student_number=student_number,
                     national_id=national_id,
@@ -483,7 +454,6 @@ async def import_students(
                     section_id=section_id,
                 )
                 
-                # ✅ إنشاء الطالب
                 service = StudentService(db)
                 await service.create_student(student_data, user.id, user.school_id)
                 imported_count += 1
@@ -497,10 +467,6 @@ async def import_students(
             except Exception as e:
                 import_errors.append(f"الصف {idx}: {str(e)}")
                 print(f"❌ خطأ في الصف {idx}: {str(e)}")
-        
-        # ============================================================
-        # ✅ عرض النتيجة النهائية
-        # ============================================================
         
         success_message = f'تم استيراد {imported_count} طالب بنجاح'
         if import_errors:
@@ -534,13 +500,11 @@ async def import_students(
 def parse_pdf_data(lines):
     """
     معالجة البيانات المستخرجة من PDF
-    يمكن تخصيص هذه الدالة حسب تنسيق ملف PDF الخاص بك
     """
     students = []
     current_student = {}
     
     for line in lines:
-        # البحث عن رقم الطالب
         if 'رقم الطالب' in line or 'Student Number' in line or 'StudentNumber' in line:
             if current_student:
                 students.append(current_student)
@@ -549,12 +513,10 @@ def parse_pdf_data(lines):
             if len(parts) > 1:
                 current_student['student_number'] = parts[1].strip()
             else:
-                # محاولة استخراج الرقم من النص
                 numbers = re.findall(r'\d+', line)
                 if numbers:
                     current_student['student_number'] = numbers[0]
         
-        # البحث عن الاسم
         elif 'الاسم' in line or 'Name' in line:
             parts = line.split(':')
             if len(parts) > 1:
@@ -566,37 +528,31 @@ def parse_pdf_data(lines):
                 else:
                     current_student['first_name'] = name
         
-        # البحث عن السنة
         elif 'السنة' in line or 'Year' in line:
             parts = line.split(':')
             if len(parts) > 1:
                 current_student['year'] = parts[1].strip()
         
-        # البحث عن الصف
         elif 'الصف' in line or 'Grade' in line:
             parts = line.split(':')
             if len(parts) > 1:
                 current_student['grade'] = parts[1].strip()
         
-        # البحث عن الشعبة
         elif 'الشعبة' in line or 'Section' in line:
             parts = line.split(':')
             if len(parts) > 1:
                 current_student['section'] = parts[1].strip()
         
-        # البحث عن الجنس
         elif 'الجنس' in line or 'Gender' in line:
             parts = line.split(':')
             if len(parts) > 1:
                 current_student['gender'] = parts[1].strip()
         
-        # البحث عن تاريخ الميلاد
         elif 'تاريخ الميلاد' in line or 'Birth Date' in line:
             parts = line.split(':')
             if len(parts) > 1:
                 current_student['birth_date'] = parts[1].strip()
         
-        # البحث عن ولي الأمر
         elif 'ولي الأمر' in line or 'Guardian' in line:
             parts = line.split(':')
             if len(parts) > 1:
@@ -607,13 +563,11 @@ def parse_pdf_data(lines):
                 elif 'بريد' in line or 'Email' in line:
                     current_student['guardian_email'] = parts[1].strip()
         
-        # البحث عن العنوان
         elif 'العنوان' in line or 'Address' in line:
             parts = line.split(':')
             if len(parts) > 1:
                 current_student['address'] = parts[1].strip()
     
-    # إضافة آخر طالب
     if current_student:
         students.append(current_student)
     
@@ -630,15 +584,11 @@ async def export_students(
     user: CurrentUser = Depends(require_any_permission("students.view")),
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    تصدير بيانات الطلاب بصيغة Excel, CSV, أو PDF
-    """
     try:
         service = StudentService(db)
         students = await service.get_all_students(user.school_id)
         
         if format == "excel":
-            # تصدير Excel
             data = []
             for student in students:
                 data.append({
@@ -672,7 +622,6 @@ async def export_students(
             )
         
         elif format == "csv":
-            # تصدير CSV
             data = []
             for student in students:
                 data.append({
@@ -704,7 +653,6 @@ async def export_students(
             )
         
         elif format == "pdf":
-            # تصدير PDF (سيتم تنفيذه لاحقاً)
             return JSONResponse({
                 'success': False,
                 'message': 'تصدير PDF قيد التطوير'
@@ -735,9 +683,6 @@ async def get_student_stats(
     user: CurrentUser = Depends(require_any_permission("students.view")),
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    الحصول على إحصائيات الطلاب
-    """
     try:
         service = StudentService(db)
         stats = await service.get_student_stats(
@@ -764,9 +709,6 @@ async def get_student_stats_detail(
     user: CurrentUser = Depends(require_any_permission("students.view")),
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    الحصول على إحصائيات طالب محدد (الحضور، الواجبات، الأنشطة)
-    """
     try:
         service = StudentService(db)
         stats = await service.get_student_detailed_stats(student_id)
@@ -793,9 +735,6 @@ async def update_student_attendance(
     user: CurrentUser = Depends(require_any_permission("students.update")),
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    تحديث حالة حضور الطالب
-    """
     try:
         data = await request.json()
         status = data.get('status')
@@ -840,9 +779,6 @@ async def update_student_late(
     user: CurrentUser = Depends(require_any_permission("students.update")),
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    تحديث حالة التأخر للطالب
-    """
     try:
         data = await request.json()
         periods = data.get('periods', [])
@@ -879,9 +815,6 @@ async def update_student_assignments(
     user: CurrentUser = Depends(require_any_permission("students.update")),
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    تحديث واجبات الطالب
-    """
     try:
         data = await request.json()
         assignments = data.get('assignments', [])
@@ -918,9 +851,6 @@ async def update_student_activities(
     user: CurrentUser = Depends(require_any_permission("students.update")),
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    تحديث أنشطة الطالب
-    """
     try:
         data = await request.json()
         activities = data.get('activities', [])
@@ -960,7 +890,6 @@ async def student_new(
     try:
         data = await get_onboarding_data(db, user.school_id)
         
-        # تحويل البيانات إلى صيغة مناسبة للقالب
         sections_data = []
         for section in data.get("sections", []):
             sections_data.append({
@@ -977,9 +906,9 @@ async def student_new(
                 **ctx, 
                 "title": "إضافة طالب", 
                 "mode": "create", 
-                "sections": safe_to_json(sections_data), 
-                "years": safe_to_json(data.get("years", [])),
-                "grades": safe_to_json(data.get("grades", [])),
+                "sections": sections_data,  # ✅ بدون safe_to_json
+                "years": data.get("years", []),  # ✅ بدون safe_to_json
+                "grades": data.get("grades", []),  # ✅ بدون safe_to_json
                 "student": None,
                 "error": None
             },
@@ -1027,10 +956,8 @@ async def student_create(
     service = StudentService(db)
     ctx = await template_context(request)
     
-    # ✅ جمع الأخطاء لعرضها للمستخدم
     errors = {}
     
-    # التحقق من صحة البيانات الأساسية
     if not student_number or len(student_number.strip()) < 3:
         errors["student_number"] = "رقم الطالب يجب أن يكون 3 أحرف على الأقل"
     
@@ -1040,7 +967,6 @@ async def student_create(
     if not last_name or len(last_name.strip()) < 2:
         errors["last_name"] = "اسم العائلة يجب أن يكون حرفين على الأقل"
     
-    # إذا كان هناك أخطاء، ارجع الصفحة مع رسائل الخطأ
     if errors:
         data = await get_onboarding_data(db, user.school_id)
         sections_data = []
@@ -1058,9 +984,9 @@ async def student_create(
                 **ctx, 
                 "title": "إضافة طالب", 
                 "mode": "create", 
-                "sections": safe_to_json(sections_data), 
-                "years": safe_to_json(data.get("years", [])),
-                "grades": safe_to_json(data.get("grades", [])),
+                "sections": sections_data,  # ✅ بدون safe_to_json
+                "years": data.get("years", []),  # ✅ بدون safe_to_json
+                "grades": data.get("grades", []),  # ✅ بدون safe_to_json
                 "student": None,
                 "error": "الرجاء تصحيح الأخطاء التالية:<br>• " + "<br>• ".join(errors.values())
             },
@@ -1103,9 +1029,9 @@ async def student_create(
                 **ctx, 
                 "title": "إضافة طالب", 
                 "mode": "create", 
-                "sections": safe_to_json(sections_data), 
-                "years": safe_to_json(data.get("years", [])),
-                "grades": safe_to_json(data.get("grades", [])),
+                "sections": sections_data,  # ✅ بدون safe_to_json
+                "years": data.get("years", []),  # ✅ بدون safe_to_json
+                "grades": data.get("grades", []),  # ✅ بدون safe_to_json
                 "student": None,
                 "error": str(e)
             },
@@ -1128,9 +1054,9 @@ async def student_create(
                 **ctx, 
                 "title": "إضافة طالب", 
                 "mode": "create", 
-                "sections": safe_to_json(sections_data), 
-                "years": safe_to_json(data.get("years", [])),
-                "grades": safe_to_json(data.get("grades", [])),
+                "sections": sections_data,  # ✅ بدون safe_to_json
+                "years": data.get("years", []),  # ✅ بدون safe_to_json
+                "grades": data.get("grades", []),  # ✅ بدون safe_to_json
                 "student": None,
                 "error": str(e)
             },
@@ -1153,9 +1079,9 @@ async def student_create(
                 **ctx, 
                 "title": "إضافة طالب", 
                 "mode": "create", 
-                "sections": safe_to_json(sections_data), 
-                "years": safe_to_json(data.get("years", [])),
-                "grades": safe_to_json(data.get("grades", [])),
+                "sections": sections_data,  # ✅ بدون safe_to_json
+                "years": data.get("years", []),  # ✅ بدون safe_to_json
+                "grades": data.get("grades", []),  # ✅ بدون safe_to_json
                 "student": None,
                 "error": str(e)
             },
@@ -1179,9 +1105,9 @@ async def student_create(
                 **ctx, 
                 "title": "إضافة طالب", 
                 "mode": "create", 
-                "sections": safe_to_json(sections_data), 
-                "years": safe_to_json(data.get("years", [])),
-                "grades": safe_to_json(data.get("grades", [])),
+                "sections": sections_data,  # ✅ بدون safe_to_json
+                "years": data.get("years", []),  # ✅ بدون safe_to_json
+                "grades": data.get("grades", []),  # ✅ بدون safe_to_json
                 "student": None,
                 "error": f"حدث خطأ غير متوقع: {str(e)}"
             },
@@ -1208,7 +1134,6 @@ async def students_list(
     try:
         service = StudentService(db)
         
-        # جلب بيانات التصفية
         data = await get_onboarding_data(db, user.school_id)
         
         result = await service.list_students(
@@ -1223,15 +1148,13 @@ async def students_list(
             is_active=True,
         )
         
-        # ✅ تحويل البيانات إلى JSON آمن للاستخدام في Alpine.js
-        students_safe = safe_to_json(result.get("items", []))
-        
+        # ✅ تمرير البيانات مباشرة (سيتم تحويلها في القالب عبر tojson|safe)
         return templates.TemplateResponse(
             "students/list.html",
             {
                 **ctx, 
                 "title": "الطلاب", 
-                "students": students_safe,
+                "students": result.get("items", []),  # ✅ بدون safe_to_json
                 "total": result.get("total", 0),
                 "page": page, 
                 "page_size": 20, 
@@ -1240,9 +1163,9 @@ async def students_list(
                 "grade_filter": grade_id,
                 "year_filter": year_id,
                 "section_filter": section_id,
-                "grades": safe_to_json(data.get("grades", [])),
-                "years": safe_to_json(data.get("years", [])),
-                "sections": safe_to_json(data.get("sections", [])),
+                "grades": data.get("grades", []),  # ✅ بدون safe_to_json
+                "years": data.get("years", []),    # ✅ بدون safe_to_json
+                "sections": data.get("sections", []),  # ✅ بدون safe_to_json
                 "error": None
             },
         )
@@ -1303,10 +1226,10 @@ async def student_edit(
                 **ctx, 
                 "title": "تعديل طالب", 
                 "mode": "edit", 
-                "student": safe_to_json(detail), 
-                "sections": safe_to_json(sections_data), 
-                "years": safe_to_json(data.get("years", [])),
-                "grades": safe_to_json(data.get("grades", [])),
+                "student": detail,  # ✅ بدون safe_to_json
+                "sections": sections_data,  # ✅ بدون safe_to_json
+                "years": data.get("years", []),  # ✅ بدون safe_to_json
+                "grades": data.get("grades", []),  # ✅ بدون safe_to_json
                 "error": None
             },
         )
@@ -1351,7 +1274,6 @@ async def student_update(
     service = StudentService(db)
     ctx = await template_context(request)
     
-    # ✅ جمع الأخطاء لعرضها للمستخدم
     errors = {}
     
     if first_name is not None and first_name.strip() and len(first_name.strip()) < 2:
@@ -1379,10 +1301,10 @@ async def student_update(
                     **ctx, 
                     "title": "تعديل طالب", 
                     "mode": "edit", 
-                    "student": safe_to_json(detail),
-                    "sections": safe_to_json(sections_data), 
-                    "years": safe_to_json(data.get("years", [])),
-                    "grades": safe_to_json(data.get("grades", [])),
+                    "student": detail,  # ✅ بدون safe_to_json
+                    "sections": sections_data,  # ✅ بدون safe_to_json
+                    "years": data.get("years", []),  # ✅ بدون safe_to_json
+                    "grades": data.get("grades", []),  # ✅ بدون safe_to_json
                     "error": "الرجاء تصحيح الأخطاء التالية:<br>• " + "<br>• ".join(errors.values())
                 },
                 status_code=422
@@ -1438,10 +1360,10 @@ async def student_update(
                     **ctx, 
                     "title": "تعديل طالب", 
                     "mode": "edit", 
-                    "student": safe_to_json(detail),
-                    "sections": safe_to_json(sections_data), 
-                    "years": safe_to_json(data.get("years", [])),
-                    "grades": safe_to_json(data.get("grades", [])),
+                    "student": detail,  # ✅ بدون safe_to_json
+                    "sections": sections_data,  # ✅ بدون safe_to_json
+                    "years": data.get("years", []),  # ✅ بدون safe_to_json
+                    "grades": data.get("grades", []),  # ✅ بدون safe_to_json
                     "error": str(e)
                 },
                 status_code=409
@@ -1471,10 +1393,10 @@ async def student_update(
                     **ctx, 
                     "title": "تعديل طالب", 
                     "mode": "edit", 
-                    "student": safe_to_json(detail),
-                    "sections": safe_to_json(sections_data), 
-                    "years": safe_to_json(data.get("years", [])),
-                    "grades": safe_to_json(data.get("grades", [])),
+                    "student": detail,  # ✅ بدون safe_to_json
+                    "sections": sections_data,  # ✅ بدون safe_to_json
+                    "years": data.get("years", []),  # ✅ بدون safe_to_json
+                    "grades": data.get("grades", []),  # ✅ بدون safe_to_json
                     "error": str(e)
                 },
                 status_code=422
@@ -1505,10 +1427,10 @@ async def student_update(
                     **ctx, 
                     "title": "تعديل طالب", 
                     "mode": "edit", 
-                    "student": safe_to_json(detail),
-                    "sections": safe_to_json(sections_data), 
-                    "years": safe_to_json(data.get("years", [])),
-                    "grades": safe_to_json(data.get("grades", [])),
+                    "student": detail,  # ✅ بدون safe_to_json
+                    "sections": sections_data,  # ✅ بدون safe_to_json
+                    "years": data.get("years", []),  # ✅ بدون safe_to_json
+                    "grades": data.get("grades", []),  # ✅ بدون safe_to_json
                     "error": f"حدث خطأ غير متوقع: {str(e)}"
                 },
                 status_code=500
@@ -1557,7 +1479,7 @@ async def student_detail(
         
         return templates.TemplateResponse(
             "students/detail.html",
-            {**ctx, "title": detail.get("full_name", "تفاصيل الطالب"), "student": safe_to_json(detail)},
+            {**ctx, "title": detail.get("full_name", "تفاصيل الطالب"), "student": detail},  # ✅ بدون safe_to_json
         )
     except NotFoundException as e:
         return templates.TemplateResponse(
@@ -1602,9 +1524,6 @@ async def debug_all_students(
     user: CurrentUser = Depends(require_any_permission("students.view")),
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    عرض جميع الطلاب مع فصولهم (للتأكد من ارتباطهم)
-    """
     try:
         students_result = await db.execute(
             select(Student, Section, Grade, AcademicYear)
