@@ -13,6 +13,7 @@ import pandas as pd
 import io
 import pdfplumber
 import json
+import re
 from pathlib import Path
 
 from app.core.database import get_db
@@ -55,6 +56,69 @@ def safe_to_json(obj):
         return str(obj)
     else:
         return obj
+
+
+# ============================================================
+# دالة مساعدة لمعالجة تاريخ الميلاد
+# ============================================================
+def parse_birth_date(value):
+    """
+    معالجة تنسيق تاريخ الميلاد من مصادر مختلفة
+    يدعم: YYYY-MM-DD, YYYY-MM-DD HH:MM:SS, DD/MM/YYYY, MM/DD/YYYY
+    """
+    if not value:
+        return None
+    
+    if isinstance(value, date):
+        return value.isoformat()
+    
+    if isinstance(value, datetime):
+        return value.date().isoformat()
+    
+    if isinstance(value, str):
+        value = value.strip()
+        
+        # ✅ إذا كان التنسيق YYYY-MM-DD HH:MM:SS
+        if ' ' in value and '-' in value:
+            parts = value.split(' ')
+            if len(parts) >= 1:
+                value = parts[0]
+        
+        # ✅ إذا كان التنسيق DD/MM/YYYY
+        if '/' in value:
+            parts = value.split('/')
+            if len(parts) == 3:
+                try:
+                    # محاولة كـ DD/MM/YYYY
+                    return f"{parts[2].zfill(4)}-{parts[1].zfill(2)}-{parts[0].zfill(2)}"
+                except:
+                    pass
+        
+        # ✅ إذا كان التنسيق DD-MM-YYYY
+        if '-' in value and not value.startswith('20') and not value.startswith('19'):
+            parts = value.split('-')
+            if len(parts) == 3:
+                try:
+                    return f"{parts[2].zfill(4)}-{parts[1].zfill(2)}-{parts[0].zfill(2)}"
+                except:
+                    pass
+        
+        # ✅ التحقق من صحة التنسيق YYYY-MM-DD
+        try:
+            datetime.strptime(value, '%Y-%m-%d')
+            return value
+        except ValueError:
+            pass
+        
+        # ✅ محاولة استخدام pandas كحل أخير
+        try:
+            import pandas as pd
+            dt = pd.to_datetime(value)
+            return dt.strftime('%Y-%m-%d')
+        except:
+            pass
+    
+    return None
 
 
 # ============================================================
@@ -313,7 +377,7 @@ async def import_students(
             'first_name': ['الاسم الأول', 'first_name', 'First Name', 'FirstName', 'الاسم'],
             'last_name': ['اسم العائلة', 'last_name', 'Last Name', 'LastName', 'العائلة', 'اللقب'],
             'gender': ['الجنس', 'gender', 'Gender'],
-            'birth_date': ['تاريخ الميلاد', 'birth_date', 'Birth Date', 'BirthDate'],
+            'birth_date': ['تاريخ الميلاد', 'birth_date', 'Birth Date', 'BirthDate', 'تاريخ الميلاد'],
             'guardian_name': ['اسم ولي الأمر', 'guardian_name', 'Guardian Name', 'GuardianName', 'ولي الأمر'],
             'guardian_phone': ['هاتف ولي الأمر', 'guardian_phone', 'Guardian Phone', 'GuardianPhone', 'هاتف ولي'],
             'guardian_email': ['البريد الإلكتروني لولي الأمر', 'guardian_email', 'Guardian Email', 'GuardianEmail', 'بريد ولي'],
@@ -338,7 +402,11 @@ async def import_students(
                 first_name = get_field_value(row, 'first_name', column_mappings)
                 last_name = get_field_value(row, 'last_name', column_mappings)
                 gender = get_field_value(row, 'gender', column_mappings)
-                birth_date = get_field_value(row, 'birth_date', column_mappings)
+                
+                # ✅ معالجة تاريخ الميلاد بشكل صحيح
+                birth_date_raw = get_field_value(row, 'birth_date', column_mappings)
+                birth_date = parse_birth_date(birth_date_raw) if birth_date_raw else None
+                
                 guardian_name = get_field_value(row, 'guardian_name', column_mappings)
                 guardian_phone = get_field_value(row, 'guardian_phone', column_mappings)
                 guardian_email = get_field_value(row, 'guardian_email', column_mappings)
@@ -347,7 +415,7 @@ async def import_students(
                 grade_name = get_field_value(row, 'grade_name', column_mappings)
                 section_name = get_field_value(row, 'section_name', column_mappings)
                 
-                print(f"🔍 الصف {idx}: رقم={student_number}, الاسم={first_name} {last_name}")
+                print(f"🔍 الصف {idx}: رقم={student_number}, الاسم={first_name} {last_name}, تاريخ الميلاد={birth_date}")
                 
                 # ✅ التحقق من الحقول المطلوبة
                 field_errors = []
@@ -482,7 +550,6 @@ def parse_pdf_data(lines):
                 current_student['student_number'] = parts[1].strip()
             else:
                 # محاولة استخراج الرقم من النص
-                import re
                 numbers = re.findall(r'\d+', line)
                 if numbers:
                     current_student['student_number'] = numbers[0]
