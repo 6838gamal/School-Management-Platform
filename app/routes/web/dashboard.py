@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, Request, HTTPException
 from fastapi.responses import RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, func, and_, or_
 from datetime import date, datetime, timedelta
 from typing import Optional, List, Dict, Any
 
@@ -149,13 +149,8 @@ async def get_deputy_full_stats(
     )
     school = school_result.scalar_one_or_none()
     
-    # جلب السنة الدراسية النشطة
-    year_result = await db.execute(
-        select(AcademicYear)
-        .where(AcademicYear.school_id == school_id)
-        .where(AcademicYear.is_active == True)
-    )
-    academic_year = year_result.scalar_one_or_none()
+    # جلب السنة الدراسية النشطة (أو الأحدث)
+    academic_year = await get_active_or_latest_academic_year(db, school_id)
     
     # ============ 2. الإحصائيات العامة ============
     # جلب عدد الطلاب
@@ -181,6 +176,13 @@ async def get_deputy_full_stats(
     )
     total_sections = sections_result.scalar() or 0
     
+    # جلب عدد المواد
+    subjects_result = await db.execute(
+        select(func.count()).select_from(Subject)
+        .where(Subject.school_id == school_id)
+    )
+    total_subjects = subjects_result.scalar() or 0
+    
     # ============ 3. إحصائيات الحضور اليوم ============
     attendance_stats = await get_attendance_stats(db, school_id, today)
     
@@ -201,6 +203,7 @@ async def get_deputy_full_stats(
         'total_students': total_students,
         'total_teachers': total_teachers,
         'total_sections': total_sections,
+        'total_subjects': total_subjects,
         
         # إحصائيات الحضور
         'total_present': attendance_stats.get('present', 0),
@@ -221,19 +224,47 @@ async def get_deputy_full_stats(
     }
 
 
+async def get_active_or_latest_academic_year(
+    db: AsyncSession,
+    school_id: str
+) -> Optional[AcademicYear]:
+    """
+    جلب السنة الدراسية النشطة، أو الأحدث إذا لم توجد سنة نشطة
+    """
+    # أولاً: محاولة جلب السنة النشطة
+    year_result = await db.execute(
+        select(AcademicYear)
+        .where(AcademicYear.school_id == school_id)
+        .where(AcademicYear.is_active == True)
+        .order_by(AcademicYear.start_date.desc())
+        .limit(1)
+    )
+    academic_year = year_result.scalar_one_or_none()
+    
+    # إذا لم يتم العثور على سنة نشطة، جلب أحدث سنة
+    if not academic_year:
+        year_result = await db.execute(
+            select(AcademicYear)
+            .where(AcademicYear.school_id == school_id)
+            .order_by(AcademicYear.start_date.desc())
+            .limit(1)
+        )
+        academic_year = year_result.scalar_one_or_none()
+    
+    return academic_year
+
+
 async def get_attendance_stats(
     db: AsyncSession,
     school_id: str,
     target_date: date
 ) -> Dict[str, Any]:
     """جلب إحصائيات الحضور ليوم محدد"""
-    from app.models import Attendance
-    
     # جلب جميع سجلات الحضور لهذا اليوم
     result = await db.execute(
-        select(Attendance)
-        .where(Attendance.school_id == school_id)
-        .where(Attendance.date == target_date)
+        select(StudentAttendance)
+        .where(StudentAttendance.school_id == school_id)
+        .where(StudentAttendance.date == target_date)
     )
     attendances = result.scalars().all()
     
@@ -265,8 +296,6 @@ async def get_weekly_attendance(
     school_id: str
 ) -> List[Dict[str, Any]]:
     """جلب بيانات الحضور لآخر 7 أيام"""
-    from app.models import Attendance
-    
     days = []
     today = date.today()
     
@@ -282,13 +311,13 @@ async def get_weekly_attendance(
         # جلب إحصائيات اليوم
         result = await db.execute(
             select(
-                func.count().filter(Attendance.status == 'present').label('present'),
-                func.count().filter(Attendance.status == 'absent').label('absent'),
-                func.count().filter(Attendance.status == 'late').label('late'),
+                func.count().filter(StudentAttendance.status == 'present').label('present'),
+                func.count().filter(StudentAttendance.status == 'absent').label('absent'),
+                func.count().filter(StudentAttendance.status == 'late').label('late'),
             )
-            .select_from(Attendance)
-            .where(Attendance.school_id == school_id)
-            .where(Attendance.date == d)
+            .select_from(StudentAttendance)
+            .where(StudentAttendance.school_id == school_id)
+            .where(StudentAttendance.date == d)
         )
         row = result.first()
         
@@ -318,9 +347,13 @@ async def build_academic_structure(
     years_query = select(AcademicYear).where(AcademicYear.school_id == school_id)
     if academic_year_id:
         years_query = years_query.where(AcademicYear.id == academic_year_id)
+    years_query = years_query.order_by(AcademicYear.start_date.desc())
     
     years_result = await db.execute(years_query)
     years = years_result.scalars().all()
+    
+    if not years:
+        return structure
     
     for year in years:
         year_data = {
@@ -382,10 +415,10 @@ async def build_academic_structure(
                     grade_data['sections'].append(section_data)
                     
                     # تجميع الإحصائيات
-                    grade_data['total_students'] += section_data['total_students']
+                    grade_data['total_students'] += section_data.get('total_students', 0)
                     grade_data['total_sections'] += 1
                     for key in ['present', 'absent', 'late']:
-                        grade_data['attendance'][key] += section_data['attendance'].get(key, 0)
+                        grade_data['attendance'][key] += section_data.get('attendance', {}).get(key, 0)
                 
                 stage_data['grades'].append(grade_data)
                 stage_data['total_students'] += grade_data['total_students']
@@ -409,8 +442,6 @@ async def build_section_data(
     section_id: str
 ) -> Dict[str, Any]:
     """بناء بيانات الشعبة كاملة مع المعلمين والطلاب والحصص"""
-    from app.models import Section, Teacher, Student, Period, Schedule
-    
     # جلب الشعبة
     section_result = await db.execute(
         select(Section).where(Section.id == section_id)
@@ -420,7 +451,7 @@ async def build_section_data(
     if not section:
         return {}
     
-    # جلب المعلمين
+    # جلب المعلمين (المعلمين المرتبطين بهذه الشعبة)
     teachers_result = await db.execute(
         select(Teacher)
         .where(Teacher.section_id == section_id)
@@ -428,11 +459,24 @@ async def build_section_data(
     )
     teachers = teachers_result.scalars().all()
     
+    # إذا لم يوجد معلمون مرتبطون مباشرة، جلب المعلمين من خلال الجدول الزمني
+    if not teachers:
+        # جلب المعلمين من الحصص
+        schedule_result = await db.execute(
+            select(Teacher)
+            .join(Period, Period.teacher_id == Teacher.id)
+            .where(Period.section_id == section_id)
+            .where(Teacher.is_active == True)
+            .distinct()
+        )
+        teachers = schedule_result.scalars().all()
+    
     # جلب الطلاب
     students_result = await db.execute(
         select(Student)
         .where(Student.section_id == section_id)
         .where(Student.is_active == True)
+        .order_by(Student.name)
     )
     students = students_result.scalars().all()
     
@@ -453,9 +497,12 @@ async def build_section_data(
     students_data = []
     for student in students:
         student_attendance = await get_student_attendance_summary(db, student.id)
+        # جلب حالة الطالب اليوم
+        student_today_status = await get_student_today_status(db, student.id)
         students_data.append({
             'name': student.name,
-            'attendance': student_attendance
+            'attendance': student_attendance,
+            'today_status': student_today_status
         })
     
     # ============ بناء بيانات المعلمين ============
@@ -465,7 +512,7 @@ async def build_section_data(
         teacher_status = await get_teacher_daily_status(db, teacher.id)
         teachers_data.append({
             'name': teacher.name,
-            'specialization': teacher.specialization,
+            'specialization': teacher.specialization or 'غير محدد',
             'status': teacher_status.get('status', 'present'),
             'status_label': get_status_label(teacher_status.get('status', 'present'))
         })
@@ -497,21 +544,19 @@ async def get_section_attendance(
     section_id: str
 ) -> Dict[str, int]:
     """جلب إحصائيات الحضور لشعبة معينة اليوم"""
-    from app.models import Attendance
-    
     today = date.today()
     result = await db.execute(
         select(
-            func.count().filter(Attendance.status == 'present').label('present'),
-            func.count().filter(Attendance.status == 'absent').label('absent'),
-            func.count().filter(Attendance.status == 'late').label('late'),
-            func.count().filter(Attendance.status == 'excused').label('excused'),
-            func.count().filter(Attendance.status == 'sick').label('sick'),
-            func.count().filter(Attendance.status == 'late_arrival').label('late_arrival'),
+            func.count().filter(StudentAttendance.status == 'present').label('present'),
+            func.count().filter(StudentAttendance.status == 'absent').label('absent'),
+            func.count().filter(StudentAttendance.status == 'late').label('late'),
+            func.count().filter(StudentAttendance.status == 'excused').label('excused'),
+            func.count().filter(StudentAttendance.status == 'sick').label('sick'),
+            func.count().filter(StudentAttendance.status == 'late_arrival').label('late_arrival'),
         )
-        .select_from(Attendance)
-        .where(Attendance.section_id == section_id)
-        .where(Attendance.date == today)
+        .select_from(StudentAttendance)
+        .where(StudentAttendance.section_id == section_id)
+        .where(StudentAttendance.date == today)
     )
     row = result.first()
     
@@ -529,22 +574,20 @@ async def get_student_attendance_summary(
     db: AsyncSession,
     student_id: str
 ) -> Dict[str, int]:
-    """جلب ملخص حضور طالب معين"""
-    from app.models import Attendance
-    
+    """جلب ملخص حضور طالب معين (آخر 30 يوم)"""
     # جلب آخر 30 يوم
     start_date = date.today() - timedelta(days=30)
     
     result = await db.execute(
         select(
-            func.count().filter(Attendance.status == 'present').label('present'),
-            func.count().filter(Attendance.status == 'absent').label('absent'),
-            func.count().filter(Attendance.status == 'late').label('late'),
-            func.count().filter(Attendance.status == 'excused').label('excused'),
+            func.count().filter(StudentAttendance.status == 'present').label('present'),
+            func.count().filter(StudentAttendance.status == 'absent').label('absent'),
+            func.count().filter(StudentAttendance.status == 'late').label('late'),
+            func.count().filter(StudentAttendance.status == 'excused').label('excused'),
         )
-        .select_from(Attendance)
-        .where(Attendance.student_id == student_id)
-        .where(Attendance.date >= start_date)
+        .select_from(StudentAttendance)
+        .where(StudentAttendance.student_id == student_id)
+        .where(StudentAttendance.date >= start_date)
     )
     row = result.first()
     
@@ -556,13 +599,26 @@ async def get_student_attendance_summary(
     }
 
 
+async def get_student_today_status(
+    db: AsyncSession,
+    student_id: str
+) -> str:
+    """جلب حالة الطالب اليوم"""
+    today = date.today()
+    result = await db.execute(
+        select(StudentAttendance.status)
+        .where(StudentAttendance.student_id == student_id)
+        .where(StudentAttendance.date == today)
+    )
+    status = result.scalar_one_or_none()
+    return status or 'غير مسجل'
+
+
 async def get_teacher_daily_status(
     db: AsyncSession,
     teacher_id: str
 ) -> Dict[str, str]:
     """جلب حالة المعلم اليوم"""
-    from app.models import TeacherAttendance
-    
     today = date.today()
     result = await db.execute(
         select(TeacherAttendance)
