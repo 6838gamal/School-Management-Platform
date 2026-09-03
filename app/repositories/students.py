@@ -37,6 +37,9 @@ class StudentRepository(BaseRepository[Student]):
         result = await self.db.execute(stmt)
         return result.scalar_one_or_none()
 
+    # ============================================================
+    # ✅ list_by_school - محدثة مع دعم status
+    # ============================================================
     async def list_by_school(
         self, 
         school_id: str, 
@@ -46,10 +49,30 @@ class StudentRepository(BaseRepository[Student]):
         year_id: Optional[str] = None,
         grade_id: Optional[str] = None,
         section_id: Optional[str] = None,
+        status: Optional[str] = None,  # ✅ إضافة معامل status
+        is_active: Optional[bool] = True,  # ✅ إضافة معامل is_active
     ) -> Tuple[List[Student], int]:
-        """جلب قائمة الطلاب في مدرسة مع البحث والترقيم والتصفية."""
+        """
+        ✅ جلب قائمة الطلاب في مدرسة مع البحث والترقيم والتصفية.
+        
+        المعاملات:
+            - school_id: معرف المدرسة (إلزامي)
+            - page: رقم الصفحة
+            - page_size: عدد العناصر في الصفحة
+            - search: كلمة البحث
+            - year_id: تصفية حسب السنة
+            - grade_id: تصفية حسب الصف
+            - section_id: تصفية حسب الشعبة
+            - status: تصفية حسب حالة الحضور (present, absent, late, permitted, excused)
+            - is_active: تصفية حسب حالة النشاط
+        """
         stmt = select(Student).where(Student.school_id == school_id)
         count_stmt = select(func.count()).select_from(Student).where(Student.school_id == school_id)
+        
+        # ✅ تصفية حسب حالة النشاط
+        if is_active is not None:
+            stmt = stmt.where(Student.is_active == is_active)
+            count_stmt = count_stmt.where(Student.is_active == is_active)
         
         # البحث
         if search:
@@ -59,6 +82,7 @@ class StudentRepository(BaseRepository[Student]):
                 Student.last_name.ilike(like),
                 Student.student_number.ilike(like),
                 Student.national_id.ilike(like),
+                Student.full_name.ilike(like),
             )
             stmt = stmt.where(search_condition)
             count_stmt = count_stmt.where(search_condition)
@@ -78,6 +102,11 @@ class StudentRepository(BaseRepository[Student]):
             stmt = stmt.where(Student.section_id == section_id)
             count_stmt = count_stmt.where(Student.section_id == section_id)
         
+        # ✅ تصفية حسب حالة الحضور
+        if status:
+            stmt = stmt.where(Student.attendance_status == status)
+            count_stmt = count_stmt.where(Student.attendance_status == status)
+        
         total = (await self.db.execute(count_stmt)).scalar() or 0
         offset = (page - 1) * page_size
         result = await self.db.execute(
@@ -87,6 +116,9 @@ class StudentRepository(BaseRepository[Student]):
         )
         return list(result.scalars().all()), total
 
+    # ============================================================
+    # ✅ list_by_section - محدثة
+    # ============================================================
     async def list_by_section(
         self, 
         school_id: str, 
@@ -107,6 +139,9 @@ class StudentRepository(BaseRepository[Student]):
         result = await self.db.execute(stmt.order_by(Student.first_name, Student.last_name))
         return list(result.scalars().all())
 
+    # ============================================================
+    # ✅ list_by_grade - محدثة
+    # ============================================================
     async def list_by_grade(
         self, 
         school_id: str, 
@@ -127,6 +162,9 @@ class StudentRepository(BaseRepository[Student]):
         result = await self.db.execute(stmt.order_by(Student.first_name, Student.last_name))
         return list(result.scalars().all())
 
+    # ============================================================
+    # ✅ list_by_year - محدثة
+    # ============================================================
     async def list_by_year(
         self, 
         school_id: str, 
@@ -142,6 +180,9 @@ class StudentRepository(BaseRepository[Student]):
         result = await self.db.execute(stmt.order_by(Student.first_name, Student.last_name))
         return list(result.scalars().all())
 
+    # ============================================================
+    # ✅ create - محدثة مع attendance_status
+    # ============================================================
     async def create(
         self,
         school_id: str,
@@ -165,6 +206,7 @@ class StudentRepository(BaseRepository[Student]):
         guardian_relation: Optional[str] = None,
         phone: Optional[str] = None,
         photo_url: Optional[str] = None,
+        attendance_status: Optional[str] = "present",  # ✅ إضافة attendance_status
     ) -> Student:
         """✅ إنشاء طالب جديد مع جميع الحقول."""
         student = Student(
@@ -185,10 +227,13 @@ class StudentRepository(BaseRepository[Student]):
             phone=phone,
             address=address,
             photo_url=photo_url,
-            # ✅ الحقول الأكاديمية الجديدة
+            # ✅ الحقول الأكاديمية
             year_id=year_id,
             grade_id=grade_id,
             section_id=section_id,
+            # ✅ حالة الحضور
+            attendance_status=attendance_status,
+            attendance_updated_at=datetime.now(timezone.utc),
             is_active=True,
             enrollment_status="active",
         )
@@ -196,13 +241,14 @@ class StudentRepository(BaseRepository[Student]):
         await self.db.flush()
         await self.db.refresh(student)
         
-        # ✅ إذا تم تحديد شعبة، إنشاء تسجيل في StudentEnrollment
+        # ✅ إذا تم تحديد شعبة وسنة، إنشاء تسجيل في StudentEnrollment
         if section_id and year_id:
             enrollment = StudentEnrollment(
                 student_id=student.id,
                 school_id=school_id,
-                year_id=year_id,  # ✅ استخدم year_id بدلاً من academic_year_id
+                year_id=year_id,
                 section_id=section_id,
+                grade_id=grade_id,
                 status="active",
                 enrolled_at=datetime.now(timezone.utc).date(),
             )
@@ -211,8 +257,11 @@ class StudentRepository(BaseRepository[Student]):
         
         return student
 
+    # ============================================================
+    # ✅ update - محدثة مع attendance_status
+    # ============================================================
     async def update(self, id: str, data: dict) -> Optional[Student]:
-        """✅ تحديث بيانات طالب مع الحقول الأكاديمية."""
+        """✅ تحديث بيانات طالب مع الحقول الأكاديمية وحالة الحضور."""
         student = await self.get_by_id(id)
         if not student:
             return None
@@ -223,18 +272,26 @@ class StudentRepository(BaseRepository[Student]):
             'national_id', 'gender', 'birth_date', 'nationality',
             'guardian_name', 'guardian_phone', 'guardian_email', 'guardian_relation',
             'phone', 'address', 'photo_url',
-            'year_id', 'grade_id', 'section_id',  # ❌ حذف period_id
-            'is_active', 'enrollment_status'
+            'year_id', 'grade_id', 'section_id',
+            'is_active', 'enrollment_status',
+            'attendance_status', 'attendance_updated_at',  # ✅ إضافة حالة الحضور
         ]
         
         for key, value in data.items():
             if key in allowed_fields and value is not None:
                 setattr(student, key, value)
         
+        # ✅ إذا تم تحديث attendance_status، قم بتحديث attendance_updated_at
+        if 'attendance_status' in data and data['attendance_status'] is not None:
+            student.attendance_updated_at = datetime.now(timezone.utc)
+        
         await self.db.flush()
         await self.db.refresh(student)
         return student
 
+    # ============================================================
+    # ✅ delete - حذف طالب (تعطيل فقط)
+    # ============================================================
     async def delete(self, id: str) -> bool:
         """حذف طالب (تعطيل فقط)."""
         student = await self.get_by_id(id)
@@ -245,6 +302,9 @@ class StudentRepository(BaseRepository[Student]):
         await self.db.flush()
         return True
 
+    # ============================================================
+    # ✅ count - حساب عدد الطلاب
+    # ============================================================
     async def count(
         self,
         school_id: str,
@@ -252,6 +312,7 @@ class StudentRepository(BaseRepository[Student]):
         grade_id: Optional[str] = None,
         year_id: Optional[str] = None,
         is_active: Optional[bool] = True,
+        status: Optional[str] = None,  # ✅ إضافة status
     ) -> int:
         """✅ حساب عدد الطلاب مع خيارات التصفية."""
         stmt = select(func.count()).select_from(Student).where(
@@ -270,7 +331,59 @@ class StudentRepository(BaseRepository[Student]):
         if year_id:
             stmt = stmt.where(Student.year_id == year_id)
         
+        if status:
+            stmt = stmt.where(Student.attendance_status == status)
+        
         return (await self.db.execute(stmt)).scalar() or 0
+
+    # ============================================================
+    # ✅ update_attendance - تحديث حالة الحضور
+    # ============================================================
+    async def update_attendance(
+        self,
+        student_id: str,
+        status: str,
+        updated_at: Optional[datetime] = None,
+    ) -> Optional[Student]:
+        """✅ تحديث حالة حضور الطالب."""
+        student = await self.get_by_id(student_id)
+        if not student:
+            return None
+        
+        student.attendance_status = status
+        student.attendance_updated_at = updated_at or datetime.now(timezone.utc)
+        
+        await self.db.flush()
+        await self.db.refresh(student)
+        return student
+
+    # ============================================================
+    # ✅ get_by_attendance_status - جلب الطلاب حسب حالة الحضور
+    # ============================================================
+    async def get_by_attendance_status(
+        self,
+        school_id: str,
+        status: str,
+        year_id: Optional[str] = None,
+        grade_id: Optional[str] = None,
+        section_id: Optional[str] = None,
+    ) -> List[Student]:
+        """✅ جلب الطلاب حسب حالة الحضور."""
+        stmt = select(Student).where(
+            Student.school_id == school_id,
+            Student.attendance_status == status,
+            Student.is_active == True
+        )
+        
+        if year_id:
+            stmt = stmt.where(Student.year_id == year_id)
+        if grade_id:
+            stmt = stmt.where(Student.grade_id == grade_id)
+        if section_id:
+            stmt = stmt.where(Student.section_id == section_id)
+        
+        result = await self.db.execute(stmt.order_by(Student.first_name, Student.last_name))
+        return list(result.scalars().all())
 
 
 class EnrollmentRepository(BaseRepository[StudentEnrollment]):
@@ -327,6 +440,7 @@ class EnrollmentRepository(BaseRepository[StudentEnrollment]):
         school_id: str,
         section_id: str,
         year_id: str,
+        grade_id: Optional[str] = None,
         enrolled_by: Optional[str] = None,
     ) -> StudentEnrollment:
         """إنشاء تسجيل جديد لطالب."""
@@ -334,7 +448,8 @@ class EnrollmentRepository(BaseRepository[StudentEnrollment]):
             student_id=student_id,
             school_id=school_id,
             section_id=section_id,
-            year_id=year_id,  # ✅ استخدم year_id
+            year_id=year_id,
+            grade_id=grade_id,
             status="active",
             enrolled_at=datetime.now(timezone.utc).date(),
         )
@@ -357,6 +472,7 @@ class EnrollmentRepository(BaseRepository[StudentEnrollment]):
         new_section_id: str,
         year_id: str,
         school_id: str,
+        grade_id: Optional[str] = None,
         performed_by: Optional[str] = None,
     ) -> StudentEnrollment:
         """
@@ -372,7 +488,8 @@ class EnrollmentRepository(BaseRepository[StudentEnrollment]):
             student_id=student_id,
             school_id=school_id,
             section_id=new_section_id,
-            year_id=year_id,  # ✅ استخدم year_id
+            year_id=year_id,
+            grade_id=grade_id,
             status="active",
             enrolled_at=datetime.now(timezone.utc).date(),
         )
