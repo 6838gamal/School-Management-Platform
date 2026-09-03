@@ -1,7 +1,8 @@
 """Holiday model - الإجازات والعطل الرسمية"""
+from typing import Optional, List, Tuple, Dict, Any
 from sqlalchemy import Column, String, Date, Boolean, Text, DateTime, Integer, ForeignKey
 from sqlalchemy.orm import relationship
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 import uuid
 
 from app.core.database import Base
@@ -140,26 +141,6 @@ class Holiday(Base):
             return "📋"
     
     @property
-    def is_official_holiday(self) -> bool:
-        """هل هي إجازة رسمية (وطنية أو دينية)"""
-        return self.is_official
-    
-    @property
-    def is_weekly_holiday(self) -> bool:
-        """هل هي إجازة أسبوعية (جمعة أو سبت)"""
-        return self.is_weekly
-    
-    @property
-    def is_recurring_holiday(self) -> bool:
-        """هل هي إجازة متكررة سنوياً"""
-        return self.is_recurring
-    
-    @property
-    def is_regular_holiday(self) -> bool:
-        """هل هي إجازة عادية (ليست رسمية ولا أسبوعية ولا متكررة)"""
-        return not (self.is_official or self.is_weekly or self.is_recurring)
-    
-    @property
     def holiday_year(self) -> int:
         """السنة التي تحدث فيها الإجازة"""
         return self.date.year
@@ -291,7 +272,7 @@ def is_date_in_holiday_range(holiday: Holiday, date_obj: date) -> bool:
     return holiday.date == date_obj
 
 
-def get_holiday_date_range(holiday: Holiday) -> tuple:
+def get_holiday_date_range(holiday: Holiday) -> Tuple[date, date]:
     """
     الحصول على نطاق تاريخ الإجازة
     
@@ -299,7 +280,7 @@ def get_holiday_date_range(holiday: Holiday) -> tuple:
         holiday: الإجازة
     
     Returns:
-        tuple: (تاريخ البداية, تاريخ النهاية)
+        Tuple[date, date]: (تاريخ البداية, تاريخ النهاية)
     """
     if holiday.start_date and holiday.end_date:
         return (holiday.start_date, holiday.end_date)
@@ -322,18 +303,18 @@ def format_holiday_date_range(holiday: Holiday) -> str:
 
 
 # ============================================================
-# ============ دوال للاستعلام عن الإجازات ============
+# ============ دوال للاستعلام عن الإجازات (Sync) ============
 # ============================================================
 
-async def get_holidays_by_school(
-    db: AsyncSession,
+def get_holidays_by_school_sync(
+    db,
     school_id: str,
     start_date: Optional[date] = None,
     end_date: Optional[date] = None,
     is_active: bool = True
 ) -> List[Holiday]:
     """
-    جلب الإجازات لمدرسة معينة
+    جلب الإجازات لمدرسة معينة (نسخة متزامنة)
     
     Args:
         db: جلسة قاعدة البيانات
@@ -360,17 +341,17 @@ async def get_holidays_by_school(
     
     query = query.order_by(Holiday.date)
     
-    result = await db.execute(query)
+    result = db.execute(query)
     return result.scalars().all()
 
 
-async def get_holiday_by_date(
-    db: AsyncSession,
+def get_holiday_by_date_sync(
+    db,
     school_id: str,
     date_obj: date
 ) -> Optional[Holiday]:
     """
-    جلب الإجازة في تاريخ محدد
+    جلب الإجازة في تاريخ محدد (نسخة متزامنة)
     
     Args:
         db: جلسة قاعدة البيانات
@@ -382,7 +363,7 @@ async def get_holiday_by_date(
     """
     from sqlalchemy import select
     
-    result = await db.execute(
+    result = db.execute(
         select(Holiday)
         .where(Holiday.school_id == school_id)
         .where(Holiday.date == date_obj.strftime('%Y-%m-%d'))
@@ -392,15 +373,15 @@ async def get_holiday_by_date(
     return result.scalar_one_or_none()
 
 
-async def get_holidays_by_month(
-    db: AsyncSession,
+def get_holidays_by_month_sync(
+    db,
     school_id: str,
     year: int,
     month: int,
     is_active: bool = True
 ) -> List[Holiday]:
     """
-    جلب الإجازات في شهر محدد
+    جلب الإجازات في شهر محدد (نسخة متزامنة)
     
     Args:
         db: جلسة قاعدة البيانات
@@ -418,17 +399,17 @@ async def get_holidays_by_month(
     else:
         end_date = date(year, month + 1, 1) - timedelta(days=1)
     
-    return await get_holidays_by_school(db, school_id, start_date, end_date, is_active)
+    return get_holidays_by_school_sync(db, school_id, start_date, end_date, is_active)
 
 
-async def get_holidays_by_year(
-    db: AsyncSession,
+def get_holidays_by_year_sync(
+    db,
     school_id: str,
     year: int,
     is_active: bool = True
 ) -> List[Holiday]:
     """
-    جلب الإجازات في سنة محددة
+    جلب الإجازات في سنة محددة (نسخة متزامنة)
     
     Args:
         db: جلسة قاعدة البيانات
@@ -441,17 +422,17 @@ async def get_holidays_by_year(
     """
     start_date = date(year, 1, 1)
     end_date = date(year, 12, 31)
-    return await get_holidays_by_school(db, school_id, start_date, end_date, is_active)
+    return get_holidays_by_school_sync(db, school_id, start_date, end_date, is_active)
 
 
-async def get_upcoming_holidays(
-    db: AsyncSession,
+def get_upcoming_holidays_sync(
+    db,
     school_id: str,
     limit: int = 10,
     is_active: bool = True
 ) -> List[Holiday]:
     """
-    جلب الإجازات القادمة
+    جلب الإجازات القادمة (نسخة متزامنة)
     
     Args:
         db: جلسة قاعدة البيانات
@@ -475,12 +456,12 @@ async def get_upcoming_holidays(
         .limit(limit)
     )
     
-    result = await db.execute(query)
+    result = db.execute(query)
     return result.scalars().all()
 
 
-async def create_holiday(
-    db: AsyncSession,
+def create_holiday_sync(
+    db,
     school_id: str,
     name: str,
     date_obj: date,
@@ -496,7 +477,7 @@ async def create_holiday(
     created_by: Optional[str] = None
 ) -> Holiday:
     """
-    إنشاء إجازة جديدة
+    إنشاء إجازة جديدة (نسخة متزامنة)
     
     Args:
         db: جلسة قاعدة البيانات
@@ -535,19 +516,19 @@ async def create_holiday(
     )
     
     db.add(holiday)
-    await db.commit()
-    await db.refresh(holiday)
+    db.commit()
+    db.refresh(holiday)
     
     return holiday
 
 
-async def update_holiday(
-    db: AsyncSession,
+def update_holiday_sync(
+    db,
     holiday_id: str,
     **kwargs
 ) -> Optional[Holiday]:
     """
-    تحديث إجازة
+    تحديث إجازة (نسخة متزامنة)
     
     Args:
         db: جلسة قاعدة البيانات
@@ -559,7 +540,7 @@ async def update_holiday(
     """
     from sqlalchemy import select
     
-    result = await db.execute(
+    result = db.execute(
         select(Holiday).where(Holiday.id == holiday_id)
     )
     holiday = result.scalar_one_or_none()
@@ -573,19 +554,19 @@ async def update_holiday(
     
     holiday.updated_at = datetime.now()
     
-    await db.commit()
-    await db.refresh(holiday)
+    db.commit()
+    db.refresh(holiday)
     
     return holiday
 
 
-async def delete_holiday(
-    db: AsyncSession,
+def delete_holiday_sync(
+    db,
     holiday_id: str,
     updated_by: Optional[str] = None
 ) -> bool:
     """
-    حذف إجازة (حذف منطقي)
+    حذف إجازة (حذف منطقي - نسخة متزامنة)
     
     Args:
         db: جلسة قاعدة البيانات
@@ -597,7 +578,7 @@ async def delete_holiday(
     """
     from sqlalchemy import select
     
-    result = await db.execute(
+    result = db.execute(
         select(Holiday).where(Holiday.id == holiday_id)
     )
     holiday = result.scalar_one_or_none()
@@ -610,17 +591,17 @@ async def delete_holiday(
     holiday.updated_at = datetime.now()
     holiday.updated_by = updated_by
     
-    await db.commit()
+    db.commit()
     return True
 
 
-async def delete_holidays_bulk(
-    db: AsyncSession,
+def delete_holidays_bulk_sync(
+    db,
     holiday_ids: List[str],
     updated_by: Optional[str] = None
 ) -> int:
     """
-    حذف إجازات متعددة (حذف منطقي)
+    حذف إجازات متعددة (حذف منطقي - نسخة متزامنة)
     
     Args:
         db: جلسة قاعدة البيانات
@@ -632,7 +613,7 @@ async def delete_holidays_bulk(
     """
     from sqlalchemy import select
     
-    result = await db.execute(
+    result = db.execute(
         select(Holiday).where(Holiday.id.in_(holiday_ids))
     )
     holidays = result.scalars().all()
@@ -645,5 +626,5 @@ async def delete_holidays_bulk(
         holiday.updated_by = updated_by
         count += 1
     
-    await db.commit()
+    db.commit()
     return count
