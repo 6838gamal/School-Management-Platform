@@ -5,7 +5,7 @@ Student is the person record. StudentEnrollment tracks the history of
 which section/grade a student belongs to over time, enabling transfers
 without losing history.
 """
-from datetime import date
+from datetime import date, datetime
 from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, String, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.ext.hybrid import hybrid_property
@@ -28,7 +28,7 @@ class Student(UUIDPkMixin, TimestampMixin, Base):
     )
     
     # ============================================================
-    # ✅ الحقول الأكاديمية الجديدة (بدون Foreign Keys)
+    # ✅ الحقول الأكاديمية (بدون Foreign Keys)
     # ============================================================
     year_id: Mapped[str | None] = mapped_column(
         String(36), index=True, nullable=True, comment="معرف السنة الدراسية"
@@ -40,6 +40,21 @@ class Student(UUIDPkMixin, TimestampMixin, Base):
         String(36), index=True, nullable=True, comment="معرف الشعبة"
     )
     
+    # ============================================================
+    # ✅ إضافة حقل حالة الحضور (مهم للفلترة)
+    # ============================================================
+    attendance_status: Mapped[str | None] = mapped_column(
+        String(20), 
+        nullable=True, 
+        default="present",
+        comment="حالة الحضور: present, absent, late, permitted, excused"
+    )
+    
+    attendance_updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime, 
+        nullable=True,
+        comment="تاريخ آخر تحديث لحالة الحضور"
+    )
     
     # ============================================================
     # معلومات الطالب الأساسية
@@ -58,7 +73,7 @@ class Student(UUIDPkMixin, TimestampMixin, Base):
     last_name_ar: Mapped[str | None] = mapped_column(String(100), nullable=True)
     
     # المعلومات الشخصية
-    gender: Mapped[str | None] = mapped_column(String(10), nullable=True)  # male / female
+    gender: Mapped[str | None] = mapped_column(String(10), nullable=True)  # male / female / ذكر / أنثى
     birth_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     nationality: Mapped[str | None] = mapped_column(String(50), nullable=True)
     
@@ -94,7 +109,7 @@ class Student(UUIDPkMixin, TimestampMixin, Base):
     
     @full_name.expression
     def full_name(cls):
-        """للاستخدام في استعلامات SQL - يسمح بالبحث والفرز باستخدام الاسم الكامل"""
+        """للاستخدام في استعلامات SQL"""
         return func.concat(cls.first_name, " ", cls.last_name)
     
     @hybrid_property
@@ -102,11 +117,11 @@ class Student(UUIDPkMixin, TimestampMixin, Base):
         """إرجاع الاسم الكامل للطالب (بالعربية)"""
         if self.first_name_ar and self.last_name_ar:
             return f"{self.first_name_ar} {self.last_name_ar}".strip()
-        return self.full_name  # fallback to English name
+        return self.full_name
     
     @full_name_ar.expression
     def full_name_ar(cls):
-        """للاستخدام في استعلامات SQL - الاسم الكامل بالعربية"""
+        """للاستخدام في استعلامات SQL"""
         return func.concat(cls.first_name_ar, " ", cls.last_name_ar)
     
     @property
@@ -129,6 +144,30 @@ class Student(UUIDPkMixin, TimestampMixin, Base):
         return today.year - self.birth_date.year - (
             (today.month, today.day) < (self.birth_date.month, self.birth_date.day)
         )
+    
+    @property
+    def attendance_label(self) -> str:
+        """الحصول على تسمية حالة الحضور بالعربية"""
+        labels = {
+            'present': 'حاضر',
+            'absent': 'غائب',
+            'late': 'متأخر',
+            'permitted': 'مستأذن',
+            'excused': 'معذور'
+        }
+        return labels.get(self.attendance_status, 'غير محدد')
+    
+    @property
+    def attendance_color(self) -> str:
+        """الحصول على لون حالة الحضور"""
+        colors = {
+            'present': 'emerald',
+            'absent': 'red',
+            'late': 'amber',
+            'permitted': 'blue',
+            'excused': 'purple'
+        }
+        return colors.get(self.attendance_status, 'gray')
     
     def __repr__(self) -> str:
         return f"<Student {self.full_name} ({self.student_number})>"
@@ -156,7 +195,7 @@ class StudentEnrollment(UUIDPkMixin, TimestampMixin, Base):
     section_id: Mapped[str | None] = mapped_column(
         String(36), index=True, nullable=True
     )
-    class_id: Mapped[str | None] = mapped_column(
+    grade_id: Mapped[str | None] = mapped_column(
         String(36), index=True, nullable=True
     )
     
