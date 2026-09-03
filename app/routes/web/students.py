@@ -1,14 +1,14 @@
 """Students web routes — shared pages used by director, deputy, and teacher."""
-from fastapi import APIRouter, Depends, Request, Form, HTTPException, File, UploadFile
+from fastapi import APIRouter, Depends, Request, Form, HTTPException, File, UploadFile, Query
 from fastapi.responses import RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, func, or_
 from sqlalchemy.orm import selectinload
-from typing import Optional
+from typing import Optional, List
 import uuid
 import traceback
-from datetime import datetime
+from datetime import datetime, date
 import pandas as pd
 import io
 import pdfplumber
@@ -34,7 +34,7 @@ templates = Jinja2Templates(directory="app/templates")
 
 # ============================================================
 # 🔴 IMPORTANT: الترتيب مهم جداً!
-#    المسارات الثابتة (مثل /new) يجب أن تأتي قبل المسارات الديناميكية (مثل /{student_id})
+#    المسارات الثابتة (مثل /new, /import, /export) يجب أن تأتي قبل المسارات الديناميكية (مثل /{student_id})
 # ============================================================
 
 # ============================================================
@@ -404,7 +404,314 @@ def parse_pdf_data(lines):
     return students
 
 
+# ============================================================
+# 📤 GET /students/export - تصدير بيانات الطلاب
+# ============================================================
+@router.get("/export")
+async def export_students(
+    request: Request,
+    format: str = Query("excel", regex="^(excel|csv|pdf)$"),
+    user: CurrentUser = Depends(require_any_permission("students.view")),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    تصدير بيانات الطلاب بصيغة Excel, CSV, أو PDF
+    """
+    try:
+        service = StudentService(db)
+        students = await service.get_all_students(user.school_id)
+        
+        if format == "excel":
+            # تصدير Excel
+            data = []
+            for student in students:
+                data.append({
+                    "رقم الطالب": student.student_number,
+                    "الاسم الأول": student.first_name,
+                    "اسم العائلة": student.last_name,
+                    "الاسم الكامل": student.full_name,
+                    "الرقم الوطني": student.national_id or "",
+                    "الجنس": student.gender or "",
+                    "تاريخ الميلاد": student.birth_date or "",
+                    "اسم ولي الأمر": student.guardian_name or "",
+                    "هاتف ولي الأمر": student.guardian_phone or "",
+                    "البريد الإلكتروني": student.guardian_email or "",
+                    "العنوان": student.address or "",
+                    "السنة الدراسية": student.year.name if student.year else "",
+                    "الصف": student.grade.name if student.grade else "",
+                    "الشعبة": student.section.name if student.section else "",
+                    "الحالة": "نشط" if student.is_active else "معطل"
+                })
+            
+            df = pd.DataFrame(data)
+            output = io.BytesIO()
+            with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                df.to_excel(writer, index=False, sheet_name='Students')
+            output.seek(0)
+            
+            return Response(
+                content=output.getvalue(),
+                media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                headers={"Content-Disposition": f"attachment; filename=students_{date.today()}.xlsx"}
+            )
+        
+        elif format == "csv":
+            # تصدير CSV
+            data = []
+            for student in students:
+                data.append({
+                    "student_number": student.student_number,
+                    "first_name": student.first_name,
+                    "last_name": student.last_name,
+                    "full_name": student.full_name,
+                    "national_id": student.national_id or "",
+                    "gender": student.gender or "",
+                    "birth_date": student.birth_date or "",
+                    "guardian_name": student.guardian_name or "",
+                    "guardian_phone": student.guardian_phone or "",
+                    "guardian_email": student.guardian_email or "",
+                    "address": student.address or "",
+                    "year": student.year.name if student.year else "",
+                    "grade": student.grade.name if student.grade else "",
+                    "section": student.section.name if student.section else "",
+                    "status": "active" if student.is_active else "inactive"
+                })
+            
+            df = pd.DataFrame(data)
+            output = io.StringIO()
+            df.to_csv(output, index=False, encoding='utf-8-sig')
+            
+            return Response(
+                content=output.getvalue().encode('utf-8-sig'),
+                media_type="text/csv",
+                headers={"Content-Disposition": f"attachment; filename=students_{date.today()}.csv"}
+            )
+        
+        elif format == "pdf":
+            # تصدير PDF (سيتم تنفيذه لاحقاً)
+            return JSONResponse({
+                'success': False,
+                'message': 'تصدير PDF قيد التطوير'
+            }, status_code=501)
+        
+        else:
+            return JSONResponse({
+                'success': False,
+                'message': 'صيغة غير مدعومة'
+            }, status_code=400)
+            
+    except Exception as e:
+        return JSONResponse({
+            'success': False,
+            'message': f'حدث خطأ: {str(e)}'
+        }, status_code=500)
+
+
+# ============================================================
+# 📊 GET /students/stats - إحصائيات الطلاب
+# ============================================================
+@router.get("/stats")
+async def get_student_stats(
+    request: Request,
+    user: CurrentUser = Depends(require_any_permission("students.view")),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    الحصول على إحصائيات الطلاب
+    """
+    try:
+        service = StudentService(db)
+        stats = await service.get_student_stats(user.school_id)
+        return JSONResponse(stats)
+    except Exception as e:
+        return JSONResponse({
+            'success': False,
+            'message': f'حدث خطأ: {str(e)}'
+        }, status_code=500)
+
+
+# ============================================================
+# 📊 GET /students/{student_id}/stats - إحصائيات طالب محدد
+# ============================================================
+@router.get("/{student_id}/stats")
+async def get_student_stats_detail(
+    request: Request,
+    student_id: str,
+    user: CurrentUser = Depends(require_any_permission("students.view")),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    الحصول على إحصائيات طالب محدد (الحضور، الواجبات، الأنشطة)
+    """
+    try:
+        service = StudentService(db)
+        stats = await service.get_student_detailed_stats(student_id)
+        return JSONResponse(stats)
+    except NotFoundException as e:
+        return JSONResponse({
+            'success': False,
+            'message': str(e)
+        }, status_code=404)
+    except Exception as e:
+        return JSONResponse({
+            'success': False,
+            'message': f'حدث خطأ: {str(e)}'
+        }, status_code=500)
+
+
+# ============================================================
+# 📝 POST /students/{student_id}/attendance - تحديث حالة الحضور
+# ============================================================
+@router.post("/{student_id}/attendance")
+async def update_student_attendance(
+    request: Request,
+    student_id: str,
+    user: CurrentUser = Depends(require_any_permission("students.update")),
+    db: AsyncSession = Depends(get_db),
+    status: str = Form(...),
+    date: Optional[str] = Form(None),
+):
+    """
+    تحديث حالة حضور الطالب
+    """
+    try:
+        service = StudentService(db)
+        await service.update_attendance(
+            student_id=student_id,
+            status=status,
+            date=date or date.today().isoformat(),
+            updated_by=user.id
+        )
+        return JSONResponse({
+            'success': True,
+            'message': 'تم تحديث حالة الحضور بنجاح'
+        })
+    except NotFoundException as e:
+        return JSONResponse({
+            'success': False,
+            'message': str(e)
+        }, status_code=404)
+    except Exception as e:
+        return JSONResponse({
+            'success': False,
+            'message': f'حدث خطأ: {str(e)}'
+        }, status_code=500)
+
+
+# ============================================================
+# 📝 POST /students/{student_id}/late - تحديث حالة التأخر
+# ============================================================
+@router.post("/{student_id}/late")
+async def update_student_late(
+    request: Request,
+    student_id: str,
+    user: CurrentUser = Depends(require_any_permission("students.update")),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    تحديث حالة التأخر للطالب
+    """
+    try:
+        data = await request.json()
+        service = StudentService(db)
+        await service.update_late_status(
+            student_id=student_id,
+            periods=data.get('periods', []),
+            updated_by=user.id
+        )
+        return JSONResponse({
+            'success': True,
+            'message': 'تم تحديث حالة التأخر بنجاح'
+        })
+    except NotFoundException as e:
+        return JSONResponse({
+            'success': False,
+            'message': str(e)
+        }, status_code=404)
+    except Exception as e:
+        return JSONResponse({
+            'success': False,
+            'message': f'حدث خطأ: {str(e)}'
+        }, status_code=500)
+
+
+# ============================================================
+# 📝 POST /students/{student_id}/assignments - تحديث الواجبات
+# ============================================================
+@router.post("/{student_id}/assignments")
+async def update_student_assignments(
+    request: Request,
+    student_id: str,
+    user: CurrentUser = Depends(require_any_permission("students.update")),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    تحديث واجبات الطالب
+    """
+    try:
+        data = await request.json()
+        service = StudentService(db)
+        await service.update_assignments(
+            student_id=student_id,
+            assignments=data.get('assignments', []),
+            updated_by=user.id
+        )
+        return JSONResponse({
+            'success': True,
+            'message': 'تم تحديث الواجبات بنجاح'
+        })
+    except NotFoundException as e:
+        return JSONResponse({
+            'success': False,
+            'message': str(e)
+        }, status_code=404)
+    except Exception as e:
+        return JSONResponse({
+            'success': False,
+            'message': f'حدث خطأ: {str(e)}'
+        }, status_code=500)
+
+
+# ============================================================
+# 📝 POST /students/{student_id}/activities - تحديث الأنشطة
+# ============================================================
+@router.post("/{student_id}/activities")
+async def update_student_activities(
+    request: Request,
+    student_id: str,
+    user: CurrentUser = Depends(require_any_permission("students.update")),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    تحديث أنشطة الطالب
+    """
+    try:
+        data = await request.json()
+        service = StudentService(db)
+        await service.update_activities(
+            student_id=student_id,
+            activities=data.get('activities', []),
+            updated_by=user.id
+        )
+        return JSONResponse({
+            'success': True,
+            'message': 'تم تحديث الأنشطة بنجاح'
+        })
+    except NotFoundException as e:
+        return JSONResponse({
+            'success': False,
+            'message': str(e)
+        }, status_code=404)
+    except Exception as e:
+        return JSONResponse({
+            'success': False,
+            'message': f'حدث خطأ: {str(e)}'
+        }, status_code=500)
+
+
+# ============================================================
 # 1️⃣ GET /students/new - صفحة إضافة طالب جديد
+# ============================================================
 @router.get("/new")
 async def student_new(
     request: Request,
@@ -457,7 +764,9 @@ async def student_new(
         )
 
 
+# ============================================================
 # 2️⃣ POST /students - إنشاء طالب جديد
+# ============================================================
 @router.post("")
 async def student_create(
     request: Request,
@@ -642,19 +951,37 @@ async def student_create(
         )
 
 
+# ============================================================
 # 3️⃣ GET /students - قائمة الطلاب
+# ============================================================
 @router.get("")
 async def students_list(
     request: Request,
     page: int = 1,
     search: str = "",
+    status: Optional[str] = None,
+    grade_id: Optional[str] = None,
+    year_id: Optional[str] = None,
     user: CurrentUser = Depends(require_any_permission("students.view")),
     db: AsyncSession = Depends(get_db),
     ctx: dict = Depends(template_context),
 ):
     try:
         service = StudentService(db)
-        result = await service.list_students(user.school_id, page, 20, search or None)
+        
+        # جلب بيانات التصفية
+        data = await get_onboarding_data(db, user.school_id)
+        
+        result = await service.list_students(
+            school_id=user.school_id,
+            page=page,
+            page_size=20,
+            search=search or None,
+            status=status,
+            grade_id=grade_id,
+            year_id=year_id
+        )
+        
         return templates.TemplateResponse(
             "students/list.html",
             {
@@ -664,7 +991,13 @@ async def students_list(
                 "total": result.get("total", 0),
                 "page": page, 
                 "page_size": 20, 
-                "search": search
+                "search": search,
+                "status_filter": status,
+                "grade_filter": grade_id,
+                "year_filter": year_id,
+                "grades": data.get("grades", []),
+                "years": data.get("years", []),
+                "error": None
             },
         )
     except Exception as e:
@@ -679,13 +1012,20 @@ async def students_list(
                 "page": page, 
                 "page_size": 20, 
                 "search": search,
+                "status_filter": None,
+                "grade_filter": None,
+                "year_filter": None,
+                "grades": [],
+                "years": [],
                 "error": f"حدث خطأ: {str(e)}"
             },
             status_code=400
         )
 
 
+# ============================================================
 # 4️⃣ GET /students/{student_id}/edit - صفحة تعديل الطالب
+# ============================================================
 @router.get("/{student_id}/edit")
 async def student_edit(
     request: Request,
@@ -737,7 +1077,9 @@ async def student_edit(
         )
 
 
+# ============================================================
 # 5️⃣ POST /students/{student_id}/edit - تحديث بيانات الطالب
+# ============================================================
 @router.post("/{student_id}/edit")
 async def student_update(
     request: Request,
@@ -931,8 +1273,10 @@ async def student_update(
             )
 
 
-# 6️⃣ POST /students/{student_id} - حذف الطالب
-@router.post("/{student_id}")
+# ============================================================
+# 6️⃣ POST /students/{student_id}/delete - حذف الطالب
+# ============================================================
+@router.post("/{student_id}/delete")
 async def student_delete(
     request: Request,
     student_id: str,
@@ -948,7 +1292,9 @@ async def student_delete(
         return RedirectResponse(url="/students", status_code=303)
 
 
+# ============================================================
 # 7️⃣ GET /students/{student_id} - تفاصيل الطالب
+# ============================================================
 @router.get("/{student_id}")
 async def student_detail(
     request: Request,
@@ -977,6 +1323,25 @@ async def student_detail(
             {**ctx, "message": f"حدث خطأ: {str(e)}"},
             status_code=400
         )
+
+
+# ============================================================
+# 8️⃣ POST /students/{student_id} - حذف الطالب (مسار بديل)
+# ============================================================
+@router.post("/{student_id}")
+async def student_delete_alt(
+    request: Request,
+    student_id: str,
+    user: CurrentUser = Depends(require_any_permission("students.delete")),
+    db: AsyncSession = Depends(get_db),
+):
+    service = StudentService(db)
+    try:
+        await service.delete_student(student_id)
+        return RedirectResponse(url="/students", status_code=303)
+    except Exception as e:
+        print(f"❌ Error in student_delete_alt: {str(e)}")
+        return RedirectResponse(url="/students", status_code=303)
 
 
 # ============================================================
