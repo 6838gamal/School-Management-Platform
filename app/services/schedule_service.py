@@ -315,7 +315,7 @@ class ScheduleService:
             return None
 
     # ============================================================
-    # ✅ create_schedule
+    # ✅ create_schedule - مع school_id و section_id
     # ============================================================
     
     async def create_schedule(self, school_id: str, req: ScheduleCreate) -> Schedule:
@@ -377,7 +377,7 @@ class ScheduleService:
             self.db.add(schedule)
             await self.db.flush()
             
-            # ✅ إضافة الحصص مع school_id
+            # ✅ إضافة الحصص مع school_id و section_id
             for entry_data in req.entries:
                 # التحقق من وجود المادة
                 subject = await self.find_subject_by_id(entry_data.subject_id)
@@ -397,11 +397,12 @@ class ScheduleService:
                 if conflict:
                     raise ValidationException(f"يوجد بالفعل حصة في اليوم {entry_data.day} والفترة {entry_data.period}")
                 
-                # ✅ إنشاء الحصة مع school_id
+                # ✅ إنشاء الحصة مع school_id و section_id
                 entry = ScheduleEntry(
                     id=str(uuid.uuid4()),
                     schedule_id=schedule.id,
-                    school_id=school_id,  # ✅ إضافة school_id
+                    school_id=school_id,
+                    section_id=req.section_id,  # ✅ إضافة section_id
                     day_of_week=entry_data.day,
                     period_id=str(entry_data.period),
                     subject_id=entry_data.subject_id,
@@ -527,11 +528,12 @@ class ScheduleService:
             
             print("✅ لا يوجد تعارض")
             
-            # ✅ إنشاء الحصة مع school_id
+            # ✅ إنشاء الحصة مع school_id و section_id
             entry = ScheduleEntry(
                 id=str(uuid.uuid4()),
                 schedule_id=schedule_id,
-                school_id=schedule.school_id,  # ✅ إضافة school_id
+                school_id=schedule.school_id,
+                section_id=schedule.section_id,  # ✅ إضافة section_id
                 day_of_week=req.day,
                 period_id=str(req.period),
                 subject_id=req.subject_id,
