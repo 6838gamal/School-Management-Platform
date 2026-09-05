@@ -99,7 +99,7 @@ class ScheduleService:
             .where(
                 ScheduleEntry.schedule_id == schedule_id,
                 ScheduleEntry.day_of_week == day,
-                ScheduleEntry.period_id == str(period)
+                ScheduleEntry.period_id == period
             )
         )
         return result.scalar_one_or_none()
@@ -288,13 +288,13 @@ class ScheduleService:
                 subject_name = await self.get_subject_name(entry.subject_id)
                 teacher_name = await self.get_teacher_name(entry.teacher_id)
                 room_name = await self.get_room_name(entry.room_id)
-                period_name = await self.get_period_name(entry.period_id)
+                period_name = await self.get_period_name(str(entry.period_id)) if entry.period_id else None
                 
                 entries_with_names.append({
                     "id": str(entry.id),
                     "day": entry.day_of_week,
                     "day_of_week": entry.day_of_week,
-                    "period": int(entry.period_id) if entry.period_id and entry.period_id.isdigit() else None,
+                    "period": entry.period_id,
                     "period_id": str(entry.period_id) if entry.period_id else None,
                     "period_name": period_name,
                     "subject_id": str(entry.subject_id) if entry.subject_id else None,
@@ -315,7 +315,7 @@ class ScheduleService:
             return None
 
     # ============================================================
-    # ✅ create_schedule - مع school_id و section_id
+    # ✅ create_schedule - مع school_id و section_id و period_id كرقم
     # ============================================================
     
     async def create_schedule(self, school_id: str, req: ScheduleCreate) -> Schedule:
@@ -377,7 +377,7 @@ class ScheduleService:
             self.db.add(schedule)
             await self.db.flush()
             
-            # ✅ إضافة الحصص مع school_id و section_id
+            # ✅ إضافة الحصص مع school_id و section_id و period_id كرقم
             for entry_data in req.entries:
                 # التحقق من وجود المادة
                 subject = await self.find_subject_by_id(entry_data.subject_id)
@@ -397,14 +397,14 @@ class ScheduleService:
                 if conflict:
                     raise ValidationException(f"يوجد بالفعل حصة في اليوم {entry_data.day} والفترة {entry_data.period}")
                 
-                # ✅ إنشاء الحصة مع school_id و section_id
+                # ✅ إنشاء الحصة مع school_id و section_id و period_id كرقم
                 entry = ScheduleEntry(
                     id=str(uuid.uuid4()),
                     schedule_id=schedule.id,
                     school_id=school_id,
-                    section_id=req.section_id,  # ✅ إضافة section_id
+                    section_id=req.section_id,
                     day_of_week=entry_data.day,
-                    period_id=str(entry_data.period),
+                    period_id=entry_data.period,  # ✅ استخدام الرقم مباشرة
                     subject_id=entry_data.subject_id,
                     teacher_id=entry_data.teacher_id,
                     created_at=datetime.utcnow(),
@@ -528,14 +528,14 @@ class ScheduleService:
             
             print("✅ لا يوجد تعارض")
             
-            # ✅ إنشاء الحصة مع school_id و section_id
+            # ✅ إنشاء الحصة مع school_id و section_id و period_id كرقم
             entry = ScheduleEntry(
                 id=str(uuid.uuid4()),
                 schedule_id=schedule_id,
                 school_id=schedule.school_id,
-                section_id=schedule.section_id,  # ✅ إضافة section_id
+                section_id=schedule.section_id,
                 day_of_week=req.day,
-                period_id=str(req.period),
+                period_id=req.period,  # ✅ استخدام الرقم مباشرة
                 subject_id=req.subject_id,
                 teacher_id=req.teacher_id,
                 created_at=datetime.utcnow(),
@@ -572,7 +572,7 @@ class ScheduleService:
             if 'day' in update_data:
                 update_data['day_of_week'] = update_data.pop('day')
             if 'period' in update_data:
-                update_data['period_id'] = str(update_data.pop('period'))
+                update_data['period_id'] = update_data.pop('period')
             
             for key, value in update_data.items():
                 if hasattr(entry, key):
