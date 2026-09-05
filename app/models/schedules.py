@@ -236,7 +236,7 @@ class ScheduleEntry(UUIDPkMixin, TimestampMixin, Base):
         doc="معرف الجدول"
     )
     
-    # ✅ school_id
+    # ✅ school_id - بدون مفتاح خارجي
     school_id: Mapped[str] = mapped_column(
         String(36), 
         nullable=False, 
@@ -244,7 +244,7 @@ class ScheduleEntry(UUIDPkMixin, TimestampMixin, Base):
         doc="معرف المدرسة"
     )
     
-    # ✅ section_id
+    # ✅ section_id - بدون مفتاح خارجي
     section_id: Mapped[str] = mapped_column(
         String(36), 
         nullable=False, 
@@ -259,12 +259,11 @@ class ScheduleEntry(UUIDPkMixin, TimestampMixin, Base):
         doc="رقم اليوم (0=الأحد, 6=السبت)"
     )
     
-    period_id: Mapped[str] = mapped_column(
-        String(36), 
-        ForeignKey("periods.id", ondelete="CASCADE"), 
-        nullable=False, 
-        index=True,
-        doc="معرف الفترة/الحصة"
+    # ✅ period_id كـ Integer (بدون ForeignKey)
+    period_id: Mapped[int] = mapped_column(
+        Integer, 
+        nullable=False,
+        doc="رقم الفترة/الحصة (1-8)"
     )
     
     # ========== المحتوى ==========
@@ -429,11 +428,10 @@ class ScheduleTemplateEntry(UUIDPkMixin, TimestampMixin, Base):
         nullable=False
     )
     
-    period_id: Mapped[str] = mapped_column(
-        String(36), 
-        ForeignKey("periods.id", ondelete="CASCADE"), 
-        nullable=False, 
-        index=True
+    period_id: Mapped[int] = mapped_column(
+        Integer, 
+        nullable=False,
+        doc="رقم الفترة (1-8)"
     )
     
     subject_id: Mapped[str] = mapped_column(
