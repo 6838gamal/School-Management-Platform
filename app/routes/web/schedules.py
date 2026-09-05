@@ -8,6 +8,7 @@ from sqlalchemy.orm import selectinload
 from typing import Optional, List, Dict, Any
 import uuid
 import traceback
+import json
 from datetime import datetime
 
 from app.core.database import get_db
@@ -23,7 +24,6 @@ from app.schemas.schedules import (
     ScheduleCreate, ScheduleUpdate, 
     ScheduleEntryCreate, ScheduleEntryUpdate
 )
-
 
 # النماذج
 from app.models.schedules import Schedule, ScheduleEntry
@@ -173,7 +173,8 @@ async def get_subjects(db: AsyncSession, school_id: str) -> List[Dict]:
                 "id": str(subject.id),
                 "name": subject.name,
                 "code": subject.code if hasattr(subject, 'code') else None,
-                "color": subject.color if hasattr(subject, 'color') else None
+                "color": subject.color if hasattr(subject, 'color') else None,
+                "is_active": subject.is_active
             }
             for subject in subjects
         ]
@@ -204,7 +205,7 @@ async def get_teachers(db: AsyncSession, school_id: str) -> List[Dict]:
             
             # محاولة جلب المواد من علاقة teacher_subjects إذا كانت موجودة
             try:
-                # إذا كان هناك جدول وسيط TeacherSubject
+                # التحقق من وجود جدول TeacherSubject
                 from app.models.teacher_subject import TeacherSubject
                 subject_result = await db.execute(
                     select(Subject)
@@ -218,12 +219,32 @@ async def get_teachers(db: AsyncSession, school_id: str) -> List[Dict]:
             except Exception:
                 # إذا لم يكن هناك جدول وسيط، نستخدم التخصص
                 if teacher.specialization:
-                    subject_ids = [teacher.specialization]
-                    subject_names = [teacher.specialization]
+                    # محاولة العثور على المادة حسب التخصص
+                    subject_result = await db.execute(
+                        select(Subject)
+                        .where(Subject.name == teacher.specialization)
+                        .where(Subject.school_id == school_id)
+                    )
+                    subject = subject_result.scalar_one_or_none()
+                    if subject:
+                        subject_ids = [str(subject.id)]
+                        subject_names = [subject.name]
+                    else:
+                        # إذا لم توجد المادة، نضيف التخصص كاسم
+                        subject_ids = [teacher.specialization]
+                        subject_names = [teacher.specialization]
+            
+            # إذا لم يكن للمعلم أي مواد، نضيفه مع مواد افتراضية (اختياري)
+            if not subject_ids:
+                # يمكن إضافة مواد افتراضية أو تركها فارغة
+                pass
             
             teachers_data.append({
                 "id": str(teacher.id),
                 "name": f"{teacher.first_name} {teacher.last_name}".strip() or teacher.full_name,
+                "full_name": f"{teacher.first_name} {teacher.last_name}".strip() or teacher.full_name,
+                "first_name": teacher.first_name,
+                "last_name": teacher.last_name,
                 "employee_number": teacher.employee_number,
                 "email": teacher.email,
                 "specialization": teacher.specialization,
@@ -235,6 +256,7 @@ async def get_teachers(db: AsyncSession, school_id: str) -> List[Dict]:
         return teachers_data
     except Exception as e:
         print(f"⚠️ Error in get_teachers: {str(e)}")
+        traceback.print_exc()
         return []
 
 
@@ -349,7 +371,6 @@ async def create_schedule_page(
         print(f"✅ تم جلب {len(teachers)} معلم")
         
         # تحويل البيانات إلى JSON للاستخدام في JavaScript
-        import json
         teachers_json = json.dumps(teachers, ensure_ascii=False)
         subjects_json = json.dumps(subjects, ensure_ascii=False)
         
@@ -484,7 +505,6 @@ async def edit_schedule_page(
         teachers = await get_teachers(db, user.school_id)
         
         # تحويل البيانات إلى JSON
-        import json
         teachers_json = json.dumps(teachers, ensure_ascii=False)
         subjects_json = json.dumps(subjects, ensure_ascii=False)
         
@@ -523,14 +543,116 @@ async def edit_schedule_page(
 
 @router.post("/api/v1/schedules")
 async def create_schedule_api(
-    req: ScheduleCreate,
+    request: Request,
     user: CurrentUser = Depends(require_any_permission("schedules.create")),
     db: AsyncSession = Depends(get_db),
 ):
-    """إنشاء جدول جديد عبر API"""
+    """إنشاء جدول جديد عبر API (يدعم JSON و FormData)"""
     try:
+        # التحقق من نوع المحتوى
+        content_type = request.headers.get("content-type", "")
+        
+        if "application/json" in content_type:
+            # معالجة JSON
+            data = await request.json()
+            schedule_data = ScheduleCreate(**data)
+        else:
+            # معالجة FormData
+            form_data = await request.form()
+            
+            # استخراج البيانات الأساسية
+            schedule_data = ScheduleCreate(
+                name=form_data.get("name"),
+                year_id=form_data.get("year_id"),
+                stage_id=form_data.get("stage_id"),
+                grade_id=form_data.get("grade_id"),
+                section_id=form_data.get("section_id"),
+                is_active=form_data.get("is_active") == "true",
+                entries=[]
+            )
+            
+            # استخراج الحصص من FormData
+            entries_dict = {}
+            import re
+            
+            for key, value in form_data.items():
+                # استخراج day
+                if key.startswith("entries[") and key.endswith("][day]"):
+                    match = re.search(r"entries\[(\d+)\]\[day\]", key)
+                    if match:
+                        row_id = int(match.group(1))
+                        if row_id not in entries_dict:
+                            entries_dict[row_id] = {}
+                        entries_dict[row_id]["day"] = int(value)
+                
+                # استخراج period
+                elif key.startswith("entries[") and key.endswith("][period]"):
+                    match = re.search(r"entries\[(\d+)\]\[period\]", key)
+                    if match:
+                        row_id = int(match.group(1))
+                        if row_id not in entries_dict:
+                            entries_dict[row_id] = {}
+                        entries_dict[row_id]["period"] = int(value)
+                
+                # استخراج subject_id (من الحقل المخفي)
+                elif key.startswith("entries[") and key.endswith("][subject_id]"):
+                    match = re.search(r"entries\[(\d+)\]\[subject_id\]", key)
+                    if match:
+                        row_id = int(match.group(1))
+                        if row_id not in entries_dict:
+                            entries_dict[row_id] = {}
+                        entries_dict[row_id]["subject_id"] = value
+                
+                # استخراج teacher_id (من الحقل المخفي)
+                elif key.startswith("entries[") and key.endswith("][teacher_id]"):
+                    match = re.search(r"entries\[(\d+)\]\[teacher_id\]", key)
+                    if match:
+                        row_id = int(match.group(1))
+                        if row_id not in entries_dict:
+                            entries_dict[row_id] = {}
+                        entries_dict[row_id]["teacher_id"] = value
+                
+                # استخراج pair_id (للتحقق)
+                elif key.startswith("entries[") and key.endswith("][pair_id]"):
+                    match = re.search(r"entries\[(\d+)\]\[pair_id\]", key)
+                    if match:
+                        row_id = int(match.group(1))
+                        if row_id not in entries_dict:
+                            entries_dict[row_id] = {}
+                        entries_dict[row_id]["pair_id"] = value
+            
+            # تحويل إلى قائمة من ScheduleEntryCreate
+            for row_id, entry_data in entries_dict.items():
+                # التحقق من وجود البيانات المطلوبة
+                if "day" in entry_data and "period" in entry_data:
+                    # إذا كان هناك pair_id، استخراج subject_id و teacher_id منه
+                    if "pair_id" in entry_data and entry_data["pair_id"]:
+                        pair_parts = entry_data["pair_id"].split("|")
+                        if len(pair_parts) == 2:
+                            entry_data["subject_id"] = pair_parts[0]
+                            entry_data["teacher_id"] = pair_parts[1]
+                    
+                    # التحقق من وجود subject_id و teacher_id
+                    if "subject_id" in entry_data and "teacher_id" in entry_data:
+                        schedule_data.entries.append(
+                            ScheduleEntryCreate(
+                                day=entry_data["day"],
+                                period=entry_data["period"],
+                                subject_id=entry_data["subject_id"],
+                                teacher_id=entry_data["teacher_id"]
+                            )
+                        )
+        
+        # التحقق من وجود حصص
+        if not schedule_data.entries:
+            return JSONResponse(
+                {"detail": "يجب إضافة حصة واحدة على الأقل"},
+                status_code=422
+            )
+        
+        # إنشاء الجدول
         service = ScheduleService(db)
-        schedule = await service.create_schedule(user.school_id, req)
+        schedule = await service.create_schedule(user.school_id, schedule_data)
         await db.commit()
         
         return {
@@ -541,6 +663,7 @@ async def create_schedule_api(
         }
         
     except ValueError as e:
+        await db.rollback()
         return JSONResponse(
             {"detail": str(e)},
             status_code=422
@@ -550,7 +673,7 @@ async def create_schedule_api(
         traceback.print_exc()
         await db.rollback()
         return JSONResponse(
-            {"detail": str(e)},
+            {"detail": f"حدث خطأ: {str(e)}"},
             status_code=500
         )
 
