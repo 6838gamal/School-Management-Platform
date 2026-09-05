@@ -468,6 +468,108 @@ async def ensure_role_permissions_updated(school_id: str):
         break
 
 
+async def display_database_schema():
+    """استعراض كافة الجداول والأعمدة والبيانات في قاعدة البيانات"""
+    print("\n" + "="*80)
+    print("📊 استعراض هيكل قاعدة البيانات والبيانات")
+    print("="*80)
+    
+    async for db in get_db():
+        try:
+            # الحصول على جميع الجداول في قاعدة البيانات
+            stmt = text("""
+                SELECT table_name 
+                FROM information_schema.tables 
+                WHERE table_schema = 'public'
+                AND table_type = 'BASE TABLE'
+                ORDER BY table_name
+            """)
+            result = await db.execute(stmt)
+            tables = [row[0] for row in result.fetchall()]
+            
+            print(f"\n📋 عدد الجداول: {len(tables)}")
+            print("-" * 80)
+            
+            for table_name in tables:
+                print(f"\n📌 جدول: {table_name}")
+                print("-" * 40)
+                
+                # الحصول على أعمدة الجدول
+                stmt = text(f"""
+                    SELECT 
+                        column_name,
+                        data_type,
+                        is_nullable,
+                        column_default
+                    FROM information_schema.columns 
+                    WHERE table_schema = 'public' 
+                    AND table_name = '{table_name}'
+                    ORDER BY ordinal_position
+                """)
+                result = await db.execute(stmt)
+                columns = result.fetchall()
+                
+                print(f"   🏷️ الأعمدة ({len(columns)}):")
+                for col in columns:
+                    col_name, data_type, is_nullable, default = col
+                    nullable = "NULL" if is_nullable == "YES" else "NOT NULL"
+                    default_info = f" DEFAULT {default}" if default else ""
+                    print(f"      • {col_name}: {data_type} [{nullable}]{default_info}")
+                
+                # الحصول على عدد السجلات في الجدول
+                try:
+                    stmt = text(f"SELECT COUNT(*) FROM {table_name}")
+                    result = await db.execute(stmt)
+                    count = result.scalar()
+                    print(f"   📊 عدد السجلات: {count}")
+                    
+                    # إذا كان عدد السجلات صغيراً (أقل من 20)، عرضها
+                    if count > 0 and count <= 20:
+                        print(f"   📝 البيانات:")
+                        # الحصول على أول 5 أعمدة فقط للعرض
+                        stmt = text(f"""
+                            SELECT * FROM {table_name} LIMIT 5
+                        """)
+                        result = await db.execute(stmt)
+                        rows = result.fetchall()
+                        
+                        # عرض البيانات بشكل جميل
+                        if rows:
+                            # الحصول على أسماء الأعمدة
+                            col_names = [col[0] for col in columns[:5]]  # أول 5 أعمدة فقط
+                            print("      " + " | ".join(col_names))
+                            print("      " + "-" * (len(" | ".join(col_names))))
+                            
+                            for row in rows[:5]:
+                                # عرض أول 5 قيم فقط
+                                values = []
+                                for i, val in enumerate(row[:5]):
+                                    if val is None:
+                                        values.append("NULL")
+                                    elif isinstance(val, str) and len(str(val)) > 30:
+                                        values.append(str(val)[:27] + "...")
+                                    else:
+                                        values.append(str(val))
+                                print("      " + " | ".join(values))
+                            
+                            if count > 5:
+                                print(f"      ... وعرض {count - 5} سجلات أخرى")
+                    elif count > 20:
+                        print(f"   ℹ️ عرض البيانات مخفي (يوجد {count} سجل، عدد كبير جداً)")
+                        
+                except Exception as e:
+                    print(f"   ⚠️ لا يمكن قراءة البيانات: {str(e)}")
+            
+            print("\n" + "="*80)
+            print("✅ اكتمل استعراض قاعدة البيانات")
+            print("="*80 + "\n")
+            
+        except Exception as e:
+            print(f"❌ خطأ في استعراض قاعدة البيانات: {str(e)}")
+            await db.rollback()
+        break
+
+
 async def init_database():
     """تهيئة قاعدة البيانات وإنشاء المستخدمين الأوليين."""
     from app.services.auth_service import AuthService
@@ -552,6 +654,9 @@ async def init_database():
             print("   🎯 activities@school.edu / activities123 (مسؤول أنشطة)")
             print("   📚 teacher@school.edu / teacher123 (معلم)")
             print("="*50 + "\n")
+            
+            # ============= استعراض قاعدة البيانات بالكامل =============
+            await display_database_schema()
             
         except Exception as e:
             print(f"❌ خطأ في تهيئة قاعدة البيانات: {e}")
