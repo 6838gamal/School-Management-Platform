@@ -377,7 +377,7 @@ class ScheduleService:
             self.db.add(schedule)
             await self.db.flush()
             
-            # إضافة الحصص
+            # ✅ إضافة الحصص مع school_id
             for entry_data in req.entries:
                 # التحقق من وجود المادة
                 subject = await self.find_subject_by_id(entry_data.subject_id)
@@ -397,10 +397,11 @@ class ScheduleService:
                 if conflict:
                     raise ValidationException(f"يوجد بالفعل حصة في اليوم {entry_data.day} والفترة {entry_data.period}")
                 
-                # ✅ إنشاء الحصة - بدون school_id
+                # ✅ إنشاء الحصة مع school_id
                 entry = ScheduleEntry(
                     id=str(uuid.uuid4()),
                     schedule_id=schedule.id,
+                    school_id=school_id,  # ✅ إضافة school_id
                     day_of_week=entry_data.day,
                     period_id=str(entry_data.period),
                     subject_id=entry_data.subject_id,
@@ -526,10 +527,11 @@ class ScheduleService:
             
             print("✅ لا يوجد تعارض")
             
-            # ✅ إنشاء الحصة - بدون school_id
+            # ✅ إنشاء الحصة مع school_id
             entry = ScheduleEntry(
                 id=str(uuid.uuid4()),
                 schedule_id=schedule_id,
+                school_id=schedule.school_id,  # ✅ إضافة school_id
                 day_of_week=req.day,
                 period_id=str(req.period),
                 subject_id=req.subject_id,
