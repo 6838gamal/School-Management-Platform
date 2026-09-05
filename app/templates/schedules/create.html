@@ -93,7 +93,7 @@
             </div>
 
             <!-- ============================================================ -->
-            <!-- إضافة المواد والمعلمين -->
+            <!-- إضافة المواد والمعلمين (كأزواج) -->
             <!-- ============================================================ -->
             <div class="mb-6">
                 <div class="flex items-center justify-between mb-3">
@@ -110,8 +110,7 @@
                                 <th class="p-2 text-right text-xs font-medium text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700">#</th>
                                 <th class="p-2 text-right text-xs font-medium text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700">اليوم</th>
                                 <th class="p-2 text-right text-xs font-medium text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700">الفصل</th>
-                                <th class="p-2 text-right text-xs font-medium text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700">المادة</th>
-                                <th class="p-2 text-right text-xs font-medium text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700">المعلم</th>
+                                <th class="p-2 text-right text-xs font-medium text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700" colspan="2">المادة - المعلم</th>
                                 <th class="p-2 text-center text-xs font-medium text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700">إجراء</th>
                             </tr>
                         </thead>
@@ -120,7 +119,7 @@
                         </tbody>
                     </table>
                 </div>
-                <p class="text-xs text-slate-400 dark:text-slate-500 mt-2">💡 قم بإضافة الحصص للجدول الدراسي. يمكنك اختيار اليوم والفصل والمادة والمعلم.</p>
+                <p class="text-xs text-slate-400 dark:text-slate-500 mt-2">💡 قم بإضافة الحصص للجدول الدراسي. يمكنك اختيار اليوم والفصل والمادة مع المعلم.</p>
             </div>
 
             <!-- ============================================================ -->
@@ -210,12 +209,220 @@
 const DAYS = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'];
 const PERIODS = ['الحصة الأولى', 'الحصة الثانية', 'الحصة الثالثة', 'الحصة الرابعة', 'الحصة الخامسة', 'الحصة السادسة', 'الحصة السابعة', 'الحصة الثامنة'];
 
-// بيانات المعلمين من الـ Backend
+// بيانات المعلمين والمواد من الـ Backend
 const ALL_TEACHERS = {{ teachers | tojson }};
 const ALL_SUBJECTS = {{ subjects | tojson }};
 
 let entryRows = [];
 let rowCounter = 0;
+
+// ============================================================
+// إنشاء أزواج (المادة - المعلم)
+// ============================================================
+function createSubjectTeacherPairs(selectedId = null) {
+    let html = `<option value="">اختر المادة - المعلم</option>`;
+    
+    // إنشاء أزواج (مادة + معلم)
+    const pairs = [];
+    
+    // التأكد من وجود بيانات
+    if (!ALL_TEACHERS || !ALL_SUBJECTS) {
+        return html;
+    }
+    
+    ALL_TEACHERS.forEach(teacher => {
+        if (teacher.subject_ids && teacher.subject_ids.length > 0) {
+            teacher.subject_ids.forEach(subjectId => {
+                const subject = ALL_SUBJECTS.find(s => s.id === subjectId);
+                if (subject) {
+                    const pairId = `${subjectId}|${teacher.id}`;
+                    const teacherName = teacher.name || teacher.full_name || 
+                                       `${teacher.first_name || ''} ${teacher.last_name || ''}`.trim() || 'بدون اسم';
+                    const label = `${subject.name} - ${teacherName}`;
+                    pairs.push({ 
+                        id: pairId, 
+                        subject_id: subjectId, 
+                        teacher_id: teacher.id, 
+                        label: label,
+                        subject_name: subject.name,
+                        teacher_name: teacherName
+                    });
+                }
+            });
+        }
+    });
+    
+    // إذا لم توجد أزواج، عرض رسالة
+    if (pairs.length === 0) {
+        return `<option value="">لا توجد مواد مرتبطة بمعلمين</option>`;
+    }
+    
+    // ترتيب حسب المادة
+    pairs.sort((a, b) => a.label.localeCompare(b.label, 'ar'));
+    
+    pairs.forEach(pair => {
+        const selected = selectedId === pair.id ? 'selected' : '';
+        html += `<option value="${pair.id}" ${selected} data-subject="${pair.subject_id}" data-teacher="${pair.teacher_id}" data-subject-name="${pair.subject_name}" data-teacher-name="${pair.teacher_name}">${pair.label}</option>`;
+    });
+    
+    return html;
+}
+
+// ============================================================
+// إضافة صف حصة جديد
+// ============================================================
+function addEntryRow() {
+    const tbody = document.getElementById('entriesBody');
+    const rowId = ++rowCounter;
+    
+    // خيارات الأزواج
+    const pairOptions = createSubjectTeacherPairs();
+    
+    const tr = document.createElement('tr');
+    tr.className = 'border-b border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors duration-200';
+    tr.id = `entry-row-${rowId}`;
+    tr.innerHTML = `
+        <td class="p-2 text-center text-sm text-slate-500 dark:text-slate-400">${rowId}</td>
+        <td class="p-2">
+            <select name="entries[${rowId}][day]" class="w-full px-2 py-1 text-sm border border-slate-300 dark:border-slate-600 rounded focus:ring-1 focus:ring-primary-500 focus:border-primary-500 dark:bg-slate-700 dark:text-white">
+                ${DAYS.map((d, i) => `<option value="${i}" ${i === 0 ? 'selected' : ''}>${d}</option>`).join('')}
+            </select>
+        </td>
+        <td class="p-2">
+            <select name="entries[${rowId}][period]" class="w-full px-2 py-1 text-sm border border-slate-300 dark:border-slate-600 rounded focus:ring-1 focus:ring-primary-500 focus:border-primary-500 dark:bg-slate-700 dark:text-white">
+                ${PERIODS.map((p, i) => `<option value="${i + 1}" ${i === 0 ? 'selected' : ''}>${p}</option>`).join('')}
+            </select>
+        </td>
+        <td class="p-2" colspan="2">
+            <select name="entries[${rowId}][pair_id]" 
+                    id="pair-select-${rowId}"
+                    class="w-full px-2 py-1 text-sm border border-slate-300 dark:border-slate-600 rounded focus:ring-1 focus:ring-primary-500 focus:border-primary-500 dark:bg-slate-700 dark:text-white"
+                    onchange="onPairChange(${rowId})">
+                ${pairOptions}
+            </select>
+            <!-- حقول مخفية لتخزين subject_id و teacher_id -->
+            <input type="hidden" name="entries[${rowId}][subject_id]" id="hidden-subject-${rowId}" value="">
+            <input type="hidden" name="entries[${rowId}][teacher_id]" id="hidden-teacher-${rowId}" value="">
+            <!-- عرض المادة والمعلم المختارين -->
+            <div id="pair-preview-${rowId}" class="text-xs text-slate-400 dark:text-slate-500 mt-1"></div>
+        </td>
+        <td class="p-2 text-center">
+            <button type="button" onclick="removeEntryRow(${rowId})" class="text-red-500 hover:text-red-700 dark:hover:text-red-400 transition-colors duration-200">
+                ✕
+            </button>
+        </td>
+    `;
+    
+    tbody.appendChild(tr);
+    entryRows.push(rowId);
+    updateEntrySummary();
+    
+    // إذا كانت هناك قيمة محددة مسبقاً، قم بتحديث الحقول المخفية
+    const pairSelect = document.getElementById(`pair-select-${rowId}`);
+    if (pairSelect && pairSelect.value) {
+        onPairChange(rowId);
+    }
+}
+
+// ============================================================
+// عند تغيير الزوج (المادة - المعلم)
+// ============================================================
+function onPairChange(rowId) {
+    const pairSelect = document.getElementById(`pair-select-${rowId}`);
+    const selectedOption = pairSelect.options[pairSelect.selectedIndex];
+    
+    if (!selectedOption || !selectedOption.value) {
+        // إفراغ الحقول إذا لم يتم الاختيار
+        document.getElementById(`hidden-subject-${rowId}`).value = '';
+        document.getElementById(`hidden-teacher-${rowId}`).value = '';
+        document.getElementById(`pair-preview-${rowId}`).textContent = '';
+        return;
+    }
+    
+    const subjectId = selectedOption.getAttribute('data-subject');
+    const teacherId = selectedOption.getAttribute('data-teacher');
+    const subjectName = selectedOption.getAttribute('data-subject-name') || '';
+    const teacherName = selectedOption.getAttribute('data-teacher-name') || '';
+    
+    // تحديث الحقول المخفية
+    document.getElementById(`hidden-subject-${rowId}`).value = subjectId || '';
+    document.getElementById(`hidden-teacher-${rowId}`).value = teacherId || '';
+    
+    // عرض المادة والمعلم المختارين
+    const previewEl = document.getElementById(`pair-preview-${rowId}`);
+    if (previewEl) {
+        if (subjectId && teacherId) {
+            previewEl.textContent = `📘 ${subjectName} | 👨‍🏫 ${teacherName}`;
+            previewEl.className = 'text-xs text-green-600 dark:text-green-400 mt-1';
+        } else {
+            previewEl.textContent = '⚠️ يرجى اختيار مادة ومعلم';
+            previewEl.className = 'text-xs text-red-500 dark:text-red-400 mt-1';
+        }
+    }
+}
+
+// ============================================================
+// حذف صف حصة
+// ============================================================
+function removeEntryRow(rowId) {
+    if (entryRows.length <= 1) {
+        showMessage('⚠️ يجب أن يكون هناك حصة واحدة على الأقل', 'warning');
+        return;
+    }
+    
+    const row = document.getElementById(`entry-row-${rowId}`);
+    if (row) {
+        row.remove();
+        entryRows = entryRows.filter(id => id !== rowId);
+        updateEntrySummary();
+        renumberRows();
+    }
+}
+
+// ============================================================
+// إعادة ترقيم الصفوف
+// ============================================================
+function renumberRows() {
+    const rows = document.querySelectorAll('#entriesBody tr');
+    rows.forEach((row, index) => {
+        const td = row.querySelector('td:first-child');
+        if (td) {
+            td.textContent = index + 1;
+        }
+    });
+}
+
+// ============================================================
+// تحديث ملخص الحصص
+// ============================================================
+function updateEntrySummary() {
+    document.getElementById('summaryEntries').textContent = entryRows.length;
+}
+
+// ============================================================
+// عرض الرسائل
+// ============================================================
+function showMessage(message, type = 'info') {
+    const container = document.getElementById('messageContainer');
+    const content = document.getElementById('messageContent');
+    
+    const styles = {
+        success: 'bg-green-100 dark:bg-green-900/30 border border-green-400 dark:border-green-700 text-green-700 dark:text-green-400',
+        error: 'bg-red-100 dark:bg-red-900/30 border border-red-400 dark:border-red-700 text-red-700 dark:text-red-400',
+        warning: 'bg-yellow-100 dark:bg-yellow-900/30 border border-yellow-400 dark:border-yellow-700 text-yellow-700 dark:text-yellow-400',
+        info: 'bg-blue-100 dark:bg-blue-900/30 border border-blue-400 dark:border-blue-700 text-blue-700 dark:text-blue-400'
+    };
+    
+    content.className = 'p-3 rounded-lg ' + (styles[type] || styles.info);
+    content.textContent = message;
+    container.classList.remove('hidden');
+    
+    if (type !== 'error') {
+        setTimeout(() => {
+            container.classList.add('hidden');
+        }, 5000);
+    }
+}
 
 // ============================================================
 // التصفية المتسلسلة: المرحلة ← الصف ← الشعبة
@@ -311,179 +518,6 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // ============================================================
-// الحصول على المعلمين حسب المادة
-// ============================================================
-function getTeachersBySubject(subjectId) {
-    if (!subjectId) return ALL_TEACHERS;
-    
-    // في المستقبل يمكن جلبها من API، حالياً نرجع جميع المعلمين
-    // مع وضع معلمي المادة في الأعلى
-    const subjectTeachers = ALL_TEACHERS.filter(t => t.subject_id === subjectId);
-    const otherTeachers = ALL_TEACHERS.filter(t => t.subject_id !== subjectId);
-    
-    return [...subjectTeachers, ...otherTeachers];
-}
-
-// ============================================================
-// إنشاء خيارات المعلمين
-// ============================================================
-function createTeacherOptions(teachers, selectedId = null) {
-    if (!teachers || teachers.length === 0) {
-        return `<option value="">لا يوجد معلمين</option>`;
-    }
-    
-    let html = `<option value="">اختر المعلم</option>`;
-    teachers.forEach(teacher => {
-        const selected = selectedId && teacher.id === selectedId ? 'selected' : '';
-        const label = teacher.name || teacher.full_name || teacher.first_name + ' ' + teacher.last_name;
-        html += `<option value="${teacher.id}" ${selected}>${label}</option>`;
-    });
-    return html;
-}
-
-// ============================================================
-// إضافة صف حصة جديد
-// ============================================================
-function addEntryRow() {
-    const tbody = document.getElementById('entriesBody');
-    const rowId = ++rowCounter;
-    
-    // خيارات المواد
-    let subjectOptions = `<option value="">اختر المادة</option>`;
-    if (ALL_SUBJECTS && ALL_SUBJECTS.length > 0) {
-        ALL_SUBJECTS.forEach(subject => {
-            subjectOptions += `<option value="${subject.id}">${subject.name}</option>`;
-        });
-    }
-    
-    // خيارات المعلمين (جميع المعلمين)
-    const teacherOptions = createTeacherOptions(ALL_TEACHERS);
-    
-    const tr = document.createElement('tr');
-    tr.className = 'border-b border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors duration-200';
-    tr.id = `entry-row-${rowId}`;
-    tr.innerHTML = `
-        <td class="p-2 text-center text-sm text-slate-500 dark:text-slate-400">${rowId}</td>
-        <td class="p-2">
-            <select name="entries[${rowId}][day]" class="w-full px-2 py-1 text-sm border border-slate-300 dark:border-slate-600 rounded focus:ring-1 focus:ring-primary-500 focus:border-primary-500 dark:bg-slate-700 dark:text-white">
-                ${DAYS.map((d, i) => `<option value="${i}" ${i === 0 ? 'selected' : ''}>${d}</option>`).join('')}
-            </select>
-        </td>
-        <td class="p-2">
-            <select name="entries[${rowId}][period]" class="w-full px-2 py-1 text-sm border border-slate-300 dark:border-slate-600 rounded focus:ring-1 focus:ring-primary-500 focus:border-primary-500 dark:bg-slate-700 dark:text-white">
-                ${PERIODS.map((p, i) => `<option value="${i + 1}" ${i === 0 ? 'selected' : ''}>${p}</option>`).join('')}
-            </select>
-        </td>
-        <td class="p-2">
-            <select name="entries[${rowId}][subject_id]" class="w-full px-2 py-1 text-sm border border-slate-300 dark:border-slate-600 rounded focus:ring-1 focus:ring-primary-500 focus:border-primary-500 dark:bg-slate-700 dark:text-white" onchange="updateTeacherOptions(this, ${rowId})">
-                ${subjectOptions}
-            </select>
-        </td>
-        <td class="p-2">
-            <select name="entries[${rowId}][teacher_id]" id="teacher-select-${rowId}" class="w-full px-2 py-1 text-sm border border-slate-300 dark:border-slate-600 rounded focus:ring-1 focus:ring-primary-500 focus:border-primary-500 dark:bg-slate-700 dark:text-white">
-                ${teacherOptions}
-            </select>
-        </td>
-        <td class="p-2 text-center">
-            <button type="button" onclick="removeEntryRow(${rowId})" class="text-red-500 hover:text-red-700 dark:hover:text-red-400 transition-colors duration-200">
-                ✕
-            </button>
-        </td>
-    `;
-    
-    tbody.appendChild(tr);
-    entryRows.push(rowId);
-    updateEntrySummary();
-}
-
-// ============================================================
-// تحديث خيارات المعلمين عند تغيير المادة
-// ============================================================
-function updateTeacherOptions(subjectSelect, rowId) {
-    const subjectId = subjectSelect.value;
-    const teacherSelect = document.getElementById(`teacher-select-${rowId}`);
-    
-    if (!teacherSelect) return;
-    
-    // تصفية المعلمين حسب المادة
-    let filteredTeachers = ALL_TEACHERS;
-    
-    if (subjectId) {
-        // معلمي المادة في الأعلى
-        const subjectTeachers = ALL_TEACHERS.filter(t => t.subject_id === subjectId);
-        const otherTeachers = ALL_TEACHERS.filter(t => t.subject_id !== subjectId);
-        filteredTeachers = [...subjectTeachers, ...otherTeachers];
-    }
-    
-    // إعادة بناء الخيارات
-    const currentValue = teacherSelect.value;
-    teacherSelect.innerHTML = createTeacherOptions(filteredTeachers, currentValue);
-}
-
-// ============================================================
-// حذف صف حصة
-// ============================================================
-function removeEntryRow(rowId) {
-    if (entryRows.length <= 1) {
-        showMessage('⚠️ يجب أن يكون هناك حصة واحدة على الأقل', 'warning');
-        return;
-    }
-    
-    const row = document.getElementById(`entry-row-${rowId}`);
-    if (row) {
-        row.remove();
-        entryRows = entryRows.filter(id => id !== rowId);
-        updateEntrySummary();
-        renumberRows();
-    }
-}
-
-// ============================================================
-// إعادة ترقيم الصفوف
-// ============================================================
-function renumberRows() {
-    const rows = document.querySelectorAll('#entriesBody tr');
-    rows.forEach((row, index) => {
-        const td = row.querySelector('td:first-child');
-        if (td) {
-            td.textContent = index + 1;
-        }
-    });
-}
-
-// ============================================================
-// تحديث ملخص الحصص
-// ============================================================
-function updateEntrySummary() {
-    document.getElementById('summaryEntries').textContent = entryRows.length;
-}
-
-// ============================================================
-// عرض الرسائل
-// ============================================================
-function showMessage(message, type = 'info') {
-    const container = document.getElementById('messageContainer');
-    const content = document.getElementById('messageContent');
-    
-    const styles = {
-        success: 'bg-green-100 dark:bg-green-900/30 border border-green-400 dark:border-green-700 text-green-700 dark:text-green-400',
-        error: 'bg-red-100 dark:bg-red-900/30 border border-red-400 dark:border-red-700 text-red-700 dark:text-red-400',
-        warning: 'bg-yellow-100 dark:bg-yellow-900/30 border border-yellow-400 dark:border-yellow-700 text-yellow-700 dark:text-yellow-400',
-        info: 'bg-blue-100 dark:bg-blue-900/30 border border-blue-400 dark:border-blue-700 text-blue-700 dark:text-blue-400'
-    };
-    
-    content.className = 'p-3 rounded-lg ' + (styles[type] || styles.info);
-    content.textContent = message;
-    container.classList.remove('hidden');
-    
-    if (type !== 'error') {
-        setTimeout(() => {
-            container.classList.add('hidden');
-        }, 5000);
-    }
-}
-
-// ============================================================
 // معاينة الجدول
 // ============================================================
 function previewSchedule() {
@@ -497,7 +531,7 @@ function previewSchedule() {
     
     setTimeout(() => {
         content.innerHTML = buildPreviewTable(data);
-    }, 500);
+    }, 300);
 }
 
 function closePreview() {
@@ -575,19 +609,29 @@ function collectFormData() {
     rows.forEach(row => {
         const day = row.querySelector('select[name$="[day]"]')?.value;
         const period = row.querySelector('select[name$="[period]"]')?.value;
-        const subject_id = row.querySelector('select[name$="[subject_id]"]')?.value;
-        const teacher_id = row.querySelector('select[name$="[teacher_id]"]')?.value;
-        const subject_name = row.querySelector('select[name$="[subject_id]"] option:checked')?.text || 'مادة';
-        const teacher_name = row.querySelector('select[name$="[teacher_id]"] option:checked')?.text || 'معلم';
+        const pairSelect = row.querySelector('select[name$="[pair_id]"]');
+        const subject_id = row.querySelector('input[name$="[subject_id]"]')?.value;
+        const teacher_id = row.querySelector('input[name$="[teacher_id]"]')?.value;
         
-        if (subject_id || teacher_id) {
+        // الحصول على اسم المادة والمعلم من الـ select
+        let subject_name = '';
+        let teacher_name = '';
+        if (pairSelect) {
+            const selectedOption = pairSelect.options[pairSelect.selectedIndex];
+            if (selectedOption && selectedOption.value) {
+                subject_name = selectedOption.getAttribute('data-subject-name') || '';
+                teacher_name = selectedOption.getAttribute('data-teacher-name') || '';
+            }
+        }
+        
+        if (subject_id && teacher_id) {
             entries.push({
                 day: day || '0',
                 period: period || '1',
-                subject_id: subject_id || '',
-                teacher_id: teacher_id || '',
-                subject_name: subject_name,
-                teacher_name: teacher_name,
+                subject_id: subject_id,
+                teacher_id: teacher_id,
+                subject_name: subject_name || 'مادة',
+                teacher_name: teacher_name || 'معلم',
             });
         }
     });
@@ -658,6 +702,15 @@ async function handleSubmit(event, form) {
         return;
     }
 
+    // التحقق من وجود مادة ومعلم لكل حصة
+    const invalidEntries = data.entries.filter(e => !e.subject_id || !e.teacher_id);
+    if (invalidEntries.length > 0) {
+        showMessage(`⚠️ هناك ${invalidEntries.length} حصة بدون مادة أو معلم`, 'error');
+        submitBtn.disabled = false;
+        submitBtn.textContent = '🚀 إنشاء الجدول';
+        return;
+    }
+
     console.log('📤 إرسال البيانات:', data);
 
     try {
@@ -711,11 +764,6 @@ async function handleSubmit(event, form) {
 
 select option {
     padding: 4px 8px;
-}
-
-/* تنسيق المعلمين حسب المادة */
-select[name$="[teacher_id]"] option {
-    border-bottom: 1px solid #e2e8f0;
 }
 </style>
 {% endblock %}
