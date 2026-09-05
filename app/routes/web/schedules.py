@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, Request, HTTPException, status
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, func, and_
 from sqlalchemy.orm import selectinload
 from typing import Optional, List, Dict, Any
 import uuid
@@ -206,7 +206,6 @@ async def get_teachers(db: AsyncSession, school_id: str) -> List[Dict]:
             
             # محاولة جلب المواد من علاقة teacher_subjects إذا كانت موجودة
             try:
-                # التحقق من وجود جدول TeacherSubject
                 from app.models.teacher_subject import TeacherSubject
                 subject_result = await db.execute(
                     select(Subject)
@@ -220,7 +219,6 @@ async def get_teachers(db: AsyncSession, school_id: str) -> List[Dict]:
             except Exception:
                 # إذا لم يكن هناك جدول وسيط، نستخدم التخصص
                 if teacher.specialization:
-                    # محاولة العثور على المادة حسب التخصص
                     subject_result = await db.execute(
                         select(Subject)
                         .where(Subject.name == teacher.specialization)
@@ -231,7 +229,6 @@ async def get_teachers(db: AsyncSession, school_id: str) -> List[Dict]:
                         subject_ids = [str(subject.id)]
                         subject_names = [subject.name]
                     else:
-                        # إذا لم توجد المادة، نضيف التخصص كاسم
                         subject_ids = [teacher.specialization]
                         subject_names = [teacher.specialization]
             
@@ -272,6 +269,8 @@ async def schedules_page(
         service = ScheduleService(db)
         schedules = await service.list_schedules(user.school_id)
         
+        print(f"📊 Found {len(schedules) if schedules else 0} schedules")
+        
         return templates.TemplateResponse(
             "schedules/list.html",
             {
@@ -310,12 +309,18 @@ async def list_schedules(
         service = ScheduleService(db)
         schedules = await service.list_schedules(user.school_id)
         
+        # ✅ تأكد من أن schedules هي قائمة
+        if schedules is None:
+            schedules = []
+        
+        print(f"📊 Found {len(schedules)} schedules in list")
+        
         return templates.TemplateResponse(
             "schedules/list.html",
             {
                 **ctx, 
                 "title": "الجداول الدراسية", 
-                "items": schedules or [], 
+                "items": schedules, 
                 "type": "schedules",
                 "error": None
             }
@@ -534,7 +539,7 @@ async def edit_schedule_page(
 
 
 # ============================================================
-# ✅ مسارات API للجداول (محدثة)
+# ✅ مسارات API للجداول
 # ============================================================
 
 @router.post("/api/v1/schedules")
@@ -555,7 +560,7 @@ async def create_schedule_api(
         if "application/json" in content_type:
             # ✅ معالجة JSON
             data = await request.json()
-            print(f"📦 JSON data received: {json.dumps(data, ensure_ascii=False)[:200]}...")
+            print(f"📦 JSON data received")
             
             # تحويل البيانات إلى Schema
             schedule_data = ScheduleCreate(**data)
@@ -633,7 +638,6 @@ async def create_schedule_api(
             
             # ✅ تحويل إلى قائمة من ScheduleEntryCreate
             for row_id, entry_data in entries_dict.items():
-                # التحقق من وجود البيانات المطلوبة
                 day = entry_data.get("day", 0)
                 period = entry_data.get("period", 1)
                 subject_id = entry_data.get("subject_id")
@@ -903,6 +907,7 @@ async def debug_schedule_data(
             service = ScheduleService(db)
             schedules = await service.list_schedules(user.school_id)
             result["schedules"] = schedules or []
+            result["schedules_count"] = len(schedules) if schedules else 0
         except Exception as e:
             result["schedules_error"] = str(e)
         
@@ -938,6 +943,35 @@ async def debug_teachers(
         
     except Exception as e:
         print(f"❌ Error in debug_teachers: {str(e)}")
+        traceback.print_exc()
+        return JSONResponse(
+            {
+                "error": str(e),
+                "traceback": traceback.format_exc()
+            },
+            status_code=500
+        )
+
+
+@router.get("/debug/schedules")
+async def debug_schedules(
+    request: Request,
+    user: CurrentUser = Depends(require_any_permission("schedules.view")),
+    db: AsyncSession = Depends(get_db),
+):
+    """عرض الجداول للتصحيح"""
+    try:
+        service = ScheduleService(db)
+        schedules = await service.list_schedules(user.school_id)
+        
+        return JSONResponse({
+            "count": len(schedules) if schedules else 0,
+            "schedules": schedules or [],
+            "school_id": str(user.school_id)
+        })
+        
+    except Exception as e:
+        print(f"❌ Error in debug_schedules: {str(e)}")
         traceback.print_exc()
         return JSONResponse(
             {
