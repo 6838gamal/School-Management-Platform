@@ -236,7 +236,7 @@ class ScheduleEntry(UUIDPkMixin, TimestampMixin, Base):
         doc="معرف الجدول"
     )
     
-    # ✅ إضافة school_id
+    # ✅ school_id
     school_id: Mapped[str] = mapped_column(
         String(36), 
         nullable=False, 
@@ -244,7 +244,7 @@ class ScheduleEntry(UUIDPkMixin, TimestampMixin, Base):
         doc="معرف المدرسة"
     )
     
-    # ✅ إضافة section_id
+    # ✅ section_id
     section_id: Mapped[str] = mapped_column(
         String(36), 
         nullable=False, 
