@@ -99,8 +99,7 @@ class ScheduleService:
             .where(
                 ScheduleEntry.schedule_id == schedule_id,
                 ScheduleEntry.day_of_week == day,
-                ScheduleEntry.period_id == str(period),
-                ScheduleEntry.is_active == True
+                ScheduleEntry.period_id == str(period)
             )
         )
         return result.scalar_one_or_none()
@@ -202,10 +201,7 @@ class ScheduleService:
                 
                 entries_count_result = await self.db.execute(
                     select(func.count(ScheduleEntry.id))
-                    .where(
-                        ScheduleEntry.schedule_id == schedule.id,
-                        ScheduleEntry.is_active == True
-                    )
+                    .where(ScheduleEntry.schedule_id == schedule.id)
                 )
                 entries_count = entries_count_result.scalar() or 0
                 
@@ -282,10 +278,7 @@ class ScheduleService:
             
             entries_result = await self.db.execute(
                 select(ScheduleEntry)
-                .where(
-                    ScheduleEntry.schedule_id == schedule_id,
-                    ScheduleEntry.is_active == True
-                )
+                .where(ScheduleEntry.schedule_id == schedule_id)
                 .order_by(ScheduleEntry.day_of_week, ScheduleEntry.period_id)
             )
             entries = list(entries_result.scalars().all())
@@ -310,7 +303,6 @@ class ScheduleService:
                     "teacher_name": teacher_name,
                     "room_id": str(entry.room_id) if entry.room_id else None,
                     "room_name": room_name,
-                    "is_active": entry.is_active,
                 })
             
             schedule_data["entries"] = entries_with_names
@@ -323,7 +315,7 @@ class ScheduleService:
             return None
 
     # ============================================================
-    # ✅ create_schedule - بدون grade_id و stage_id
+    # ✅ create_schedule
     # ============================================================
     
     async def create_schedule(self, school_id: str, req: ScheduleCreate) -> Schedule:
@@ -371,7 +363,7 @@ class ScheduleService:
             
             print("✅ لا يوجد جدول مكرر")
             
-            # إنشاء الجدول - بدون status
+            # إنشاء الجدول
             schedule = Schedule(
                 id=str(uuid.uuid4()),
                 school_id=school_id,
@@ -405,7 +397,7 @@ class ScheduleService:
                 if conflict:
                     raise ValidationException(f"يوجد بالفعل حصة في اليوم {entry_data.day} والفترة {entry_data.period}")
                 
-                # إنشاء الحصة مع الحقول الصحيحة
+                # إنشاء الحصة
                 entry = ScheduleEntry(
                     id=str(uuid.uuid4()),
                     schedule_id=schedule.id,
@@ -413,7 +405,6 @@ class ScheduleService:
                     period_id=str(entry_data.period),
                     subject_id=entry_data.subject_id,
                     teacher_id=entry_data.teacher_id,
-                    is_active=True,
                     created_at=datetime.utcnow(),
                     updated_at=datetime.utcnow(),
                 )
@@ -477,13 +468,14 @@ class ScheduleService:
             schedule.is_active = False
             schedule.updated_at = datetime.utcnow()
             
+            # حذف الحصص (تعطيلها)
             entries_result = await self.db.execute(
                 select(ScheduleEntry).where(ScheduleEntry.schedule_id == schedule_id)
             )
             entries = list(entries_result.scalars().all())
+            # ملاحظة: ScheduleEntry لا يحتوي على is_active، لذا نحذفها مباشرة
             for entry in entries:
-                entry.is_active = False
-                entry.updated_at = datetime.utcnow()
+                await self.db.delete(entry)
             
             await self.db.flush()
             return True
@@ -543,7 +535,6 @@ class ScheduleService:
                 period_id=str(req.period),
                 subject_id=req.subject_id,
                 teacher_id=req.teacher_id,
-                is_active=True,
                 created_at=datetime.utcnow(),
                 updated_at=datetime.utcnow(),
             )
@@ -596,7 +587,7 @@ class ScheduleService:
             raise
 
     async def delete_entry(self, entry_id: str) -> bool:
-        """حذف مدخل (حصة) من الجدول (تعطيل فقط)"""
+        """حذف مدخل (حصة) من الجدول"""
         try:
             result = await self.db.execute(
                 select(ScheduleEntry).where(ScheduleEntry.id == entry_id)
@@ -605,8 +596,7 @@ class ScheduleService:
             if not entry:
                 raise NotFoundException("المدخل غير موجود")
             
-            entry.is_active = False
-            entry.updated_at = datetime.utcnow()
+            await self.db.delete(entry)
             await self.db.flush()
             return True
             
