@@ -59,6 +59,122 @@ def safe_to_json(obj):
 
 
 # ============================================================
+# دالة مساعدة لتحويل الطالب إلى JSON آمن للاستخدام في القوالب
+# ============================================================
+def student_to_dict(student, include_periods=True):
+    """
+    تحويل كائن الطالب إلى قاموس JSON آمن للاستخدام في JavaScript
+    """
+    if not student:
+        return None
+    
+    # إذا كان student قاموس بالفعل
+    if isinstance(student, dict):
+        return student
+    
+    # تحويل كائن SQLAlchemy إلى قاموس
+    result = {
+        "id": str(student.id),
+        "full_name": student.full_name if hasattr(student, 'full_name') else f"{getattr(student, 'first_name', '')} {getattr(student, 'last_name', '')}",
+        "student_number": getattr(student, 'student_number', ''),
+        "national_id": getattr(student, 'national_id', None),
+        "gender": getattr(student, 'gender', None),
+        "grade_name": student.grade.name if hasattr(student, 'grade') and student.grade else None,
+        "grade_id": str(student.grade_id) if student.grade_id else None,
+        "section_name": student.section.name if hasattr(student, 'section') and student.section else None,
+        "section_id": str(student.section_id) if student.section_id else None,
+        "guardian_phone": getattr(student, 'guardian_phone', None),
+        "guardian_name": getattr(student, 'guardian_name', None),
+        "guardian_email": getattr(student, 'guardian_email', None),
+        "address": getattr(student, 'address', None),
+        "birth_date": getattr(student, 'birth_date', None),
+        "attendance_status": getattr(student, 'attendance_status', 'present'),
+        "assignments_total": getattr(student, 'assignments_total', 0),
+        "assignments_completed": getattr(student, 'assignments_completed', 0),
+        "activities_total": getattr(student, 'activities_total', 0),
+        "activities_completed": getattr(student, 'activities_completed', 0),
+        "is_active": getattr(student, 'is_active', True),
+        "year_id": str(student.year_id) if student.year_id else None,
+        "year_name": student.year.name if hasattr(student, 'year') and student.year else None,
+        "school_id": str(student.school_id) if hasattr(student, 'school_id') else None,
+        "created_at": student.created_at.isoformat() if hasattr(student, 'created_at') and student.created_at else None,
+        "updated_at": student.updated_at.isoformat() if hasattr(student, 'updated_at') and student.updated_at else None,
+    }
+    
+    # إنشاء الأحرف الأولى
+    full_name = result["full_name"]
+    if full_name:
+        names = full_name.split()
+        result["initials"] = ''.join([n[0] for n in names])[:3] if names else 'ط'
+    else:
+        result["initials"] = 'ط'
+    
+    # إحصائيات الحضور
+    result["attendance_stats"] = {
+        "overall_percentage": getattr(student, 'attendance_percentage', 85),
+        "present_days": getattr(student, 'present_days', 40),
+        "absent_days": getattr(student, 'absent_days', 5),
+        "late_days": getattr(student, 'late_days', 3),
+        "permitted_days": getattr(student, 'permitted_days', 2),
+        "excused_days": getattr(student, 'excused_days', 1)
+    }
+    
+    # الحصص
+    if include_periods:
+        periods_data = []
+        periods = getattr(student, 'periods', None)
+        if periods:
+            for period in periods:
+                if hasattr(period, '__dict__'):
+                    periods_data.append({
+                        "id": str(period.id) if hasattr(period, 'id') else None,
+                        "name": getattr(period, 'name', ''),
+                        "subject": getattr(period, 'subject', ''),
+                        "teacher": getattr(period, 'teacher', ''),
+                        "time": getattr(period, 'time', ''),
+                        "status": getattr(period, 'status', 'present'),
+                        "late_time": getattr(period, 'late_time', ''),
+                        "late_duration": getattr(period, 'late_duration', '')
+                    })
+        else:
+            # حصص افتراضية
+            default_periods = [
+                {"name": "الحصة الأولى", "subject": "رياضيات", "time": "8:00-9:00", "status": "present", "late_time": "", "late_duration": ""},
+                {"name": "الحصة الثانية", "subject": "عربي", "time": "9:00-10:00", "status": "present", "late_time": "", "late_duration": ""},
+                {"name": "الحصة الثالثة", "subject": "إنجليزي", "time": "10:00-11:00", "status": "present", "late_time": "", "late_duration": ""},
+                {"name": "الحصة الرابعة", "subject": "علوم", "time": "11:00-12:00", "status": "present", "late_time": "", "late_duration": ""},
+                {"name": "الحصة الخامسة", "subject": "تربية إسلامية", "time": "12:00-13:00", "status": "present", "late_time": "", "late_duration": ""}
+            ]
+            periods_data = default_periods
+        result["periods"] = periods_data
+    
+    # إحصائيات التأخر
+    result["late_stats"] = {
+        "total": getattr(student, 'late_total', 0),
+        "morning": getattr(student, 'late_morning', 0),
+        "period": getattr(student, 'late_period', 0)
+    }
+    
+    return result
+
+
+def students_to_json(students, include_periods=True):
+    """
+    تحويل قائمة الطلاب إلى JSON string آمنة للاستخدام في القوالب
+    """
+    if not students:
+        return "[]"
+    
+    students_data = []
+    for student in students:
+        student_dict = student_to_dict(student, include_periods)
+        if student_dict:
+            students_data.append(student_dict)
+    
+    return json.dumps(students_data, default=str, ensure_ascii=False)
+
+
+# ============================================================
 # دالة مساعدة لمعالجة تاريخ الميلاد
 # ============================================================
 def parse_birth_date(value):
@@ -906,9 +1022,9 @@ async def student_new(
                 **ctx, 
                 "title": "إضافة طالب", 
                 "mode": "create", 
-                "sections": sections_data,  # ✅ بدون safe_to_json
-                "years": data.get("years", []),  # ✅ بدون safe_to_json
-                "grades": data.get("grades", []),  # ✅ بدون safe_to_json
+                "sections": sections_data,
+                "years": data.get("years", []),
+                "grades": data.get("grades", []),
                 "student": None,
                 "error": None
             },
@@ -984,9 +1100,9 @@ async def student_create(
                 **ctx, 
                 "title": "إضافة طالب", 
                 "mode": "create", 
-                "sections": sections_data,  # ✅ بدون safe_to_json
-                "years": data.get("years", []),  # ✅ بدون safe_to_json
-                "grades": data.get("grades", []),  # ✅ بدون safe_to_json
+                "sections": sections_data,
+                "years": data.get("years", []),
+                "grades": data.get("grades", []),
                 "student": None,
                 "error": "الرجاء تصحيح الأخطاء التالية:<br>• " + "<br>• ".join(errors.values())
             },
@@ -1029,9 +1145,9 @@ async def student_create(
                 **ctx, 
                 "title": "إضافة طالب", 
                 "mode": "create", 
-                "sections": sections_data,  # ✅ بدون safe_to_json
-                "years": data.get("years", []),  # ✅ بدون safe_to_json
-                "grades": data.get("grades", []),  # ✅ بدون safe_to_json
+                "sections": sections_data,
+                "years": data.get("years", []),
+                "grades": data.get("grades", []),
                 "student": None,
                 "error": str(e)
             },
@@ -1054,9 +1170,9 @@ async def student_create(
                 **ctx, 
                 "title": "إضافة طالب", 
                 "mode": "create", 
-                "sections": sections_data,  # ✅ بدون safe_to_json
-                "years": data.get("years", []),  # ✅ بدون safe_to_json
-                "grades": data.get("grades", []),  # ✅ بدون safe_to_json
+                "sections": sections_data,
+                "years": data.get("years", []),
+                "grades": data.get("grades", []),
                 "student": None,
                 "error": str(e)
             },
@@ -1079,9 +1195,9 @@ async def student_create(
                 **ctx, 
                 "title": "إضافة طالب", 
                 "mode": "create", 
-                "sections": sections_data,  # ✅ بدون safe_to_json
-                "years": data.get("years", []),  # ✅ بدون safe_to_json
-                "grades": data.get("grades", []),  # ✅ بدون safe_to_json
+                "sections": sections_data,
+                "years": data.get("years", []),
+                "grades": data.get("grades", []),
                 "student": None,
                 "error": str(e)
             },
@@ -1105,9 +1221,9 @@ async def student_create(
                 **ctx, 
                 "title": "إضافة طالب", 
                 "mode": "create", 
-                "sections": sections_data,  # ✅ بدون safe_to_json
-                "years": data.get("years", []),  # ✅ بدون safe_to_json
-                "grades": data.get("grades", []),  # ✅ بدون safe_to_json
+                "sections": sections_data,
+                "years": data.get("years", []),
+                "grades": data.get("grades", []),
                 "student": None,
                 "error": f"حدث خطأ غير متوقع: {str(e)}"
             },
@@ -1116,7 +1232,7 @@ async def student_create(
 
 
 # ============================================================
-# 3️⃣ GET /students - قائمة الطلاب (محدثة)
+# 3️⃣ GET /students - قائمة الطلاب (محدثة مع تحويل JSON)
 # ============================================================
 @router.get("")
 async def students_list(
@@ -1148,13 +1264,21 @@ async def students_list(
             is_active=True,
         )
         
-        # ✅ تمرير البيانات مباشرة (سيتم تحويلها في القالب عبر tojson|safe)
+        # ✅ تحويل الطلاب إلى JSON آمن للاستخدام في JavaScript
+        students_items = result.get("items", [])
+        students_json = students_to_json(students_items)
+        
+        # ✅ طباعة في الكونسول للتحقق
+        print(f"📊 عدد الطلاب المسترجعين: {len(students_items)}")
+        print(f"📊 أول طالب في القائمة: {students_items[0].full_name if students_items else 'لا يوجد'}")
+        print(f"📊 طول JSON: {len(students_json)}")
+        
         return templates.TemplateResponse(
             "students/list.html",
             {
                 **ctx, 
                 "title": "الطلاب", 
-                "students": result.get("items", []),  # ✅ بدون safe_to_json
+                "students": students_json,  # ✅ JSON string جاهز
                 "total": result.get("total", 0),
                 "page": page, 
                 "page_size": 20, 
@@ -1163,20 +1287,21 @@ async def students_list(
                 "grade_filter": grade_id,
                 "year_filter": year_id,
                 "section_filter": section_id,
-                "grades": data.get("grades", []),  # ✅ بدون safe_to_json
-                "years": data.get("years", []),    # ✅ بدون safe_to_json
-                "sections": data.get("sections", []),  # ✅ بدون safe_to_json
+                "grades": data.get("grades", []),
+                "years": data.get("years", []),
+                "sections": data.get("sections", []),
                 "error": None
             },
         )
     except Exception as e:
         print(f"❌ Error in students_list: {str(e)}")
+        traceback.print_exc()
         return templates.TemplateResponse(
             "students/list.html",
             {
                 **ctx, 
                 "title": "الطلاب", 
-                "students": [], 
+                "students": "[]",  # ✅ JSON فارغ
                 "total": 0,
                 "page": page, 
                 "page_size": 20, 
@@ -1226,10 +1351,10 @@ async def student_edit(
                 **ctx, 
                 "title": "تعديل طالب", 
                 "mode": "edit", 
-                "student": detail,  # ✅ بدون safe_to_json
-                "sections": sections_data,  # ✅ بدون safe_to_json
-                "years": data.get("years", []),  # ✅ بدون safe_to_json
-                "grades": data.get("grades", []),  # ✅ بدون safe_to_json
+                "student": detail,
+                "sections": sections_data,
+                "years": data.get("years", []),
+                "grades": data.get("grades", []),
                 "error": None
             },
         )
@@ -1301,10 +1426,10 @@ async def student_update(
                     **ctx, 
                     "title": "تعديل طالب", 
                     "mode": "edit", 
-                    "student": detail,  # ✅ بدون safe_to_json
-                    "sections": sections_data,  # ✅ بدون safe_to_json
-                    "years": data.get("years", []),  # ✅ بدون safe_to_json
-                    "grades": data.get("grades", []),  # ✅ بدون safe_to_json
+                    "student": detail,
+                    "sections": sections_data,
+                    "years": data.get("years", []),
+                    "grades": data.get("grades", []),
                     "error": "الرجاء تصحيح الأخطاء التالية:<br>• " + "<br>• ".join(errors.values())
                 },
                 status_code=422
@@ -1360,10 +1485,10 @@ async def student_update(
                     **ctx, 
                     "title": "تعديل طالب", 
                     "mode": "edit", 
-                    "student": detail,  # ✅ بدون safe_to_json
-                    "sections": sections_data,  # ✅ بدون safe_to_json
-                    "years": data.get("years", []),  # ✅ بدون safe_to_json
-                    "grades": data.get("grades", []),  # ✅ بدون safe_to_json
+                    "student": detail,
+                    "sections": sections_data,
+                    "years": data.get("years", []),
+                    "grades": data.get("grades", []),
                     "error": str(e)
                 },
                 status_code=409
@@ -1393,10 +1518,10 @@ async def student_update(
                     **ctx, 
                     "title": "تعديل طالب", 
                     "mode": "edit", 
-                    "student": detail,  # ✅ بدون safe_to_json
-                    "sections": sections_data,  # ✅ بدون safe_to_json
-                    "years": data.get("years", []),  # ✅ بدون safe_to_json
-                    "grades": data.get("grades", []),  # ✅ بدون safe_to_json
+                    "student": detail,
+                    "sections": sections_data,
+                    "years": data.get("years", []),
+                    "grades": data.get("grades", []),
                     "error": str(e)
                 },
                 status_code=422
@@ -1427,10 +1552,10 @@ async def student_update(
                     **ctx, 
                     "title": "تعديل طالب", 
                     "mode": "edit", 
-                    "student": detail,  # ✅ بدون safe_to_json
-                    "sections": sections_data,  # ✅ بدون safe_to_json
-                    "years": data.get("years", []),  # ✅ بدون safe_to_json
-                    "grades": data.get("grades", []),  # ✅ بدون safe_to_json
+                    "student": detail,
+                    "sections": sections_data,
+                    "years": data.get("years", []),
+                    "grades": data.get("grades", []),
                     "error": f"حدث خطأ غير متوقع: {str(e)}"
                 },
                 status_code=500
@@ -1479,7 +1604,7 @@ async def student_detail(
         
         return templates.TemplateResponse(
             "students/detail.html",
-            {**ctx, "title": detail.get("full_name", "تفاصيل الطالب"), "student": detail},  # ✅ بدون safe_to_json
+            {**ctx, "title": detail.get("full_name", "تفاصيل الطالب"), "student": detail},
         )
     except NotFoundException as e:
         return templates.TemplateResponse(
