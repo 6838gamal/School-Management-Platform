@@ -1,10 +1,11 @@
 """Schedule service."""
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_, func
+from sqlalchemy import select, and_, func, text
 from sqlalchemy.orm import selectinload
 from typing import List, Optional, Dict, Any
 import uuid
 from datetime import datetime
+import json
 
 from app.core.exceptions import NotFoundException, ValidationException
 from app.models.academics import Section, Period, Subject, Room, AcademicYear, Grade, Stage
@@ -183,6 +184,10 @@ class ScheduleService:
     async def list_schedules(self, school_id: str) -> List[Dict[str, Any]]:
         """جلب جميع الجداول مع الأسماء والتفاصيل الكاملة"""
         try:
+            print("=" * 60)
+            print("📊 جلب قائمة الجداول للمدرسة:", school_id)
+            print("=" * 60)
+            
             result = await self.db.execute(
                 select(Schedule)
                 .where(Schedule.school_id == school_id)
@@ -191,19 +196,57 @@ class ScheduleService:
             schedules = list(result.scalars().all())
             
             if not schedules:
-                print(f"📊 لا توجد جداول للمدرسة {school_id}")
+                print("📊 لا توجد جداول للمدرسة", school_id)
                 return []
             
+            print(f"📊 تم العثور على {len(schedules)} جدول")
+            
             result_list = []
-            for schedule in schedules:
-                section_details = await self.get_section_details(schedule.section_id)
-                year_name = await self.get_academic_year_name(schedule.year_id)
+            for idx, schedule in enumerate(schedules, 1):
+                print(f"\n📋 الجدول #{idx}:")
+                print(f"   🆔 ID: {schedule.id}")
+                print(f"   📝 الاسم: {schedule.name}")
+                print(f"   🏫 المدرسة: {schedule.school_id}")
+                print(f"   📚 الشعبة: {schedule.section_id}")
+                print(f"   📅 العام الدراسي: {schedule.year_id}")
+                print(f"   ✅ مفعل: {schedule.is_active}")
+                print(f"   📌 الحالة: {schedule.status}")
+                print(f"   📅 تاريخ الإنشاء: {schedule.created_at}")
                 
+                # جلب تفاصيل الشعبة
+                section_details = await self.get_section_details(schedule.section_id)
+                print(f"   🏷️ اسم الشعبة: {section_details.get('name')}")
+                print(f"   🏷️ الصف: {section_details.get('grade_name')}")
+                print(f"   🏷️ المرحلة: {section_details.get('stage_name')}")
+                
+                # جلب اسم العام الدراسي
+                year_name = await self.get_academic_year_name(schedule.year_id)
+                print(f"   🏷️ اسم العام: {year_name}")
+                
+                # حساب عدد الحصص
                 entries_count_result = await self.db.execute(
                     select(func.count(ScheduleEntry.id))
                     .where(ScheduleEntry.schedule_id == schedule.id)
                 )
                 entries_count = entries_count_result.scalar() or 0
+                print(f"   📚 عدد الحصص: {entries_count}")
+                
+                # جلب الحصص (أول 5 فقط للعرض)
+                if entries_count > 0:
+                    entries_result = await self.db.execute(
+                        select(ScheduleEntry)
+                        .where(ScheduleEntry.schedule_id == schedule.id)
+                        .order_by(ScheduleEntry.day_of_week, ScheduleEntry.period_id)
+                        .limit(5)
+                    )
+                    entries = list(entries_result.scalars().all())
+                    print(f"   📖 الحصص (أول 5):")
+                    for entry in entries:
+                        subject_name = await self.get_subject_name(entry.subject_id)
+                        teacher_name = await self.get_teacher_name(entry.teacher_id)
+                        print(f"      - اليوم {entry.day_of_week}, الفترة {entry.period_id}: {subject_name} - {teacher_name}")
+                    if entries_count > 5:
+                        print(f"      ... و {entries_count - 5} حصص أخرى")
                 
                 result_list.append({
                     "id": str(schedule.id),
@@ -220,12 +263,14 @@ class ScheduleService:
                     "academic_year_name": year_name,
                     "academic_year_id": str(schedule.year_id) if schedule.year_id else None,
                     "is_active": schedule.is_active,
+                    "status": schedule.status,
                     "created_at": schedule.created_at,
                     "updated_at": schedule.updated_at,
                     "entries_count": entries_count,
                 })
             
-            print(f"📊 تم جلب {len(result_list)} جدول للمدرسة {school_id}")
+            print(f"\n✅ تم جلب {len(result_list)} جدول للمدرسة {school_id}")
+            print("=" * 60)
             return result_list
             
         except Exception as e:
@@ -237,15 +282,32 @@ class ScheduleService:
     async def get_schedule(self, schedule_id: str) -> Optional[Dict[str, Any]]:
         """جلب جدول بواسطة المعرف مع الأسماء"""
         try:
+            print("=" * 60)
+            print(f"🔍 جلب تفاصيل الجدول: {schedule_id}")
+            print("=" * 60)
+            
             result = await self.db.execute(
                 select(Schedule).where(Schedule.id == schedule_id)
             )
             schedule = result.scalar_one_or_none()
             if not schedule:
+                print(f"❌ الجدول غير موجود: {schedule_id}")
                 return None
+            
+            print(f"📝 اسم الجدول: {schedule.name}")
+            print(f"🏫 المدرسة: {schedule.school_id}")
+            print(f"📚 الشعبة: {schedule.section_id}")
+            print(f"📅 العام: {schedule.year_id}")
+            print(f"✅ مفعل: {schedule.is_active}")
+            print(f"📌 الحالة: {schedule.status}")
             
             section_details = await self.get_section_details(schedule.section_id)
             year_name = await self.get_academic_year_name(schedule.year_id)
+            
+            print(f"🏷️ اسم الشعبة: {section_details.get('name')}")
+            print(f"🏷️ الصف: {section_details.get('grade_name')}")
+            print(f"🏷️ المرحلة: {section_details.get('stage_name')}")
+            print(f"🏷️ العام الدراسي: {year_name}")
             
             return {
                 "id": str(schedule.id),
@@ -262,6 +324,7 @@ class ScheduleService:
                 "academic_year_name": year_name,
                 "academic_year_id": str(schedule.year_id) if schedule.year_id else None,
                 "is_active": schedule.is_active,
+                "status": schedule.status,
                 "created_at": schedule.created_at,
                 "updated_at": schedule.updated_at
             }
@@ -272,6 +335,10 @@ class ScheduleService:
     async def get_schedule_with_entries(self, schedule_id: str) -> Optional[Dict[str, Any]]:
         """جلب جدول مع جميع مدخلاته"""
         try:
+            print("=" * 60)
+            print(f"🔍 جلب تفاصيل الجدول مع الحصص: {schedule_id}")
+            print("=" * 60)
+            
             schedule_data = await self.get_schedule(schedule_id)
             if not schedule_data:
                 return None
@@ -283,17 +350,30 @@ class ScheduleService:
             )
             entries = list(entries_result.scalars().all())
             
+            print(f"\n📚 عدد الحصص: {len(entries)}")
+            
             entries_with_names = []
-            for entry in entries:
+            for idx, entry in enumerate(entries, 1):
                 subject_name = await self.get_subject_name(entry.subject_id)
                 teacher_name = await self.get_teacher_name(entry.teacher_id)
                 room_name = await self.get_room_name(entry.room_id)
                 period_name = await self.get_period_name(str(entry.period_id)) if entry.period_id else None
                 
+                print(f"\n   📖 الحصة #{idx}:")
+                print(f"      🆔 ID: {entry.id}")
+                print(f"      📅 اليوم: {entry.day_of_week} ({entry.day_name})")
+                print(f"      ⏰ الفترة: {entry.period_id}")
+                print(f"      📘 المادة: {subject_name} ({entry.subject_id})")
+                print(f"      👨‍🏫 المعلم: {teacher_name} ({entry.teacher_id})")
+                print(f"      🏠 القاعة: {room_name or 'غير محددة'}")
+                print(f"      📝 ملاحظات: {entry.notes or 'لا يوجد'}")
+                
                 entries_with_names.append({
                     "id": str(entry.id),
                     "day": entry.day_of_week,
                     "day_of_week": entry.day_of_week,
+                    "day_name": entry.day_name,
+                    "day_name_en": entry.day_name_en,
                     "period": entry.period_id,
                     "period_id": str(entry.period_id) if entry.period_id else None,
                     "period_name": period_name,
@@ -303,10 +383,16 @@ class ScheduleService:
                     "teacher_name": teacher_name,
                     "room_id": str(entry.room_id) if entry.room_id else None,
                     "room_name": room_name,
+                    "notes": entry.notes,
+                    "created_at": entry.created_at,
+                    "updated_at": entry.updated_at,
                 })
             
             schedule_data["entries"] = entries_with_names
             schedule_data["entries_count"] = len(entries_with_names)
+            
+            print(f"\n✅ تم جلب {len(entries_with_names)} حصة للجدول {schedule_data.get('name')}")
+            print("=" * 60)
             
             return schedule_data
             
@@ -321,7 +407,7 @@ class ScheduleService:
     async def create_schedule(self, school_id: str, req: ScheduleCreate) -> Schedule:
         """إنشاء جدول جديد"""
         try:
-            print("=" * 50)
+            print("=" * 60)
             print("📝 إنشاء جدول جديد:")
             print(f"   school_id: {school_id}")
             print(f"   name: {req.name}")
@@ -329,7 +415,7 @@ class ScheduleService:
             print(f"   year_id: {req.year_id}")
             print(f"   is_active: {req.is_active}")
             print(f"   entries_count: {len(req.entries)}")
-            print("=" * 50)
+            print("=" * 60)
             
             if not school_id:
                 raise ValidationException("معرف المدرسة غير موجود")
@@ -377,18 +463,28 @@ class ScheduleService:
             self.db.add(schedule)
             await self.db.flush()
             
+            print(f"✅ تم إنشاء الجدول: {schedule.id}")
+            
             # ✅ إضافة الحصص مع school_id و section_id و period_id كرقم
-            for entry_data in req.entries:
+            for idx, entry_data in enumerate(req.entries, 1):
+                print(f"\n   📖 إضافة حصة #{idx}:")
+                print(f"      📅 اليوم: {entry_data.day}")
+                print(f"      ⏰ الفترة: {entry_data.period}")
+                print(f"      📘 المادة: {entry_data.subject_id}")
+                print(f"      👨‍🏫 المعلم: {entry_data.teacher_id}")
+                
                 # التحقق من وجود المادة
                 subject = await self.find_subject_by_id(entry_data.subject_id)
                 if not subject:
                     raise ValidationException(f"المادة غير موجودة: {entry_data.subject_id}")
+                print(f"      ✅ المادة: {subject.name}")
                 
                 # التحقق من وجود المعلم
                 if entry_data.teacher_id:
                     teacher = await self.find_teacher_by_id(entry_data.teacher_id)
                     if not teacher:
                         raise ValidationException(f"المعلم غير موجود: {entry_data.teacher_id}")
+                    print(f"      ✅ المعلم: {teacher.first_name} {teacher.last_name}")
                 
                 # التحقق من عدم وجود تعارض
                 conflict = await self.find_entry_conflict(
@@ -396,6 +492,7 @@ class ScheduleService:
                 )
                 if conflict:
                     raise ValidationException(f"يوجد بالفعل حصة في اليوم {entry_data.day} والفترة {entry_data.period}")
+                print(f"      ✅ لا يوجد تعارض")
                 
                 # ✅ إنشاء الحصة مع school_id و section_id و period_id كرقم
                 entry = ScheduleEntry(
@@ -411,11 +508,14 @@ class ScheduleService:
                     updated_at=datetime.utcnow(),
                 )
                 self.db.add(entry)
+                print(f"      ✅ تم إضافة الحصة: {entry.id}")
             
             await self.db.flush()
             await self.db.refresh(schedule)
             
-            print(f"✅ تم إنشاء الجدول بنجاح: {schedule.id}")
+            print(f"\n✅ تم إنشاء الجدول بنجاح: {schedule.id}")
+            print(f"📚 عدد الحصص: {len(req.entries)}")
+            print("=" * 60)
             return schedule
             
         except ValidationException:
@@ -429,12 +529,18 @@ class ScheduleService:
     async def update_schedule(self, schedule_id: str, req: ScheduleUpdate) -> Schedule:
         """تحديث جدول"""
         try:
+            print("=" * 60)
+            print(f"📝 تحديث الجدول: {schedule_id}")
+            print("=" * 60)
+            
             result = await self.db.execute(
                 select(Schedule).where(Schedule.id == schedule_id)
             )
             schedule = result.scalar_one_or_none()
             if not schedule:
                 raise NotFoundException("الجدول غير موجود")
+            
+            print(f"📝 الاسم الحالي: {schedule.name}")
             
             update_data = req.model_dump(exclude_unset=True)
             # إزالة الحقول غير الموجودة في النموذج
@@ -445,10 +551,14 @@ class ScheduleService:
             for key, value in update_data.items():
                 if hasattr(schedule, key):
                     setattr(schedule, key, value)
+                    print(f"   ✅ تحديث {key}: {value}")
             
             schedule.updated_at = datetime.utcnow()
             await self.db.flush()
             await self.db.refresh(schedule)
+            
+            print(f"✅ تم تحديث الجدول: {schedule.id}")
+            print("=" * 60)
             return schedule
             
         except NotFoundException:
@@ -460,12 +570,18 @@ class ScheduleService:
     async def delete_schedule(self, schedule_id: str) -> bool:
         """حذف جدول (تعطيل فقط)"""
         try:
+            print("=" * 60)
+            print(f"🗑️ حذف الجدول: {schedule_id}")
+            print("=" * 60)
+            
             result = await self.db.execute(
                 select(Schedule).where(Schedule.id == schedule_id)
             )
             schedule = result.scalar_one_or_none()
             if not schedule:
                 raise NotFoundException("الجدول غير موجود")
+            
+            print(f"📝 اسم الجدول: {schedule.name}")
             
             schedule.is_active = False
             schedule.updated_at = datetime.utcnow()
@@ -475,10 +591,15 @@ class ScheduleService:
                 select(ScheduleEntry).where(ScheduleEntry.schedule_id == schedule_id)
             )
             entries = list(entries_result.scalars().all())
+            print(f"📚 عدد الحصص المحذوفة: {len(entries)}")
+            
             for entry in entries:
                 await self.db.delete(entry)
             
             await self.db.flush()
+            
+            print(f"✅ تم حذف الجدول: {schedule.id}")
+            print("=" * 60)
             return True
             
         except NotFoundException:
@@ -492,14 +613,14 @@ class ScheduleService:
     async def add_entry(self, schedule_id: str, req: ScheduleEntryCreate) -> ScheduleEntry:
         """إضافة مدخل (حصة) إلى الجدول"""
         try:
-            print("=" * 50)
+            print("=" * 60)
             print("📝 إضافة حصة جديدة:")
             print(f"   schedule_id: {schedule_id}")
             print(f"   day: {req.day}")
             print(f"   period: {req.period}")
             print(f"   subject_id: {req.subject_id}")
             print(f"   teacher_id: {req.teacher_id}")
-            print("=" * 50)
+            print("=" * 60)
             
             schedule_result = await self.db.execute(
                 select(Schedule).where(Schedule.id == schedule_id)
@@ -507,6 +628,8 @@ class ScheduleService:
             schedule = schedule_result.scalar_one_or_none()
             if not schedule:
                 raise NotFoundException("الجدول غير موجود")
+            
+            print(f"📝 اسم الجدول: {schedule.name}")
             
             subject = await self.find_subject_by_id(req.subject_id)
             if not subject:
@@ -546,6 +669,7 @@ class ScheduleService:
             await self.db.refresh(entry)
             
             print(f"✅ تم إضافة الحصة بنجاح: {entry.id}")
+            print("=" * 60)
             return entry
             
         except NotFoundException:
@@ -559,12 +683,19 @@ class ScheduleService:
     async def update_entry(self, entry_id: str, req: ScheduleEntryUpdate) -> ScheduleEntry:
         """تحديث مدخل (حصة) في الجدول"""
         try:
+            print("=" * 60)
+            print(f"📝 تحديث الحصة: {entry_id}")
+            print("=" * 60)
+            
             result = await self.db.execute(
                 select(ScheduleEntry).where(ScheduleEntry.id == entry_id)
             )
             entry = result.scalar_one_or_none()
             if not entry:
                 raise NotFoundException("المدخل غير موجود")
+            
+            print(f"📅 اليوم الحالي: {entry.day_of_week}")
+            print(f"⏰ الفترة الحالية: {entry.period_id}")
             
             update_data = req.model_dump(exclude_unset=True)
             
@@ -577,10 +708,14 @@ class ScheduleService:
             for key, value in update_data.items():
                 if hasattr(entry, key):
                     setattr(entry, key, value)
+                    print(f"   ✅ تحديث {key}: {value}")
             
             entry.updated_at = datetime.utcnow()
             await self.db.flush()
             await self.db.refresh(entry)
+            
+            print(f"✅ تم تحديث الحصة: {entry.id}")
+            print("=" * 60)
             return entry
             
         except NotFoundException:
@@ -592,6 +727,10 @@ class ScheduleService:
     async def delete_entry(self, entry_id: str) -> bool:
         """حذف مدخل (حصة) من الجدول"""
         try:
+            print("=" * 60)
+            print(f"🗑️ حذف الحصة: {entry_id}")
+            print("=" * 60)
+            
             result = await self.db.execute(
                 select(ScheduleEntry).where(ScheduleEntry.id == entry_id)
             )
@@ -599,8 +738,14 @@ class ScheduleService:
             if not entry:
                 raise NotFoundException("المدخل غير موجود")
             
+            print(f"📅 اليوم: {entry.day_of_week}")
+            print(f"⏰ الفترة: {entry.period_id}")
+            
             await self.db.delete(entry)
             await self.db.flush()
+            
+            print(f"✅ تم حذف الحصة: {entry.id}")
+            print("=" * 60)
             return True
             
         except NotFoundException:
@@ -762,9 +907,18 @@ class ScheduleService:
     async def check_available_data(self, school_id: str) -> Dict[str, Any]:
         """التحقق من البيانات المتاحة للمدرسة"""
         try:
+            print("=" * 60)
+            print(f"🔍 التحقق من البيانات للمدرسة: {school_id}")
+            print("=" * 60)
+            
             sections = await self.get_sections_objects(school_id)
             years = await self.get_academic_years_objects(school_id)
             schedules = await self.list_schedules(school_id)
+            
+            print(f"\n📊 النتائج:")
+            print(f"   📚 الشعب: {len(sections)}")
+            print(f"   📅 السنوات الدراسية: {len(years)}")
+            print(f"   📋 الجداول: {len(schedules)}")
             
             return {
                 "school_id": school_id,
