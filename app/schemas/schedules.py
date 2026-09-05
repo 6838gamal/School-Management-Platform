@@ -6,16 +6,16 @@ from enum import Enum
 
 
 # ============================================================
-# ✅ Enums - متوافقة مع قاعدة البيانات
+# ✅ Enums - محاولة استخدام قيم مختلفة
 # ============================================================
 
 class ScheduleStatus(str, Enum):
-    """حالة الجدول - متوافقة مع ENUM في قاعدة البيانات"""
-    # ✅ استخدام القيم التي تتوقعها قاعدة البيانات
-    DRAFT = "draft"  # أو "مسودة" حسب ما هو موجود في قاعدة البيانات
-    PUBLISHED = "published"  # أو "منشور"
-    ARCHIVED = "archived"  # أو "مؤرشف"
-    CANCELLED = "cancelled"  # أو "ملغي"
+    """حالة الجدول"""
+    # ✅ جرب هذه القيم بدلاً من DRAFT
+    DRAFT = "draft"  # أو جرب "مسودة"
+    PUBLISHED = "published"  # أو جرب "منشور"
+    ARCHIVED = "archived"  # أو جرب "مؤرشف"
+    CANCELLED = "cancelled"  # أو جرب "ملغي"
     
     # إذا كانت القيم بالعربية:
     # DRAFT = "مسودة"
@@ -145,7 +145,7 @@ class ScheduleEntryResponse(BaseModel):
 
 
 # ============================================================
-# ✅ Schedule Schemas
+# ✅ Schedule Schemas - مع إزالة status من الإنشاء مؤقتاً
 # ============================================================
 
 class ScheduleBase(BaseModel):
