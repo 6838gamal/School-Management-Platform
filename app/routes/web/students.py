@@ -70,7 +70,72 @@ def student_to_dict(student, include_periods=True):
     
     # إذا كان student قاموس بالفعل
     if isinstance(student, dict):
-        return student
+        # تأكد من وجود جميع الحقول المطلوبة
+        result = {
+            "id": str(student.get('id', '')),
+            "full_name": student.get('full_name', ''),
+            "student_number": student.get('student_number', ''),
+            "national_id": student.get('national_id', None),
+            "gender": student.get('gender', None),
+            "grade_name": student.get('grade_name', None),
+            "grade_id": student.get('grade_id', None),
+            "section_name": student.get('section_name', None),
+            "section_id": student.get('section_id', None),
+            "guardian_phone": student.get('guardian_phone', None),
+            "guardian_name": student.get('guardian_name', None),
+            "guardian_email": student.get('guardian_email', None),
+            "address": student.get('address', None),
+            "birth_date": student.get('birth_date', None),
+            "attendance_status": student.get('attendance_status', 'present'),
+            "assignments_total": student.get('assignments_total', 0),
+            "assignments_completed": student.get('assignments_completed', 0),
+            "activities_total": student.get('activities_total', 0),
+            "activities_completed": student.get('activities_completed', 0),
+            "is_active": student.get('is_active', True),
+            "year_id": student.get('year_id', None),
+            "year_name": student.get('year_name', None),
+            "school_id": student.get('school_id', None),
+            "created_at": student.get('created_at', None),
+            "updated_at": student.get('updated_at', None),
+        }
+        
+        # إنشاء الأحرف الأولى
+        full_name = result["full_name"]
+        if full_name:
+            names = full_name.split()
+            result["initials"] = ''.join([n[0] for n in names])[:3] if names else 'ط'
+        else:
+            result["initials"] = 'ط'
+        
+        # إحصائيات الحضور
+        result["attendance_stats"] = student.get('attendance_stats', {
+            "overall_percentage": 85,
+            "present_days": 40,
+            "absent_days": 5,
+            "late_days": 3,
+            "permitted_days": 2,
+            "excused_days": 1
+        })
+        
+        # الحصص
+        if include_periods:
+            periods_data = student.get('periods', [
+                {"name": "الحصة الأولى", "subject": "رياضيات", "time": "8:00-9:00", "status": "present", "late_time": "", "late_duration": ""},
+                {"name": "الحصة الثانية", "subject": "عربي", "time": "9:00-10:00", "status": "present", "late_time": "", "late_duration": ""},
+                {"name": "الحصة الثالثة", "subject": "إنجليزي", "time": "10:00-11:00", "status": "present", "late_time": "", "late_duration": ""},
+                {"name": "الحصة الرابعة", "subject": "علوم", "time": "11:00-12:00", "status": "present", "late_time": "", "late_duration": ""},
+                {"name": "الحصة الخامسة", "subject": "تربية إسلامية", "time": "12:00-13:00", "status": "present", "late_time": "", "late_duration": ""}
+            ])
+            result["periods"] = periods_data
+        
+        # إحصائيات التأخر
+        result["late_stats"] = student.get('late_stats', {
+            "total": 0,
+            "morning": 0,
+            "period": 0
+        })
+        
+        return result
     
     # تحويل كائن SQLAlchemy إلى قاموس
     result = {
@@ -1266,11 +1331,20 @@ async def students_list(
         
         # ✅ تحويل الطلاب إلى JSON آمن للاستخدام في JavaScript
         students_items = result.get("items", [])
-        students_json = students_to_json(students_items)
         
-        # ✅ طباعة في الكونسول للتحقق
+        # ✅ طباعة للتحقق من نوع البيانات
         print(f"📊 عدد الطلاب المسترجعين: {len(students_items)}")
-        print(f"📊 أول طالب في القائمة: {students_items[0].full_name if students_items else 'لا يوجد'}")
+        if students_items:
+            first_item = students_items[0]
+            print(f"📊 نوع أول عنصر: {type(first_item)}")
+            if isinstance(first_item, dict):
+                print(f"📊 مفاتيح أول طالب: {list(first_item.keys())}")
+                print(f"📊 اسم أول طالب: {first_item.get('full_name', 'غير موجود')}")
+            else:
+                print(f"📊 اسم أول طالب: {getattr(first_item, 'full_name', 'غير موجود')}")
+        
+        # تحويل إلى JSON
+        students_json = students_to_json(students_items)
         print(f"📊 طول JSON: {len(students_json)}")
         
         return templates.TemplateResponse(
