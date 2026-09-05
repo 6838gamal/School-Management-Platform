@@ -9,12 +9,13 @@ from typing import Optional, List, Dict, Any
 import uuid
 import traceback
 import json
+import re
 from datetime import datetime
 
 from app.core.database import get_db
 from app.core.dependencies import CurrentUser, require_any_permission, template_context
 from app.services.schedule_service import ScheduleService
-from app.core.exceptions import NotFoundException, AppException
+from app.core.exceptions import NotFoundException, AppException, ValidationException
 from app.core.security import hash_password
 
 # ============================================================
@@ -234,11 +235,6 @@ async def get_teachers(db: AsyncSession, school_id: str) -> List[Dict]:
                         subject_ids = [teacher.specialization]
                         subject_names = [teacher.specialization]
             
-            # إذا لم يكن للمعلم أي مواد، نضيفه مع مواد افتراضية (اختياري)
-            if not subject_ids:
-                # يمكن إضافة مواد افتراضية أو تركها فارغة
-                pass
-            
             teachers_data.append({
                 "id": str(teacher.id),
                 "name": f"{teacher.first_name} {teacher.last_name}".strip() or teacher.full_name,
@@ -250,7 +246,7 @@ async def get_teachers(db: AsyncSession, school_id: str) -> List[Dict]:
                 "specialization": teacher.specialization,
                 "subject_ids": subject_ids,
                 "subject_names": subject_names,
-                "subject_id": subject_ids[0] if subject_ids else None,  # للمعالجة السريعة
+                "subject_id": subject_ids[0] if subject_ids else None,
             })
         
         return teachers_data
@@ -538,7 +534,7 @@ async def edit_schedule_page(
 
 
 # ============================================================
-# مسارات API للجداول
+# ✅ مسارات API للجداول (محدثة)
 # ============================================================
 
 @router.post("/api/v1/schedules")
@@ -547,18 +543,27 @@ async def create_schedule_api(
     user: CurrentUser = Depends(require_any_permission("schedules.create")),
     db: AsyncSession = Depends(get_db),
 ):
-    """إنشاء جدول جديد عبر API (يدعم JSON و FormData)"""
+    """
+    إنشاء جدول جديد عبر API
+    يدعم كلاً من JSON و FormData
+    """
     try:
-        # التحقق من نوع المحتوى
+        # قراءة البيانات
         content_type = request.headers.get("content-type", "")
+        print(f"📥 Content-Type: {content_type}")
         
         if "application/json" in content_type:
-            # معالجة JSON
+            # ✅ معالجة JSON
             data = await request.json()
+            print(f"📦 JSON data received: {json.dumps(data, ensure_ascii=False)[:200]}...")
+            
+            # تحويل البيانات إلى Schema
             schedule_data = ScheduleCreate(**data)
+            
         else:
-            # معالجة FormData
+            # ✅ معالجة FormData
             form_data = await request.form()
+            print(f"📦 FormData keys: {list(form_data.keys())}")
             
             # استخراج البيانات الأساسية
             schedule_data = ScheduleCreate(
@@ -571,9 +576,8 @@ async def create_schedule_api(
                 entries=[]
             )
             
-            # استخراج الحصص من FormData
+            # ✅ استخراج الحصص من FormData
             entries_dict = {}
-            import re
             
             for key, value in form_data.items():
                 # استخراج day
@@ -583,7 +587,10 @@ async def create_schedule_api(
                         row_id = int(match.group(1))
                         if row_id not in entries_dict:
                             entries_dict[row_id] = {}
-                        entries_dict[row_id]["day"] = int(value)
+                        try:
+                            entries_dict[row_id]["day"] = int(value)
+                        except ValueError:
+                            entries_dict[row_id]["day"] = 0
                 
                 # استخراج period
                 elif key.startswith("entries[") and key.endswith("][period]"):
@@ -592,9 +599,12 @@ async def create_schedule_api(
                         row_id = int(match.group(1))
                         if row_id not in entries_dict:
                             entries_dict[row_id] = {}
-                        entries_dict[row_id]["period"] = int(value)
+                        try:
+                            entries_dict[row_id]["period"] = int(value)
+                        except ValueError:
+                            entries_dict[row_id]["period"] = 1
                 
-                # استخراج subject_id (من الحقل المخفي)
+                # ✅ استخراج subject_id (من الحقل المخفي)
                 elif key.startswith("entries[") and key.endswith("][subject_id]"):
                     match = re.search(r"entries\[(\d+)\]\[subject_id\]", key)
                     if match:
@@ -603,7 +613,7 @@ async def create_schedule_api(
                             entries_dict[row_id] = {}
                         entries_dict[row_id]["subject_id"] = value
                 
-                # استخراج teacher_id (من الحقل المخفي)
+                # ✅ استخراج teacher_id (من الحقل المخفي)
                 elif key.startswith("entries[") and key.endswith("][teacher_id]"):
                     match = re.search(r"entries\[(\d+)\]\[teacher_id\]", key)
                     if match:
@@ -612,7 +622,7 @@ async def create_schedule_api(
                             entries_dict[row_id] = {}
                         entries_dict[row_id]["teacher_id"] = value
                 
-                # استخراج pair_id (للتحقق)
+                # استخراج pair_id (كاحتياطي)
                 elif key.startswith("entries[") and key.endswith("][pair_id]"):
                     match = re.search(r"entries\[(\d+)\]\[pair_id\]", key)
                     if match:
@@ -621,36 +631,45 @@ async def create_schedule_api(
                             entries_dict[row_id] = {}
                         entries_dict[row_id]["pair_id"] = value
             
-            # تحويل إلى قائمة من ScheduleEntryCreate
+            # ✅ تحويل إلى قائمة من ScheduleEntryCreate
             for row_id, entry_data in entries_dict.items():
                 # التحقق من وجود البيانات المطلوبة
-                if "day" in entry_data and "period" in entry_data:
-                    # إذا كان هناك pair_id، استخراج subject_id و teacher_id منه
-                    if "pair_id" in entry_data and entry_data["pair_id"]:
-                        pair_parts = entry_data["pair_id"].split("|")
-                        if len(pair_parts) == 2:
-                            entry_data["subject_id"] = pair_parts[0]
-                            entry_data["teacher_id"] = pair_parts[1]
-                    
-                    # التحقق من وجود subject_id و teacher_id
-                    if "subject_id" in entry_data and "teacher_id" in entry_data:
-                        schedule_data.entries.append(
-                            ScheduleEntryCreate(
-                                day=entry_data["day"],
-                                period=entry_data["period"],
-                                subject_id=entry_data["subject_id"],
-                                teacher_id=entry_data["teacher_id"]
-                            )
+                day = entry_data.get("day", 0)
+                period = entry_data.get("period", 1)
+                subject_id = entry_data.get("subject_id")
+                teacher_id = entry_data.get("teacher_id")
+                
+                # ✅ إذا كان هناك pair_id فقط، استخراج subject_id و teacher_id منه
+                if (not subject_id or not teacher_id) and "pair_id" in entry_data and entry_data["pair_id"]:
+                    pair_parts = entry_data["pair_id"].split("|")
+                    if len(pair_parts) == 2:
+                        subject_id = pair_parts[0]
+                        teacher_id = pair_parts[1]
+                
+                # ✅ إضافة الحصة إذا كانت البيانات مكتملة
+                if subject_id and teacher_id and subject_id != '' and teacher_id != '':
+                    schedule_data.entries.append(
+                        ScheduleEntryCreate(
+                            day=day,
+                            period=period,
+                            subject_id=subject_id,
+                            teacher_id=teacher_id
                         )
+                    )
+                    print(f"✅ Added entry: day={day}, period={period}, subject={subject_id}, teacher={teacher_id}")
+                else:
+                    print(f"⚠️ Skipping entry {row_id}: missing subject or teacher")
         
-        # التحقق من وجود حصص
+        # ✅ التحقق من وجود حصص
         if not schedule_data.entries:
             return JSONResponse(
-                {"detail": "يجب إضافة حصة واحدة على الأقل"},
+                {"detail": "يجب إضافة حصة واحدة على الأقل مع اختيار المادة والمعلم"},
                 status_code=422
             )
         
-        # إنشاء الجدول
+        print(f"✅ Total entries: {len(schedule_data.entries)}")
+        
+        # ✅ إنشاء الجدول
         service = ScheduleService(db)
         schedule = await service.create_schedule(user.school_id, schedule_data)
         await db.commit()
@@ -659,11 +678,20 @@ async def create_schedule_api(
             "success": True,
             "message": "تم إنشاء الجدول بنجاح",
             "id": str(schedule.id),
-            "name": schedule.name
+            "name": schedule.name,
+            "entries_count": len(schedule_data.entries)
         }
         
+    except ValidationException as e:
+        await db.rollback()
+        print(f"❌ Validation error: {str(e)}")
+        return JSONResponse(
+            {"detail": str(e)},
+            status_code=422
+        )
     except ValueError as e:
         await db.rollback()
+        print(f"❌ Value error: {str(e)}")
         return JSONResponse(
             {"detail": str(e)},
             status_code=422
@@ -768,7 +796,7 @@ async def add_entry_api(
             {"detail": str(e)},
             status_code=404
         )
-    except ValueError as e:
+    except ValidationException as e:
         return JSONResponse(
             {"detail": str(e)},
             status_code=422
