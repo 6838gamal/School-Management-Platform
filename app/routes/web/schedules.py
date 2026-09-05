@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, Request, HTTPException, status
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_
+from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
 from typing import Optional, List, Dict, Any
 import uuid
@@ -309,7 +309,6 @@ async def list_schedules(
         service = ScheduleService(db)
         schedules = await service.list_schedules(user.school_id)
         
-        # ✅ تأكد من أن schedules هي قائمة
         if schedules is None:
             schedules = []
         
@@ -539,7 +538,7 @@ async def edit_schedule_page(
 
 
 # ============================================================
-# ✅ مسارات API للجداول
+# ✅ مسارات API للجداول (محدثة)
 # ============================================================
 
 @router.post("/api/v1/schedules")
@@ -557,6 +556,10 @@ async def create_schedule_api(
         content_type = request.headers.get("content-type", "")
         print(f"📥 Content-Type: {content_type}")
         
+        # ✅ قراءة البيانات الخام
+        body = await request.body()
+        print(f"📦 Raw body length: {len(body)}")
+        
         if "application/json" in content_type:
             # ✅ معالجة JSON
             data = await request.json()
@@ -570,16 +573,20 @@ async def create_schedule_api(
             form_data = await request.form()
             print(f"📦 FormData keys: {list(form_data.keys())}")
             
-            # استخراج البيانات الأساسية
-            schedule_data = ScheduleCreate(
-                name=form_data.get("name"),
-                year_id=form_data.get("year_id"),
-                stage_id=form_data.get("stage_id"),
-                grade_id=form_data.get("grade_id"),
-                section_id=form_data.get("section_id"),
-                is_active=form_data.get("is_active") == "true",
-                entries=[]
-            )
+            # ✅ استخراج البيانات الأساسية
+            name = form_data.get("name")
+            year_id = form_data.get("year_id")
+            stage_id = form_data.get("stage_id")
+            grade_id = form_data.get("grade_id")
+            section_id = form_data.get("section_id")
+            is_active = form_data.get("is_active") == "true"
+            
+            print(f"📝 name: {name}")
+            print(f"📝 year_id: {year_id}")
+            print(f"📝 stage_id: {stage_id}")
+            print(f"📝 grade_id: {grade_id}")
+            print(f"📝 section_id: {section_id}")
+            print(f"📝 is_active: {is_active}")
             
             # ✅ استخراج الحصص من FormData
             entries_dict = {}
@@ -596,6 +603,7 @@ async def create_schedule_api(
                             entries_dict[row_id]["day"] = int(value)
                         except ValueError:
                             entries_dict[row_id]["day"] = 0
+                        print(f"   ✅ day[{row_id}] = {value}")
                 
                 # استخراج period
                 elif key.startswith("entries[") and key.endswith("][period]"):
@@ -608,6 +616,7 @@ async def create_schedule_api(
                             entries_dict[row_id]["period"] = int(value)
                         except ValueError:
                             entries_dict[row_id]["period"] = 1
+                        print(f"   ✅ period[{row_id}] = {value}")
                 
                 # ✅ استخراج subject_id (من الحقل المخفي)
                 elif key.startswith("entries[") and key.endswith("][subject_id]"):
@@ -617,6 +626,7 @@ async def create_schedule_api(
                         if row_id not in entries_dict:
                             entries_dict[row_id] = {}
                         entries_dict[row_id]["subject_id"] = value
+                        print(f"   ✅ subject_id[{row_id}] = {value}")
                 
                 # ✅ استخراج teacher_id (من الحقل المخفي)
                 elif key.startswith("entries[") and key.endswith("][teacher_id]"):
@@ -626,6 +636,7 @@ async def create_schedule_api(
                         if row_id not in entries_dict:
                             entries_dict[row_id] = {}
                         entries_dict[row_id]["teacher_id"] = value
+                        print(f"   ✅ teacher_id[{row_id}] = {value}")
                 
                 # استخراج pair_id (كاحتياطي)
                 elif key.startswith("entries[") and key.endswith("][pair_id]"):
@@ -635,8 +646,10 @@ async def create_schedule_api(
                         if row_id not in entries_dict:
                             entries_dict[row_id] = {}
                         entries_dict[row_id]["pair_id"] = value
+                        print(f"   ✅ pair_id[{row_id}] = {value}")
             
-            # ✅ تحويل إلى قائمة من ScheduleEntryCreate
+            # ✅ إنشاء قائمة الحصص
+            entries_list = []
             for row_id, entry_data in entries_dict.items():
                 day = entry_data.get("day", 0)
                 period = entry_data.get("period", 1)
@@ -649,20 +662,30 @@ async def create_schedule_api(
                     if len(pair_parts) == 2:
                         subject_id = pair_parts[0]
                         teacher_id = pair_parts[1]
+                        print(f"   ✅ استخراج من pair_id: subject={subject_id}, teacher={teacher_id}")
                 
                 # ✅ إضافة الحصة إذا كانت البيانات مكتملة
                 if subject_id and teacher_id and subject_id != '' and teacher_id != '':
-                    schedule_data.entries.append(
-                        ScheduleEntryCreate(
-                            day=day,
-                            period=period,
-                            subject_id=subject_id,
-                            teacher_id=teacher_id
-                        )
-                    )
-                    print(f"✅ Added entry: day={day}, period={period}, subject={subject_id}, teacher={teacher_id}")
+                    entries_list.append({
+                        "day": day,
+                        "period": period,
+                        "subject_id": subject_id,
+                        "teacher_id": teacher_id
+                    })
+                    print(f"   ✅ Added entry: day={day}, period={period}, subject={subject_id}, teacher={teacher_id}")
                 else:
-                    print(f"⚠️ Skipping entry {row_id}: missing subject or teacher")
+                    print(f"   ⚠️ Skipping entry {row_id}: missing subject or teacher")
+            
+            # ✅ إنشاء كائن ScheduleCreate
+            schedule_data = ScheduleCreate(
+                name=name,
+                year_id=year_id,
+                stage_id=stage_id,
+                grade_id=grade_id,
+                section_id=section_id,
+                is_active=is_active,
+                entries=entries_list
+            )
         
         # ✅ التحقق من وجود حصص
         if not schedule_data.entries:
@@ -696,12 +719,15 @@ async def create_schedule_api(
     except ValueError as e:
         await db.rollback()
         print(f"❌ Value error: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return JSONResponse(
             {"detail": str(e)},
             status_code=422
         )
     except Exception as e:
         print(f"❌ Error creating schedule: {str(e)}")
+        import traceback
         traceback.print_exc()
         await db.rollback()
         return JSONResponse(
