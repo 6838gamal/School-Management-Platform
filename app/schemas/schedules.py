@@ -6,15 +6,22 @@ from enum import Enum
 
 
 # ============================================================
-# Enums
+# ✅ Enums - متوافقة مع قاعدة البيانات
 # ============================================================
 
 class ScheduleStatus(str, Enum):
-    """حالة الجدول"""
-    DRAFT = "draft"
-    PUBLISHED = "published"
-    ARCHIVED = "archived"
-    CANCELLED = "cancelled"
+    """حالة الجدول - متوافقة مع ENUM في قاعدة البيانات"""
+    # ✅ استخدام القيم التي تتوقعها قاعدة البيانات
+    DRAFT = "draft"  # أو "مسودة" حسب ما هو موجود في قاعدة البيانات
+    PUBLISHED = "published"  # أو "منشور"
+    ARCHIVED = "archived"  # أو "مؤرشف"
+    CANCELLED = "cancelled"  # أو "ملغي"
+    
+    # إذا كانت القيم بالعربية:
+    # DRAFT = "مسودة"
+    # PUBLISHED = "منشور"
+    # ARCHIVED = "مؤرشف"
+    # CANCELLED = "ملغي"
 
 
 class DayOfWeek(int, Enum):
@@ -52,61 +59,31 @@ class DayOfWeek(int, Enum):
             6: "Saturday"
         }
         return names.get(self.value, "Unknown")
-    
-    @classmethod
-    def is_weekend(cls, day: int) -> bool:
-        """هل اليوم عطلة؟"""
-        return day in [5, 6]
-    
-    @classmethod
-    def is_active_day(cls, day: int) -> bool:
-        """هل اليوم نشط (أيام الأحد إلى الخميس)؟"""
-        return day in [0, 1, 2, 3, 4]
 
 
 # ============================================================
-# ✅ Schedule Entry Schemas (متوافقة مع القالب)
+# ✅ Schedule Entry Schemas
 # ============================================================
 
 class ScheduleEntryBase(BaseModel):
-    """القاعدة المشتركة للحصة - متوافقة مع القالب"""
+    """القاعدة المشتركة للحصة"""
     day: int = Field(..., ge=0, le=6, description="رقم اليوم (0=الأحد, 6=السبت)")
     period: int = Field(..., ge=1, le=8, description="رقم الفترة/الحصة (1-8)")
     subject_id: str = Field(..., description="معرف المادة")
     teacher_id: Optional[str] = Field(None, description="معرف المعلم")
-    
-    # حقول اختيارية للتوافق مع الإصدارات السابقة
-    day_of_week: Optional[int] = Field(None, ge=0, le=6, description="رقم اليوم (متوافق مع الإصدارات السابقة)")
-    period_id: Optional[str] = Field(None, description="معرف الفترة (متوافق مع الإصدارات السابقة)")
     room_id: Optional[str] = Field(None, description="معرف الغرفة")
     notes: Optional[str] = Field(None, max_length=500, description="ملاحظات")
     
-    @field_validator('day', mode='before')
-    @classmethod
-    def validate_day(cls, v):
-        """تحويل day_of_week إلى day إذا كان موجوداً"""
-        if isinstance(v, dict) and 'day_of_week' in v:
-            return v['day_of_week']
-        return v
-    
-    @field_validator('period', mode='before')
-    @classmethod
-    def validate_period(cls, v):
-        """تحويل period_id إلى period إذا كان موجوداً"""
-        if isinstance(v, dict) and 'period_id' in v:
-            return v['period_id']
-        return v
-    
     @field_validator('day')
     @classmethod
-    def validate_day_value(cls, v: int) -> int:
+    def validate_day(cls, v: int) -> int:
         if v < 0 or v > 6:
             raise ValueError('رقم اليوم يجب أن يكون بين 0 و 6')
         return v
 
     @field_validator('period')
     @classmethod
-    def validate_period_value(cls, v: int) -> int:
+    def validate_period(cls, v: int) -> int:
         if v < 1 or v > 8:
             raise ValueError('رقم الفترة يجب أن يكون بين 1 و 8')
         return v
@@ -121,13 +98,7 @@ class ScheduleEntryBase(BaseModel):
 
 class ScheduleEntryCreate(ScheduleEntryBase):
     """Schema لإضافة حصة إلى الجدول"""
-    
-    @field_validator('teacher_id')
-    @classmethod
-    def validate_teacher_id(cls, v: Optional[str]) -> Optional[str]:
-        if v is not None and v == '':
-            raise ValueError('معرف المعلم غير صحيح')
-        return v
+    pass
 
 
 class ScheduleEntryUpdate(BaseModel):
@@ -139,20 +110,6 @@ class ScheduleEntryUpdate(BaseModel):
     room_id: Optional[str] = None
     notes: Optional[str] = Field(None, max_length=500)
     is_active: Optional[bool] = None
-    
-    @field_validator('day')
-    @classmethod
-    def validate_day(cls, v: Optional[int]) -> Optional[int]:
-        if v is not None and (v < 0 or v > 6):
-            raise ValueError('رقم اليوم يجب أن يكون بين 0 و 6')
-        return v
-
-    @field_validator('period')
-    @classmethod
-    def validate_period(cls, v: Optional[int]) -> Optional[int]:
-        if v is not None and (v < 1 or v > 8):
-            raise ValueError('رقم الفترة يجب أن يكون بين 1 و 8')
-        return v
 
 
 class ScheduleEntryResponse(BaseModel):
@@ -188,7 +145,7 @@ class ScheduleEntryResponse(BaseModel):
 
 
 # ============================================================
-# ✅ Schedule Schemas (متوافقة مع القالب)
+# ✅ Schedule Schemas
 # ============================================================
 
 class ScheduleBase(BaseModel):
@@ -197,8 +154,6 @@ class ScheduleBase(BaseModel):
     description: Optional[str] = Field(None, max_length=500, description="وصف الجدول")
     section_id: str = Field(..., description="معرف الشعبة")
     year_id: str = Field(..., description="معرف العام الدراسي")
-    stage_id: Optional[str] = Field(None, description="معرف المرحلة")
-    grade_id: Optional[str] = Field(None, description="معرف الصف")
     status: ScheduleStatus = Field(default=ScheduleStatus.DRAFT, description="حالة الجدول")
     is_active: bool = Field(default=True, description="هل الجدول مفعل؟")
     is_default: bool = Field(default=False, description="هل هذا الجدول هو الافتراضي للشعبة؟")
@@ -226,20 +181,6 @@ class ScheduleCreate(ScheduleBase):
         if not v or v == '':
             raise ValueError('معرف العام الدراسي مطلوب')
         return v
-
-    @field_validator('stage_id')
-    @classmethod
-    def validate_stage_id(cls, v: Optional[str]) -> Optional[str]:
-        if v is not None and v == '':
-            raise ValueError('معرف المرحلة غير صحيح')
-        return v
-
-    @field_validator('grade_id')
-    @classmethod
-    def validate_grade_id(cls, v: Optional[str]) -> Optional[str]:
-        if v is not None and v == '':
-            raise ValueError('معرف الصف غير صحيح')
-        return v
     
     @model_validator(mode='after')
     def validate_dates(self) -> 'ScheduleCreate':
@@ -263,8 +204,6 @@ class ScheduleUpdate(BaseModel):
     description: Optional[str] = Field(None, max_length=500)
     section_id: Optional[str] = None
     year_id: Optional[str] = None
-    stage_id: Optional[str] = None
-    grade_id: Optional[str] = None
     status: Optional[ScheduleStatus] = None
     is_active: Optional[bool] = None
     is_default: Optional[bool] = None
@@ -305,13 +244,10 @@ class ScheduleResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     
-    # إحصائيات
     entries_count: int = 0
     total_periods: int = 0
     days_count: int = 0
     periods_per_day: int = 0
-    
-    # الحصص
     entries: List[ScheduleEntryResponse] = Field(default_factory=list)
     
     class Config:
@@ -456,24 +392,17 @@ ScheduleTemplateResponse.model_rebuild()
 # تحديث __all__
 # ============================================================
 __all__ = [
-    # Enums
     "ScheduleStatus",
     "DayOfWeek",
-    
-    # Schedule
     "ScheduleBase",
     "ScheduleCreate",
     "ScheduleUpdate",
     "ScheduleResponse",
     "ScheduleListResponse",
-    
-    # Schedule Entry
     "ScheduleEntryBase",
     "ScheduleEntryCreate",
     "ScheduleEntryUpdate",
     "ScheduleEntryResponse",
-    
-    # Templates
     "ScheduleTemplateBase",
     "ScheduleTemplateCreate",
     "ScheduleTemplateUpdate",
@@ -481,13 +410,9 @@ __all__ = [
     "ScheduleTemplateEntryBase",
     "ScheduleTemplateEntryCreate",
     "ScheduleTemplateEntryResponse",
-    
-    # Batch Operations
     "ScheduleBulkCreate",
     "ScheduleBulkResponse",
     "ScheduleCopyRequest",
     "ScheduleValidationResult",
-    
-    # Filters
     "ScheduleFilter",
 ]
