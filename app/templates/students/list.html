@@ -59,23 +59,23 @@
         .student-grid { @apply grid-cols-3; }
         .stats-grid { @apply grid-cols-5; }
     }
+    
+    /* ===== مؤشر التحميل ===== */
+    .spinner {
+        border: 4px solid rgba(0, 0, 0, 0.1);
+        border-radius: 50%;
+        border-top: 4px solid #6366f1;
+        width: 40px;
+        height: 40px;
+        animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
 </style>
 
-<div class="space-y-6" x-data="studentsApp({{ students | safe }})" x-init="init()">
-    
-    <!-- ============================================================ -->
-    <!-- معلومات التصحيح                                               -->
-    <!-- ============================================================ -->
-    <div class="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg border border-blue-200 dark:border-blue-700">
-        <h3 class="font-bold text-blue-800 dark:text-blue-200">🔍 معلومات التصحيح</h3>
-        <div class="text-sm text-blue-700 dark:text-blue-300 mt-2 space-y-1">
-            <div>📊 عدد الطلاب في البيانات: <span class="font-bold" x-text="students?.length || 0"></span></div>
-            <div>📊 حالة التحميل: <span x-show="students?.length > 0" class="text-emerald-600 font-bold">✅ جاهز</span><span x-show="!students || students.length === 0" class="text-red-600 font-bold">⏳ جاري التحميل...</span></div>
-            <div>📊 عدد الطلاب المعروضين: <span class="font-bold" x-text="pageStudents?.length || 0"></span></div>
-            <div>📊 إجمالي الصفحات: <span class="font-bold" x-text="totalPages"></span></div>
-            <div>📊 وضع العرض: <span class="font-bold" x-text="viewMode"></span></div>
-        </div>
-    </div>
+<div class="space-y-6" x-data="studentsApp()" x-init="loadStudents()">
     
     <!-- ============================================================ -->
     <!-- HEADER: العنوان والإحصائيات                                    -->
@@ -207,11 +207,19 @@
     </div>
     
     <!-- ============================================================ -->
+    <!-- حالة التحميل                                                  -->
+    <!-- ============================================================ -->
+    <div x-show="loading" class="text-center py-12">
+        <div class="spinner mx-auto"></div>
+        <p class="text-slate-400 mt-4">جاري تحميل البيانات...</p>
+    </div>
+    
+    <!-- ============================================================ -->
     <!-- قائمة الطلاب (Grid View)                                      -->
     <!-- ============================================================ -->
-    <div x-show="viewMode === 'grid'" class="student-grid grid gap-4" x-transition>
+    <div x-show="!loading && viewMode === 'grid'" class="student-grid grid gap-4" x-transition>
         <!-- رسالة عدم وجود بيانات -->
-        <div x-show="pageStudents.length === 0 && students.length === 0" class="col-span-full p-8 text-center">
+        <div x-show="pageStudents.length === 0" class="col-span-full p-8 text-center">
             <div class="text-slate-400">
                 <svg class="w-12 h-12 mx-auto mb-3 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
@@ -222,12 +230,6 @@
                 <a href="/students/new" class="inline-block mt-3 text-primary-600 hover:underline">➕ أضف طالب جديد</a>
                 {% endif %}
             </div>
-        </div>
-        
-        <!-- مؤشر التحميل -->
-        <div x-show="pageStudents.length === 0 && students.length > 0" class="col-span-full p-8 text-center">
-            <div class="inline-block animate-spin rounded-full h-12 w-12 border-4 border-primary-600 border-t-transparent"></div>
-            <p class="text-slate-400 mt-3">جاري تحميل البيانات...</p>
         </div>
         
         <!-- عرض البطاقات -->
@@ -338,7 +340,7 @@
     <!-- ============================================================ -->
     <!-- قائمة الطلاب (List View)                                      -->
     <!-- ============================================================ -->
-    <div x-show="viewMode === 'list'" 
+    <div x-show="!loading && viewMode === 'list'" 
          class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 overflow-hidden"
          x-transition>
         <div class="overflow-x-auto">
@@ -359,16 +361,9 @@
                 </thead>
                 <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
                     <!-- رسالة عدم وجود بيانات -->
-                    <tr x-show="pageStudents.length === 0 && students.length === 0">
+                    <tr x-show="pageStudents.length === 0">
                         <td colspan="10" class="p-8 text-center text-slate-400">
                             لا يوجد طلاب
-                        </td>
-                    </tr>
-                    <!-- مؤشر التحميل -->
-                    <tr x-show="pageStudents.length === 0 && students.length > 0">
-                        <td colspan="10" class="p-8 text-center">
-                            <div class="inline-block animate-spin rounded-full h-8 w-8 border-4 border-primary-600 border-t-transparent"></div>
-                            <p class="text-slate-400 mt-2">جاري التحميل...</p>
                         </td>
                     </tr>
                     <template x-for="(student, index) in pageStudents" :key="student.id">
@@ -423,7 +418,7 @@
     <!-- ============================================================ -->
     <!-- الترقيم (Pagination)                                          -->
     <!-- ============================================================ -->
-    <div x-show="totalPages > 1" 
+    <div x-show="!loading && totalPages > 1" 
          class="flex flex-col sm:flex-row items-center justify-between gap-4 bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-4">
         <div class="text-sm text-slate-400">
             عرض <span x-text="startIndex + 1"></span> - 
@@ -676,13 +671,14 @@
 </div>
 
 <!-- ============================================================ -->
-<!-- JavaScript (Alpine.js) - النسخة المحدثة                      -->
+<!-- JavaScript (Alpine.js) - جلب البيانات عبر API                -->
 <!-- ============================================================ -->
 <script>
-function studentsApp(initialStudents = []) {
+function studentsApp() {
     return {
         // ---- البيانات الأساسية ----
         students: [],
+        loading: true,
         searchQuery: '',
         filterStatus: '',
         filterGrade: '',
@@ -694,49 +690,59 @@ function studentsApp(initialStudents = []) {
         selectedStudent: null,
         deleteStudentId: null,
         
-        // ---- التهيئة ----
-        init() {
-            console.log('🚀 بدء تهيئة studentsApp');
-            console.log('📊 initialStudents:', initialStudents);
-            console.log('📊 نوع initialStudents:', typeof initialStudents);
-            
-            // ✅ تعيين البيانات
-            let studentsData = initialStudents;
-            
-            // إذا كانت string، حولها إلى array
-            if (typeof studentsData === 'string') {
-                try {
-                    studentsData = JSON.parse(studentsData);
-                    console.log('✅ تم تحويل students من string إلى array');
-                } catch(e) {
-                    console.error('❌ فشل تحويل students:', e);
-                    studentsData = [];
+        // ---- جلب البيانات ----
+        async loadStudents() {
+            this.loading = true;
+            try {
+                console.log('🚀 جاري جلب بيانات الطلاب...');
+                const response = await fetch('/students?format=json');
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
                 }
-            }
-            
-            // إذا كانت object وليست array، حولها
-            if (!Array.isArray(studentsData) && typeof studentsData === 'object' && studentsData !== null) {
-                console.warn('⚠️ students ليست array، جاري التحويل');
-                studentsData = Object.values(studentsData);
-            }
-            
-            // تأكد من أنها array
-            if (!Array.isArray(studentsData)) {
-                console.error('❌ students ليست array:', studentsData);
-                studentsData = [];
-            }
-            
-            this.students = studentsData;
-            
-            console.log('📊 عدد الطلاب بعد التهيئة:', this.students.length);
-            if (this.students.length > 0) {
-                console.log('📊 أول طالب:', this.students[0]);
-                console.log('📊 مفاتيح أول طالب:', Object.keys(this.students[0]));
-            }
-            
-            // ✅ إضافة بيانات افتراضية للطلاب إذا كانت فارغة (للاختبار)
-            if (this.students.length === 0) {
-                console.warn('⚠️ لا توجد بيانات، جاري إضافة بيانات افتراضية للاختبار');
+                const data = await response.json();
+                console.log('📊 البيانات المستلمة:', data);
+                
+                if (data && data.students) {
+                    this.students = data.students;
+                } else if (Array.isArray(data)) {
+                    this.students = data;
+                } else {
+                    console.warn('⚠️ تنسيق غير متوقع:', data);
+                    this.students = [];
+                }
+                
+                console.log('📊 عدد الطلاب:', this.students.length);
+                
+                // تهيئة البيانات لكل طالب
+                this.students.forEach((student, index) => {
+                    if (!student.initials) {
+                        const names = student.full_name ? student.full_name.split(' ') : ['طالب'];
+                        student.initials = names.map(n => n[0]).join('').substring(0, 3);
+                    }
+                    if (!student.attendance_stats) {
+                        student.attendance_stats = { overall_percentage: 85, present_days: 40, absent_days: 5, late_days: 3, permitted_days: 2 };
+                    }
+                    if (!student.periods || student.periods.length === 0) {
+                        student.periods = [
+                            { name: 'الحصة الأولى', subject: 'رياضيات', time: '8:00-9:00', status: 'present', late_time: '', late_duration: '' },
+                            { name: 'الحصة الثانية', subject: 'عربي', time: '9:00-10:00', status: 'present', late_time: '', late_duration: '' },
+                            { name: 'الحصة الثالثة', subject: 'إنجليزي', time: '10:00-11:00', status: 'present', late_time: '', late_duration: '' },
+                            { name: 'الحصة الرابعة', subject: 'علوم', time: '11:00-12:00', status: 'present', late_time: '', late_duration: '' },
+                            { name: 'الحصة الخامسة', subject: 'تربية إسلامية', time: '12:00-13:00', status: 'present', late_time: '', late_duration: '' }
+                        ];
+                    }
+                    if (!student.late_stats) {
+                        student.late_stats = { total: 0, morning: 0, period: 0 };
+                    }
+                    if (student.assignments_total === undefined) student.assignments_total = 8;
+                    if (student.assignments_completed === undefined) student.assignments_completed = Math.floor(Math.random() * 8);
+                    if (student.activities_total === undefined) student.activities_total = 4;
+                    if (student.activities_completed === undefined) student.activities_completed = Math.floor(Math.random() * 4);
+                });
+                
+            } catch (error) {
+                console.error('❌ خطأ في جلب البيانات:', error);
+                // بيانات افتراضية للاختبار
                 this.students = [
                     {
                         id: '1',
@@ -785,46 +791,12 @@ function studentsApp(initialStudents = []) {
                         late_stats: { total: 2, morning: 1, period: 1 }
                     }
                 ];
-                console.log('✅ تم إضافة بيانات افتراضية:', this.students.length);
+                console.log('✅ تم استخدام بيانات افتراضية');
+            } finally {
+                this.loading = false;
+                this.filterStudents();
+                console.log('✅ تم تحميل البيانات بنجاح');
             }
-            
-            // ✅ تهيئة البيانات لكل طالب
-            this.students.forEach((student, index) => {
-                if (!student.initials) {
-                    const names = student.full_name ? student.full_name.split(' ') : ['طالب'];
-                    student.initials = names.map(n => n[0]).join('').substring(0, 3);
-                }
-                if (!student.attendance_stats) {
-                    student.attendance_stats = { overall_percentage: 85, present_days: 40, absent_days: 5, late_days: 3, permitted_days: 2 };
-                }
-                if (!student.periods || student.periods.length === 0) {
-                    student.periods = [
-                        { name: 'الحصة الأولى', subject: 'رياضيات', time: '8:00-9:00', status: 'present', late_time: '', late_duration: '' },
-                        { name: 'الحصة الثانية', subject: 'عربي', time: '9:00-10:00', status: 'present', late_time: '', late_duration: '' },
-                        { name: 'الحصة الثالثة', subject: 'إنجليزي', time: '10:00-11:00', status: 'present', late_time: '', late_duration: '' },
-                        { name: 'الحصة الرابعة', subject: 'علوم', time: '11:00-12:00', status: 'present', late_time: '', late_duration: '' },
-                        { name: 'الحصة الخامسة', subject: 'تربية إسلامية', time: '12:00-13:00', status: 'present', late_time: '', late_duration: '' }
-                    ];
-                }
-                if (!student.late_stats) {
-                    student.late_stats = { total: 0, morning: 0, period: 0 };
-                }
-                if (student.assignments_total === undefined) student.assignments_total = 8;
-                if (student.assignments_completed === undefined) student.assignments_completed = Math.floor(Math.random() * 8);
-                if (student.activities_total === undefined) student.activities_total = 4;
-                if (student.activities_completed === undefined) student.activities_completed = Math.floor(Math.random() * 4);
-            });
-            
-            console.log('✅ تم تهيئة البيانات بنجاح');
-            console.log('📊 عدد الطلاب النهائي:', this.students.length);
-            
-            // ✅ تحديث القائمة
-            this.filterStudents();
-            
-            // ✅ تحديث واجهة المستخدم
-            this.$nextTick(() => {
-                console.log('✅ تم تحديث واجهة المستخدم');
-            });
         },
         
         // ---- الإحصائيات ----
