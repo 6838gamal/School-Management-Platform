@@ -66,7 +66,6 @@ class DayOfWeek(str, enum.Enum):
         return mapping.get(number, cls.SUNDAY)
 
 
-# ✅ تغيير ScheduleStatus إلى قيم نصية فقط (بدون Enum)
 class ScheduleStatus:
     """حالة الجدول - قيم نصية"""
     DRAFT = "draft"
@@ -130,7 +129,6 @@ class Schedule(UUIDPkMixin, TimestampMixin, Base):
     )
     
     # ========== إعدادات الجدول ==========
-    # ✅ تغيير من Enum إلى String
     status: Mapped[str] = mapped_column(
         String(50), 
         default="draft",
@@ -175,7 +173,6 @@ class Schedule(UUIDPkMixin, TimestampMixin, Base):
     # ========== Properties للتوافق ==========
     @property
     def academic_year_id(self) -> str:
-        """Alias للتوافق مع الكود القديم"""
         return self.year_id
     
     @academic_year_id.setter
@@ -184,12 +181,10 @@ class Schedule(UUIDPkMixin, TimestampMixin, Base):
     
     @property
     def entry_count(self) -> int:
-        """عدد الحصص في الجدول"""
         return len(self.entries) if self.entries else 0
     
     @property
     def total_periods(self) -> int:
-        """إجمالي عدد الحصص في الأسبوع"""
         if not self.entries:
             return 0
         days = set(e.day_of_week for e in self.entries)
@@ -200,7 +195,6 @@ class Schedule(UUIDPkMixin, TimestampMixin, Base):
     
     @property
     def days_count(self) -> int:
-        """عدد الأيام التي فيها حصص"""
         if not self.entries:
             return 0
         return len(set(e.day_of_week for e in self.entries))
@@ -236,6 +230,14 @@ class ScheduleEntry(UUIDPkMixin, TimestampMixin, Base):
         nullable=False, 
         index=True,
         doc="معرف الجدول"
+    )
+    
+    # ✅ إضافة school_id
+    school_id: Mapped[str] = mapped_column(
+        String(36), 
+        nullable=False, 
+        index=True,
+        doc="معرف المدرسة"
     )
     
     # ========== التوقيت ==========
@@ -295,7 +297,6 @@ class ScheduleEntry(UUIDPkMixin, TimestampMixin, Base):
     # ========== Properties ==========
     @property
     def day_name(self) -> str:
-        """اسم اليوم بالعربية"""
         names = {
             0: "الأحد",
             1: "الإثنين",
@@ -309,7 +310,6 @@ class ScheduleEntry(UUIDPkMixin, TimestampMixin, Base):
     
     @property
     def day_name_en(self) -> str:
-        """اسم اليوم بالإنجليزية"""
         names = {
             0: "Sunday",
             1: "Monday",
@@ -323,12 +323,10 @@ class ScheduleEntry(UUIDPkMixin, TimestampMixin, Base):
     
     @property
     def is_weekend(self) -> bool:
-        """هل اليوم عطلة؟"""
         return self.day_of_week in [5, 6]
     
     @property
     def is_active_day(self) -> bool:
-        """هل اليوم نشط (أيام الأحد إلى الخميس)؟"""
         return self.day_of_week in [0, 1, 2, 3, 4]
     
     def __repr__(self) -> str:
