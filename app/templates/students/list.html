@@ -60,33 +60,22 @@
         .stats-grid { @apply grid-cols-5; }
     }
     
-    /* ===== مؤشر التحميل ===== */
-    .spinner {
-        border: 4px solid rgba(0, 0, 0, 0.1);
-        border-radius: 50%;
-        border-top: 4px solid #6366f1;
-        width: 40px;
-        height: 40px;
-        animation: spin 1s linear infinite;
-    }
-    @keyframes spin {
-        0% { transform: rotate(0deg); }
-        100% { transform: rotate(360deg); }
-    }
+    /* ===== إخفاء ===== */
+    .hidden { display: none !important; }
 </style>
 
-<div class="space-y-6" x-data="studentsApp()" x-init="loadStudents()">
+<div id="app">
     
     <!-- ============================================================ -->
     <!-- HEADER: العنوان والإحصائيات                                    -->
     <!-- ============================================================ -->
-    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
         <div>
             <h1 class="text-2xl font-bold text-slate-800 dark:text-white">الطلاب</h1>
             <p class="text-slate-400 text-sm mt-1">{{ total }} طالب مسجل</p>
         </div>
         <div class="flex items-center gap-3 flex-wrap">
-            <button @click="exportData()" 
+            <button onclick="exportData()" 
                     class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200 flex items-center gap-2">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
@@ -108,12 +97,12 @@
     <!-- ============================================================ -->
     <!-- الإحصائيات السريعة                                             -->
     <!-- ============================================================ -->
-    <div class="stats-grid grid gap-3">
+    <div class="stats-grid grid gap-3 mb-6" id="stats-container">
         <div class="stat-card">
             <div class="flex items-center gap-3">
                 <div class="stat-icon bg-emerald-500">✅</div>
                 <div>
-                    <div class="stat-number" x-text="stats.present">0</div>
+                    <div class="stat-number" id="stat-present">0</div>
                     <div class="stat-label">حاضرون اليوم</div>
                 </div>
             </div>
@@ -122,7 +111,7 @@
             <div class="flex items-center gap-3">
                 <div class="stat-icon bg-red-500">❌</div>
                 <div>
-                    <div class="stat-number" x-text="stats.absent">0</div>
+                    <div class="stat-number" id="stat-absent">0</div>
                     <div class="stat-label">غائبون</div>
                 </div>
             </div>
@@ -131,7 +120,7 @@
             <div class="flex items-center gap-3">
                 <div class="stat-icon bg-amber-500">⏰</div>
                 <div>
-                    <div class="stat-number" x-text="stats.late">0</div>
+                    <div class="stat-number" id="stat-late">0</div>
                     <div class="stat-label">متأخرون</div>
                 </div>
             </div>
@@ -140,7 +129,7 @@
             <div class="flex items-center gap-3">
                 <div class="stat-icon bg-blue-500">📝</div>
                 <div>
-                    <div class="stat-number" x-text="stats.permitted">0</div>
+                    <div class="stat-number" id="stat-permitted">0</div>
                     <div class="stat-label">مستأذنون</div>
                 </div>
             </div>
@@ -149,7 +138,7 @@
             <div class="flex items-center gap-3">
                 <div class="stat-icon bg-purple-500">📊</div>
                 <div>
-                    <div class="stat-number" x-text="stats.totalAssignments">0</div>
+                    <div class="stat-number" id="stat-assignments">0</div>
                     <div class="stat-label">إجمالي الواجبات</div>
                 </div>
             </div>
@@ -159,17 +148,17 @@
     <!-- ============================================================ -->
     <!-- شريط البحث والفلترة                                            -->
     <!-- ============================================================ -->
-    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-4">
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-4 mb-6">
         <div class="flex flex-col md:flex-row gap-3">
             <div class="flex-1">
                 <input type="text" 
-                       x-model="searchQuery" 
-                       @input="filterStudents()"
+                       id="searchInput"
+                       oninput="filterStudents()"
                        placeholder="ابحث بالاسم، رقم الطالب، أو رقم الهوية..."
                        class="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
             </div>
             
-            <select x-model="filterStatus" @change="filterStudents()"
+            <select id="statusFilter" onchange="filterStudents()"
                     class="px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
                 <option value="">جميع الحالات</option>
                 <option value="present">حاضر</option>
@@ -179,7 +168,7 @@
                 <option value="excused">معذور</option>
             </select>
             
-            <select x-model="filterGrade" @change="filterStudents()"
+            <select id="gradeFilter" onchange="filterStudents()"
                     class="px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
                 <option value="">جميع الصفوف</option>
                 {% for grade in grades %}
@@ -188,16 +177,16 @@
             </select>
             
             <div class="flex gap-1">
-                <button @click="viewMode = 'grid'" 
-                        :class="viewMode === 'grid' ? 'bg-primary-600 text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300'"
-                        class="px-3 py-2 rounded-lg text-sm transition-colors duration-200">
+                <button onclick="setViewMode('grid')" 
+                        id="gridBtn"
+                        class="bg-primary-600 text-white px-3 py-2 rounded-lg text-sm transition-colors duration-200">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/>
                     </svg>
                 </button>
-                <button @click="viewMode = 'list'" 
-                        :class="viewMode === 'list' ? 'bg-primary-600 text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300'"
-                        class="px-3 py-2 rounded-lg text-sm transition-colors duration-200">
+                <button onclick="setViewMode('list')" 
+                        id="listBtn"
+                        class="bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-3 py-2 rounded-lg text-sm transition-colors duration-200">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
                     </svg>
@@ -207,142 +196,16 @@
     </div>
     
     <!-- ============================================================ -->
-    <!-- حالة التحميل                                                  -->
-    <!-- ============================================================ -->
-    <div x-show="loading" class="text-center py-12">
-        <div class="spinner mx-auto"></div>
-        <p class="text-slate-400 mt-4">جاري تحميل البيانات...</p>
-    </div>
-    
-    <!-- ============================================================ -->
     <!-- قائمة الطلاب (Grid View)                                      -->
     <!-- ============================================================ -->
-    <div x-show="!loading && viewMode === 'grid'" class="student-grid grid gap-4" x-transition>
-        <!-- رسالة عدم وجود بيانات -->
-        <div x-show="pageStudents.length === 0" class="col-span-full p-8 text-center">
-            <div class="text-slate-400">
-                <svg class="w-12 h-12 mx-auto mb-3 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                </svg>
-                <p class="text-lg font-medium">لا يوجد طلاب</p>
-                <p class="text-sm mt-1">لم يتم إضافة أي طلاب بعد</p>
-                {% if can('students.create') %}
-                <a href="/students/new" class="inline-block mt-3 text-primary-600 hover:underline">➕ أضف طالب جديد</a>
-                {% endif %}
-            </div>
-        </div>
-        
-        <!-- عرض البطاقات -->
-        <template x-for="student in pageStudents" :key="student.id">
-            <div class="student-card">
-                <!-- رأس البطاقة -->
-                <div class="p-4 border-b border-slate-100 dark:border-slate-700 flex items-start justify-between">
-                    <div class="flex items-center gap-3">
-                        <div class="w-12 h-12 rounded-full bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center text-primary-600 dark:text-primary-400 font-bold text-lg">
-                            <span x-text="student.initials || 'ط'"></span>
-                        </div>
-                        <div>
-                            <a :href="'/students/' + student.id" 
-                               class="text-primary-600 dark:text-primary-400 hover:underline font-semibold"
-                               x-text="student.full_name || 'طالب'"></a>
-                            <div class="text-xs text-slate-400" x-text="student.student_number || ''"></div>
-                        </div>
-                    </div>
-                    <span :class="getAttendanceBadgeClass(student.attendance_status)" class="attendance-badge">
-                        <span :class="getStatusDotClass(student.attendance_status)" class="status-dot"></span>
-                        <span x-text="getAttendanceLabel(student.attendance_status)"></span>
-                    </span>
-                </div>
-                
-                <!-- محتوى البطاقة -->
-                <div class="p-4 space-y-3">
-                    <!-- المعلومات الأساسية -->
-                    <div class="info-grid grid grid-cols-2 gap-2 text-sm">
-                        <div>
-                            <span class="text-slate-400">الجنس:</span>
-                            <span class="font-medium" x-text="student.gender || '—'"></span>
-                        </div>
-                        <div>
-                            <span class="text-slate-400">الصف:</span>
-                            <span class="font-medium" x-text="student.grade_name || '—'"></span>
-                        </div>
-                        <div>
-                            <span class="text-slate-400">الشعبة:</span>
-                            <span class="font-medium" x-text="student.section_name || '—'"></span>
-                        </div>
-                        <div>
-                            <span class="text-slate-400">ولي الأمر:</span>
-                            <span class="font-medium" x-text="student.guardian_phone || '—'"></span>
-                        </div>
-                    </div>
-                    
-                    <!-- إحصائيات الواجبات والأنشطة -->
-                    <div class="grid grid-cols-3 gap-2 pt-2 border-t border-slate-100 dark:border-slate-700">
-                        <div class="text-center p-2 bg-slate-50 dark:bg-slate-700/30 rounded-lg">
-                            <div class="text-sm font-bold text-amber-600" x-text="(student.assignments_completed || 0) + '/' + (student.assignments_total || 0)"></div>
-                            <div class="text-xs text-slate-400">الواجبات</div>
-                        </div>
-                        <div class="text-center p-2 bg-slate-50 dark:bg-slate-700/30 rounded-lg">
-                            <div class="text-sm font-bold text-purple-600" x-text="(student.activities_completed || 0) + '/' + (student.activities_total || 0)"></div>
-                            <div class="text-xs text-slate-400">الأنشطة</div>
-                        </div>
-                        <div class="text-center p-2 bg-slate-50 dark:bg-slate-700/30 rounded-lg">
-                            <div class="text-sm font-bold text-blue-600" x-text="(student.attendance_stats?.overall_percentage || 0) + '%'"></div>
-                            <div class="text-xs text-slate-400">نسبة الحضور</div>
-                        </div>
-                    </div>
-                    
-                    <!-- شريط التقدم -->
-                    <div class="space-y-1.5">
-                        <div>
-                            <div class="flex justify-between text-xs text-slate-400">
-                                <span>تقدم الواجبات</span>
-                                <span x-text="Math.round(((student.assignments_completed || 0) / ((student.assignments_total || 1) || 1)) * 100) + '%'"></span>
-                            </div>
-                            <div class="w-full h-1.5 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
-                                <div class="h-full bg-amber-500 rounded-full transition-all duration-500"
-                                     :style="'width: ' + (((student.assignments_total || 1) > 0) ? ((student.assignments_completed || 0) / (student.assignments_total || 1) * 100) : 0) + '%'"></div>
-                            </div>
-                        </div>
-                        <div>
-                            <div class="flex justify-between text-xs text-slate-400">
-                                <span>تقدم الأنشطة</span>
-                                <span x-text="Math.round(((student.activities_completed || 0) / ((student.activities_total || 1) || 1)) * 100) + '%'"></span>
-                            </div>
-                            <div class="w-full h-1.5 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
-                                <div class="h-full bg-purple-500 rounded-full transition-all duration-500"
-                                     :style="'width: ' + (((student.activities_total || 1) > 0) ? ((student.activities_completed || 0) / (student.activities_total || 1) * 100) : 0) + '%'"></div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- الإجراءات السريعة -->
-                    <div class="flex items-center gap-2 pt-2 border-t border-slate-100 dark:border-slate-700">
-                        <button @click="openAttendanceModal(student)" 
-                                class="flex-1 bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400 hover:bg-primary-100 dark:hover:bg-primary-900/40 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors duration-200">
-                            📋 الحضور
-                        </button>
-                        <button @click="openLateModal(student)" 
-                                class="flex-1 bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/40 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors duration-200">
-                            ⏰ التأخر
-                        </button>
-                    </div>
-                    
-                    <a :href="'/students/' + student.id" 
-                       class="block w-full text-center bg-slate-50 dark:bg-slate-700/50 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors duration-200">
-                        عرض التفاصيل الكاملة →
-                    </a>
-                </div>
-            </div>
-        </template>
+    <div id="grid-view" class="student-grid grid gap-4">
+        <!-- سيتم ملء البطاقات بواسطة JavaScript -->
     </div>
     
     <!-- ============================================================ -->
     <!-- قائمة الطلاب (List View)                                      -->
     <!-- ============================================================ -->
-    <div x-show="!loading && viewMode === 'list'" 
-         class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 overflow-hidden"
-         x-transition>
+    <div id="list-view" class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 overflow-hidden hidden">
         <div class="overflow-x-auto">
             <table class="w-full text-sm">
                 <thead class="bg-slate-50 dark:bg-slate-700/50 text-slate-500 dark:text-slate-300">
@@ -359,91 +222,36 @@
                         <th class="text-right p-3 font-medium">إجراءات</th>
                     </tr>
                 </thead>
-                <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
-                    <!-- رسالة عدم وجود بيانات -->
-                    <tr x-show="pageStudents.length === 0">
-                        <td colspan="10" class="p-8 text-center text-slate-400">
-                            لا يوجد طلاب
-                        </td>
-                    </tr>
-                    <template x-for="(student, index) in pageStudents" :key="student.id">
-                        <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/30">
-                            <td class="p-3 text-center" x-text="startIndex + index + 1"></td>
-                            <td class="p-3">
-                                <a :href="'/students/' + student.id" 
-                                   class="text-primary-600 dark:text-primary-400 hover:underline font-medium"
-                                   x-text="student.full_name || 'طالب'"></a>
-                            </td>
-                            <td class="p-3 font-mono text-xs" x-text="student.student_number || ''"></td>
-                            <td class="p-3" x-text="student.grade_name || '—'"></td>
-                            <td class="p-3" x-text="student.section_name || '—'"></td>
-                            <td class="p-3">
-                                <span :class="getAttendanceBadgeClass(student.attendance_status)" class="attendance-badge">
-                                    <span :class="getStatusDotClass(student.attendance_status)" class="status-dot"></span>
-                                    <span x-text="getAttendanceLabel(student.attendance_status)"></span>
-                                </span>
-                            </td>
-                            <td class="p-3">
-                                <span class="text-sm font-medium text-amber-600" x-text="(student.assignments_completed || 0) + '/' + (student.assignments_total || 0)"></span>
-                            </td>
-                            <td class="p-3">
-                                <span class="text-sm font-medium text-purple-600" x-text="(student.activities_completed || 0) + '/' + (student.activities_total || 0)"></span>
-                            </td>
-                            <td class="p-3">
-                                <span class="text-sm font-medium text-blue-600" x-text="(student.attendance_stats?.overall_percentage || 0) + '%'"></span>
-                            </td>
-                            <td class="p-3">
-                                <div class="flex items-center gap-2 flex-wrap">
-                                    <button @click="openAttendanceModal(student)" 
-                                            class="text-primary-600 text-xs hover:underline">حضور</button>
-                                    <button @click="openLateModal(student)" 
-                                            class="text-amber-600 text-xs hover:underline">تأخير</button>
-                                    {% if can('students.update') %}
-                                    <a :href="'/students/' + student.id + '/edit'" 
-                                       class="text-amber-600 text-xs hover:underline">تعديل</a>
-                                    {% endif %}
-                                    {% if can('students.delete') %}
-                                    <button @click="confirmDelete(student.id, student.full_name)" 
-                                            class="text-red-600 text-xs hover:underline">حذف</button>
-                                    {% endif %}
-                                </div>
-                            </td>
-                        </tr>
-                    </template>
+                <tbody id="list-body" class="divide-y divide-slate-100 dark:divide-slate-700">
                 </tbody>
             </table>
         </div>
     </div>
     
     <!-- ============================================================ -->
+    <!-- رسالة عدم وجود بيانات                                         -->
+    <!-- ============================================================ -->
+    <div id="empty-state" class="p-8 text-center hidden">
+        <div class="text-slate-400">
+            <svg class="w-12 h-12 mx-auto mb-3 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            <p class="text-lg font-medium">لا يوجد طلاب</p>
+            <p class="text-sm mt-1">لم يتم إضافة أي طلاب بعد</p>
+            {% if can('students.create') %}
+            <a href="/students/new" class="inline-block mt-3 text-primary-600 hover:underline">➕ أضف طالب جديد</a>
+            {% endif %}
+        </div>
+    </div>
+    
+    <!-- ============================================================ -->
     <!-- الترقيم (Pagination)                                          -->
     <!-- ============================================================ -->
-    <div x-show="!loading && totalPages > 1" 
-         class="flex flex-col sm:flex-row items-center justify-between gap-4 bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-4">
-        <div class="text-sm text-slate-400">
-            عرض <span x-text="startIndex + 1"></span> - 
-            <span x-text="Math.min(endIndex, total)"></span> 
-            من <span x-text="total"></span>
+    <div id="pagination-container" class="flex flex-col sm:flex-row items-center justify-between gap-4 bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-4 mt-6 hidden">
+        <div class="text-sm text-slate-400" id="pagination-info">
+            عرض 1 - 0 من 0
         </div>
-        <div class="flex items-center gap-2 flex-wrap">
-            <button @click="prevPage()" 
-                    :disabled="currentPage === 1"
-                    :class="currentPage === 1 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-slate-200 dark:hover:bg-slate-600'"
-                    class="bg-slate-100 dark:bg-slate-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200">
-                السابق
-            </button>
-            <template x-for="p in pageNumbers" :key="p">
-                <button @click="goToPage(p)" 
-                        :class="p === currentPage ? 'bg-primary-600 text-white' : 'bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600'"
-                        class="px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-200"
-                        x-text="p"></button>
-            </template>
-            <button @click="nextPage()" 
-                    :disabled="currentPage === totalPages"
-                    :class="currentPage === totalPages ? 'opacity-50 cursor-not-allowed' : 'hover:bg-slate-200 dark:hover:bg-slate-600'"
-                    class="bg-slate-100 dark:bg-slate-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200">
-                التالي
-            </button>
+        <div class="flex items-center gap-2 flex-wrap" id="pagination-buttons">
         </div>
     </div>
 </div>
@@ -451,16 +259,14 @@
 <!-- ============================================================ -->
 <!-- مودال: إدارة الحضور                                           -->
 <!-- ============================================================ -->
-<div id="attendanceModal" 
-     class="fixed inset-0 bg-black/50 backdrop-blur-sm hidden items-center justify-center z-50"
-     @click.self="closeModal('attendanceModal')">
+<div id="attendanceModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm hidden items-center justify-center z-50">
     <div class="bg-white dark:bg-slate-800 rounded-xl max-w-2xl w-full mx-4 p-6 max-h-[90vh] overflow-y-auto">
         <div class="flex items-center justify-between mb-4">
             <div>
                 <h2 class="text-xl font-bold text-slate-800 dark:text-white">إدارة الحضور</h2>
-                <p class="text-sm text-slate-400" x-text="'الطالب: ' + (selectedStudent?.full_name || '')"></p>
+                <p class="text-sm text-slate-400" id="attendance-student-name"></p>
             </div>
-            <button @click="closeModal('attendanceModal')" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+            <button onclick="closeModal('attendanceModal')" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
                 </svg>
@@ -468,178 +274,27 @@
         </div>
         
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <!-- حالة الحضور اليوم -->
             <div class="bg-slate-50 dark:bg-slate-700/30 rounded-lg p-4">
                 <h3 class="font-semibold text-slate-700 dark:text-slate-300 mb-3">حالة اليوم</h3>
-                <div class="space-y-2">
-                    <button @click="setAttendance('present')" 
-                            :class="selectedStudent?.attendance_status === 'present' ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20' : 'border-transparent hover:border-slate-300'"
-                            class="w-full text-right px-4 py-2 rounded-lg border-2 transition-all duration-200">
-                        ✅ حاضر
-                    </button>
-                    <button @click="setAttendance('absent')" 
-                            :class="selectedStudent?.attendance_status === 'absent' ? 'border-red-500 bg-red-50 dark:bg-red-900/20' : 'border-transparent hover:border-slate-300'"
-                            class="w-full text-right px-4 py-2 rounded-lg border-2 transition-all duration-200">
-                        ❌ غائب
-                    </button>
-                    <button @click="setAttendance('late')" 
-                            :class="selectedStudent?.attendance_status === 'late' ? 'border-amber-500 bg-amber-50 dark:bg-amber-900/20' : 'border-transparent hover:border-slate-300'"
-                            class="w-full text-right px-4 py-2 rounded-lg border-2 transition-all duration-200">
-                        ⏰ متأخر
-                    </button>
-                    <button @click="setAttendance('permitted')" 
-                            :class="selectedStudent?.attendance_status === 'permitted' ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'border-transparent hover:border-slate-300'"
-                            class="w-full text-right px-4 py-2 rounded-lg border-2 transition-all duration-200">
-                        📝 مستأذن
-                    </button>
-                    <button @click="setAttendance('excused')" 
-                            :class="selectedStudent?.attendance_status === 'excused' ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20' : 'border-transparent hover:border-slate-300'"
-                            class="w-full text-right px-4 py-2 rounded-lg border-2 transition-all duration-200">
-                        🤝 معذور
-                    </button>
+                <div class="space-y-2" id="attendance-status-buttons">
+                    <button onclick="setAttendance('present')" class="w-full text-right px-4 py-2 rounded-lg border-2 border-transparent hover:border-slate-300 transition-all duration-200">✅ حاضر</button>
+                    <button onclick="setAttendance('absent')" class="w-full text-right px-4 py-2 rounded-lg border-2 border-transparent hover:border-slate-300 transition-all duration-200">❌ غائب</button>
+                    <button onclick="setAttendance('late')" class="w-full text-right px-4 py-2 rounded-lg border-2 border-transparent hover:border-slate-300 transition-all duration-200">⏰ متأخر</button>
+                    <button onclick="setAttendance('permitted')" class="w-full text-right px-4 py-2 rounded-lg border-2 border-transparent hover:border-slate-300 transition-all duration-200">📝 مستأذن</button>
+                    <button onclick="setAttendance('excused')" class="w-full text-right px-4 py-2 rounded-lg border-2 border-transparent hover:border-slate-300 transition-all duration-200">🤝 معذور</button>
                 </div>
             </div>
             
-            <!-- إحصائيات الطالب -->
             <div class="bg-slate-50 dark:bg-slate-700/30 rounded-lg p-4">
                 <h3 class="font-semibold text-slate-700 dark:text-slate-300 mb-3">إحصائيات الحضور</h3>
-                <div class="space-y-3">
-                    <div>
-                        <div class="flex justify-between text-sm">
-                            <span class="text-slate-400">نسبة الحضور الكلية</span>
-                            <span class="font-semibold" x-text="(selectedStudent?.attendance_stats?.overall_percentage || 0) + '%'"></span>
-                        </div>
-                        <div class="w-full h-1.5 bg-slate-200 dark:bg-slate-600 rounded-full mt-1">
-                            <div class="h-full bg-primary-600 rounded-full transition-all duration-500"
-                                 :style="'width: ' + (selectedStudent?.attendance_stats?.overall_percentage || 0) + '%'"></div>
-                        </div>
-                    </div>
-                    <div class="grid grid-cols-2 gap-2 text-sm">
-                        <div class="text-center p-2 bg-white dark:bg-slate-800 rounded-lg">
-                            <div class="text-emerald-600 font-bold" x-text="selectedStudent?.attendance_stats?.present_days || 0"></div>
-                            <div class="text-slate-400 text-xs">أيام حضور</div>
-                        </div>
-                        <div class="text-center p-2 bg-white dark:bg-slate-800 rounded-lg">
-                            <div class="text-red-600 font-bold" x-text="selectedStudent?.attendance_stats?.absent_days || 0"></div>
-                            <div class="text-slate-400 text-xs">أيام غياب</div>
-                        </div>
-                        <div class="text-center p-2 bg-white dark:bg-slate-800 rounded-lg">
-                            <div class="text-amber-600 font-bold" x-text="selectedStudent?.attendance_stats?.late_days || 0"></div>
-                            <div class="text-slate-400 text-xs">أيام تأخر</div>
-                        </div>
-                        <div class="text-center p-2 bg-white dark:bg-slate-800 rounded-lg">
-                            <div class="text-blue-600 font-bold" x-text="selectedStudent?.attendance_stats?.permitted_days || 0"></div>
-                            <div class="text-slate-400 text-xs">أيام إذن</div>
-                        </div>
-                    </div>
+                <div class="space-y-3" id="attendance-stats">
                 </div>
             </div>
         </div>
         
         <div class="flex gap-3 pt-4 mt-4 border-t border-slate-100 dark:border-slate-700">
-            <button @click="saveAttendance()" 
-                    class="bg-primary-600 hover:bg-primary-700 text-white px-6 py-2 rounded-lg text-sm font-semibold transition-colors duration-200">
-                💾 حفظ التغييرات
-            </button>
-            <button @click="closeModal('attendanceModal')" 
-                    class="bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 px-6 py-2 rounded-lg text-sm font-medium transition-colors duration-200">
-                إغلاق
-            </button>
-        </div>
-    </div>
-</div>
-
-<!-- ============================================================ -->
-<!-- مودال: إدارة التأخر الصباحي                                    -->
-<!-- ============================================================ -->
-<div id="lateModal" 
-     class="fixed inset-0 bg-black/50 backdrop-blur-sm hidden items-center justify-center z-50"
-     @click.self="closeModal('lateModal')">
-    <div class="bg-white dark:bg-slate-800 rounded-xl max-w-4xl w-full mx-4 p-6 max-h-[90vh] overflow-y-auto">
-        <div class="flex items-center justify-between mb-4">
-            <div>
-                <h2 class="text-xl font-bold text-slate-800 dark:text-white">⏰ إدارة التأخر الصباحي</h2>
-                <p class="text-sm text-slate-400" x-text="'الطالب: ' + (selectedStudent?.full_name || '')"></p>
-            </div>
-            <button @click="closeModal('lateModal')" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
-                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                </svg>
-            </button>
-        </div>
-        
-        <!-- إحصائيات التأخر -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-            <div class="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-3 text-center">
-                <div class="text-2xl font-bold text-amber-600" x-text="selectedStudent?.late_stats?.total || 0"></div>
-                <div class="text-xs text-slate-400">إجمالي التأخر</div>
-            </div>
-            <div class="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-3 text-center">
-                <div class="text-2xl font-bold text-amber-600" x-text="selectedStudent?.late_stats?.morning || 0"></div>
-                <div class="text-xs text-slate-400">تأخر صباحي</div>
-            </div>
-            <div class="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-3 text-center">
-                <div class="text-2xl font-bold text-amber-600" x-text="selectedStudent?.late_stats?.period || 0"></div>
-                <div class="text-xs text-slate-400">تأخر حصص</div>
-            </div>
-        </div>
-        
-        <!-- جدول الحصص -->
-        <div class="overflow-x-auto">
-            <h3 class="font-semibold text-slate-700 dark:text-slate-300 mb-3">تفاصيل التأخر حسب الحصة</h3>
-            <table class="w-full text-sm">
-                <thead class="bg-slate-50 dark:bg-slate-700/50 text-slate-500 dark:text-slate-300">
-                    <tr>
-                        <th class="text-right p-3 font-medium">#</th>
-                        <th class="text-right p-3 font-medium">الحصة</th>
-                        <th class="text-right p-3 font-medium">المادة</th>
-                        <th class="text-right p-3 font-medium">التوقيت</th>
-                        <th class="text-right p-3 font-medium">وقت التأخر</th>
-                        <th class="text-right p-3 font-medium">المدة</th>
-                        <th class="text-right p-3 font-medium">الحالة</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
-                    <template x-for="(period, idx) in (selectedStudent?.periods || [])" :key="idx">
-                        <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/30">
-                            <td class="p-3 text-center" x-text="idx + 1"></td>
-                            <td class="p-3 font-medium" x-text="period.name || ''"></td>
-                            <td class="p-3" x-text="period.subject || '—'"></td>
-                            <td class="p-3 text-sm" x-text="period.time || '—'"></td>
-                            <td class="p-3">
-                                <input type="time" 
-                                       :value="period.late_time || ''"
-                                       @change="updateLateTime(selectedStudent.id, idx, $event.target.value)"
-                                       class="px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
-                            </td>
-                            <td class="p-3">
-                                <span x-text="period.late_duration || '—'" class="text-sm"></span>
-                            </td>
-                            <td class="p-3">
-                                <select @change="updatePeriodStatus(selectedStudent.id, idx, $event.target.value)"
-                                        class="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
-                                    <option value="present" :selected="period.status === 'present'">حاضر</option>
-                                    <option value="absent" :selected="period.status === 'absent'">غائب</option>
-                                    <option value="late" :selected="period.status === 'late'">متأخر</option>
-                                    <option value="permitted" :selected="period.status === 'permitted'">مستأذن</option>
-                                    <option value="excused" :selected="period.status === 'excused'">معذور</option>
-                                </select>
-                            </td>
-                        </tr>
-                    </template>
-                </tbody>
-            </table>
-        </div>
-        
-        <div class="flex gap-3 pt-4 mt-4 border-t border-slate-100 dark:border-slate-700">
-            <button @click="saveLateStatus()" 
-                    class="bg-amber-600 hover:bg-amber-700 text-white px-6 py-2 rounded-lg text-sm font-semibold transition-colors duration-200">
-                💾 حفظ التأخر
-            </button>
-            <button @click="closeModal('lateModal')" 
-                    class="bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 px-6 py-2 rounded-lg text-sm font-medium transition-colors duration-200">
-                إغلاق
-            </button>
+            <button onclick="saveAttendance()" class="bg-primary-600 hover:bg-primary-700 text-white px-6 py-2 rounded-lg text-sm font-semibold transition-colors duration-200">💾 حفظ التغييرات</button>
+            <button onclick="closeModal('attendanceModal')" class="bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 px-6 py-2 rounded-lg text-sm font-medium transition-colors duration-200">إغلاق</button>
         </div>
     </div>
 </div>
@@ -647,8 +302,7 @@
 <!-- ============================================================ -->
 <!-- مودال: تأكيد الحذف                                            -->
 <!-- ============================================================ -->
-<div id="deleteModal" 
-     class="fixed inset-0 bg-black/50 backdrop-blur-sm hidden items-center justify-center z-50">
+<div id="deleteModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm hidden items-center justify-center z-50">
     <div class="bg-white dark:bg-slate-800 rounded-xl max-w-md w-full mx-4 p-6">
         <h3 class="text-lg font-bold text-slate-800 dark:text-white mb-2">⚠️ تأكيد الحذف</h3>
         <p class="text-slate-600 dark:text-slate-300 mb-6">
@@ -656,371 +310,516 @@
             <br><span class="text-sm text-red-500">لا يمكن التراجع عن هذا الإجراء.</span>
         </p>
         <div class="flex gap-3 justify-end">
-            <button @click="closeModal('deleteModal')" 
-                    class="bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 px-4 py-2 rounded-lg text-sm font-medium">
-                إلغاء
-            </button>
-            <form id="deleteForm" method="POST" :action="'/students/' + deleteStudentId">
+            <button onclick="closeModal('deleteModal')" class="bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 px-4 py-2 rounded-lg text-sm font-medium">إلغاء</button>
+            <form id="deleteForm" method="POST">
                 <input type="hidden" name="_method" value="DELETE">
-                <button type="submit" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-semibold">
-                    تأكيد الحذف
-                </button>
+                <button type="submit" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-semibold">تأكيد الحذف</button>
             </form>
         </div>
     </div>
 </div>
 
 <!-- ============================================================ -->
-<!-- JavaScript (Alpine.js) - جلب البيانات عبر API                -->
+<!-- JavaScript - Vanilla JS مع بيانات من القالب                   -->
 <!-- ============================================================ -->
 <script>
-function studentsApp() {
-    return {
-        // ---- البيانات الأساسية ----
-        students: [],
-        loading: true,
-        searchQuery: '',
-        filterStatus: '',
-        filterGrade: '',
-        viewMode: 'grid',
-        currentPage: 1,
-        pageSize: 12,
-        
-        // ---- الطالب المحدد ----
-        selectedStudent: null,
-        deleteStudentId: null,
-        
-        // ---- جلب البيانات ----
-        async loadStudents() {
-            this.loading = true;
-            try {
-                console.log('🚀 جاري جلب بيانات الطلاب...');
-                const response = await fetch('/students?format=json');
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                const data = await response.json();
-                console.log('📊 البيانات المستلمة:', data);
-                
-                if (data && data.students) {
-                    this.students = data.students;
-                } else if (Array.isArray(data)) {
-                    this.students = data;
-                } else {
-                    console.warn('⚠️ تنسيق غير متوقع:', data);
-                    this.students = [];
-                }
-                
-                console.log('📊 عدد الطلاب:', this.students.length);
-                
-                // تهيئة البيانات لكل طالب
-                this.students.forEach((student, index) => {
-                    if (!student.initials) {
-                        const names = student.full_name ? student.full_name.split(' ') : ['طالب'];
-                        student.initials = names.map(n => n[0]).join('').substring(0, 3);
-                    }
-                    if (!student.attendance_stats) {
-                        student.attendance_stats = { overall_percentage: 85, present_days: 40, absent_days: 5, late_days: 3, permitted_days: 2 };
-                    }
-                    if (!student.periods || student.periods.length === 0) {
-                        student.periods = [
-                            { name: 'الحصة الأولى', subject: 'رياضيات', time: '8:00-9:00', status: 'present', late_time: '', late_duration: '' },
-                            { name: 'الحصة الثانية', subject: 'عربي', time: '9:00-10:00', status: 'present', late_time: '', late_duration: '' },
-                            { name: 'الحصة الثالثة', subject: 'إنجليزي', time: '10:00-11:00', status: 'present', late_time: '', late_duration: '' },
-                            { name: 'الحصة الرابعة', subject: 'علوم', time: '11:00-12:00', status: 'present', late_time: '', late_duration: '' },
-                            { name: 'الحصة الخامسة', subject: 'تربية إسلامية', time: '12:00-13:00', status: 'present', late_time: '', late_duration: '' }
-                        ];
-                    }
-                    if (!student.late_stats) {
-                        student.late_stats = { total: 0, morning: 0, period: 0 };
-                    }
-                    if (student.assignments_total === undefined) student.assignments_total = 8;
-                    if (student.assignments_completed === undefined) student.assignments_completed = Math.floor(Math.random() * 8);
-                    if (student.activities_total === undefined) student.activities_total = 4;
-                    if (student.activities_completed === undefined) student.activities_completed = Math.floor(Math.random() * 4);
-                });
-                
-            } catch (error) {
-                console.error('❌ خطأ في جلب البيانات:', error);
-                // بيانات افتراضية للاختبار
-                this.students = [
-                    {
-                        id: '1',
-                        full_name: 'أحمد محمد',
-                        student_number: '2024001',
-                        initials: 'أم',
-                        attendance_status: 'present',
-                        grade_name: 'الصف الثالث',
-                        section_name: 'أ',
-                        guardian_phone: '0501234567',
-                        assignments_total: 8,
-                        assignments_completed: 6,
-                        activities_total: 4,
-                        activities_completed: 3,
-                        attendance_stats: { overall_percentage: 85, present_days: 40, absent_days: 5, late_days: 3, permitted_days: 2 },
-                        periods: [
-                            { name: 'الحصة الأولى', subject: 'رياضيات', time: '8:00-9:00', status: 'present', late_time: '', late_duration: '' },
-                            { name: 'الحصة الثانية', subject: 'عربي', time: '9:00-10:00', status: 'present', late_time: '', late_duration: '' },
-                            { name: 'الحصة الثالثة', subject: 'إنجليزي', time: '10:00-11:00', status: 'present', late_time: '', late_duration: '' },
-                            { name: 'الحصة الرابعة', subject: 'علوم', time: '11:00-12:00', status: 'present', late_time: '', late_duration: '' },
-                            { name: 'الحصة الخامسة', subject: 'تربية إسلامية', time: '12:00-13:00', status: 'present', late_time: '', late_duration: '' }
-                        ],
-                        late_stats: { total: 0, morning: 0, period: 0 }
-                    },
-                    {
-                        id: '2',
-                        full_name: 'سارة خالد',
-                        student_number: '2024002',
-                        initials: 'سخ',
-                        attendance_status: 'absent',
-                        grade_name: 'الصف الثالث',
-                        section_name: 'ب',
-                        guardian_phone: '0507654321',
-                        assignments_total: 8,
-                        assignments_completed: 4,
-                        activities_total: 4,
-                        activities_completed: 2,
-                        attendance_stats: { overall_percentage: 60, present_days: 30, absent_days: 10, late_days: 5, permitted_days: 3 },
-                        periods: [
-                            { name: 'الحصة الأولى', subject: 'رياضيات', time: '8:00-9:00', status: 'absent', late_time: '', late_duration: '' },
-                            { name: 'الحصة الثانية', subject: 'عربي', time: '9:00-10:00', status: 'present', late_time: '', late_duration: '' },
-                            { name: 'الحصة الثالثة', subject: 'إنجليزي', time: '10:00-11:00', status: 'present', late_time: '', late_duration: '' },
-                            { name: 'الحصة الرابعة', subject: 'علوم', time: '11:00-12:00', status: 'present', late_time: '', late_duration: '' },
-                            { name: 'الحصة الخامسة', subject: 'تربية إسلامية', time: '12:00-13:00', status: 'present', late_time: '', late_duration: '' }
-                        ],
-                        late_stats: { total: 2, morning: 1, period: 1 }
-                    }
-                ];
-                console.log('✅ تم استخدام بيانات افتراضية');
-            } finally {
-                this.loading = false;
-                this.filterStudents();
-                console.log('✅ تم تحميل البيانات بنجاح');
-            }
-        },
-        
-        // ---- الإحصائيات ----
-        get stats() {
-            const students = Array.isArray(this.students) ? this.students : [];
-            const present = students.filter(s => s.attendance_status === 'present').length;
-            const absent = students.filter(s => s.attendance_status === 'absent').length;
-            const late = students.filter(s => s.attendance_status === 'late').length;
-            const permitted = students.filter(s => s.attendance_status === 'permitted').length;
-            const totalAssignments = students.reduce((sum, s) => sum + (s.assignments_total || 0), 0);
-            return { present, absent, late, permitted, totalAssignments };
-        },
-        
-        // ---- التصفية ----
-        get filteredStudents() {
-            let students = Array.isArray(this.students) ? this.students : [];
-            let filtered = [...students];
-            
-            if (this.searchQuery) {
-                const q = this.searchQuery.toLowerCase().trim();
-                filtered = filtered.filter(s => 
-                    (s.full_name && s.full_name.toLowerCase().includes(q)) ||
-                    (s.student_number && s.student_number.toLowerCase().includes(q))
-                );
-            }
-            if (this.filterStatus) {
-                filtered = filtered.filter(s => s.attendance_status === this.filterStatus);
-            }
-            if (this.filterGrade) {
-                filtered = filtered.filter(s => s.grade_id === this.filterGrade || s.grade_name === this.filterGrade);
-            }
-            
-            return filtered;
-        },
-        
-        // ---- الترقيم ----
-        get total() { return this.filteredStudents.length; },
-        get totalPages() { return Math.ceil(this.total / this.pageSize) || 1; },
-        get startIndex() { return (this.currentPage - 1) * this.pageSize; },
-        get endIndex() { return Math.min(this.startIndex + this.pageSize, this.total); },
-        get pageStudents() { return this.filteredStudents.slice(this.startIndex, this.endIndex); },
-        
-        get pageNumbers() {
-            const pages = [];
-            const total = this.totalPages;
-            const current = this.currentPage;
-            if (total <= 7) {
-                for (let i = 1; i <= total; i++) pages.push(i);
-            } else {
-                pages.push(1);
-                if (current > 3) pages.push('...');
-                for (let i = Math.max(2, current - 2); i <= Math.min(current + 2, total - 1); i++) pages.push(i);
-                if (current < total - 2) pages.push('...');
-                pages.push(total);
-            }
-            return pages;
-        },
-        
-        // ---- دوال مساعدة ----
-        getAttendanceBadgeClass(status) {
-            const classes = {
-                'present': 'attendance-present',
-                'absent': 'attendance-absent',
-                'late': 'attendance-late',
-                'permitted': 'attendance-permitted',
-                'excused': 'attendance-excused'
-            };
-            return classes[status] || 'attendance-present';
-        },
-        
-        getStatusDotClass(status) {
-            const classes = {
-                'present': 'status-dot-present',
-                'absent': 'status-dot-absent',
-                'late': 'status-dot-late',
-                'permitted': 'status-dot-permitted',
-                'excused': 'status-dot-excused'
-            };
-            return classes[status] || 'status-dot-present';
-        },
-        
-        getAttendanceLabel(status) {
-            const labels = {
-                'present': 'حاضر',
-                'absent': 'غائب',
-                'late': 'متأخر',
-                'permitted': 'مستأذن',
-                'excused': 'معذور'
-            };
-            return labels[status] || 'حاضر';
-        },
-        
-        // ---- دوال التصفية والترقيم ----
-        filterStudents() { this.currentPage = 1; },
-        prevPage() { if (this.currentPage > 1) this.currentPage--; },
-        nextPage() { if (this.currentPage < this.totalPages) this.currentPage++; },
-        goToPage(page) { if (typeof page === 'number') this.currentPage = page; },
-        
-        // ---- دوال المودالات ----
-        openModal(id) {
-            const el = document.getElementById(id);
-            if (el) {
-                el.classList.remove('hidden');
-                el.classList.add('flex');
-                document.body.style.overflow = 'hidden';
-            }
-        },
-        closeModal(id) {
-            const el = document.getElementById(id);
-            if (el) {
-                el.classList.add('hidden');
-                el.classList.remove('flex');
-                document.body.style.overflow = '';
-            }
-        },
-        
-        // ---- دوال الطلاب ----
-        openAttendanceModal(student) {
-            this.selectedStudent = student;
-            this.openModal('attendanceModal');
-        },
-        openLateModal(student) {
-            this.selectedStudent = student;
-            this.openModal('lateModal');
-        },
-        confirmDelete(id, name) {
-            this.deleteStudentId = id;
-            const nameEl = document.getElementById('deleteStudentName');
-            if (nameEl) nameEl.textContent = name || 'غير معروف';
-            this.openModal('deleteModal');
-        },
-        
-        // ---- دوال الحضور ----
-        setAttendance(status) {
-            if (this.selectedStudent) {
-                this.selectedStudent.attendance_status = status;
-            }
-        },
-        
-        saveAttendance() {
-            if (!this.selectedStudent) {
-                alert('❌ لم يتم اختيار طالب');
-                return;
-            }
-            fetch(`/api/students/${this.selectedStudent.id}/attendance`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    status: this.selectedStudent.attendance_status,
-                    date: new Date().toISOString().split('T')[0]
-                })
-            })
-            .then(res => res.json())
-            .then(data => {
-                if (data.success) {
-                    alert('✅ تم حفظ حالة الحضور بنجاح');
-                    this.closeModal('attendanceModal');
-                } else {
-                    alert('❌ ' + (data.message || 'حدث خطأ'));
-                }
-            })
-            .catch(err => alert('❌ حدث خطأ: ' + err.message));
-        },
-        
-        // ---- دوال الحصص ----
-        updatePeriodStatus(studentId, periodIndex, status) {
-            const students = Array.isArray(this.students) ? this.students : [];
-            const student = students.find(s => s.id === studentId);
-            if (student && student.periods && student.periods[periodIndex]) {
-                student.periods[periodIndex].status = status;
-            }
-        },
-        
-        updateLateTime(studentId, periodIndex, time) {
-            const students = Array.isArray(this.students) ? this.students : [];
-            const student = students.find(s => s.id === studentId);
-            if (student && student.periods && student.periods[periodIndex]) {
-                student.periods[periodIndex].late_time = time;
-                if (time) {
-                    const [hours, mins] = time.split(':').map(Number);
-                    const totalMinutes = hours * 60 + mins;
-                    const startMinutes = 8 * 60;
-                    const diff = Math.max(0, totalMinutes - startMinutes);
-                    if (diff > 0) {
-                        student.periods[periodIndex].late_duration = diff >= 60 ? 
-                            `${Math.floor(diff / 60)} ساعة و ${diff % 60} دقيقة` : 
-                            `${diff} دقيقة`;
-                    } else {
-                        student.periods[periodIndex].late_duration = 'غير محدد';
-                    }
-                }
-            }
-        },
-        
-        saveLateStatus() {
-            if (!this.selectedStudent) {
-                alert('❌ لم يتم اختيار طالب');
-                return;
-            }
-            fetch(`/api/students/${this.selectedStudent.id}/late`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    periods: this.selectedStudent.periods
-                })
-            })
-            .then(res => res.json())
-            .then(data => {
-                if (data.success) {
-                    alert('✅ تم حفظ حالة التأخر بنجاح');
-                    this.closeModal('lateModal');
-                } else {
-                    alert('❌ ' + (data.message || 'حدث خطأ'));
-                }
-            })
-            .catch(err => alert('❌ حدث خطأ: ' + err.message));
-        },
-        
-        // ---- تصدير البيانات ----
-        exportData() {
-            window.location.href = '/students/export?format=excel';
-        }
+// ===== البيانات من القالب =====
+const studentsData = {{ students | safe }};
+console.log('📊 البيانات من القالب:', studentsData);
+console.log('📊 نوع البيانات:', typeof studentsData);
+console.log('📊 عدد الطلاب:', studentsData?.length || 0);
+
+// ===== المتغيرات العامة =====
+let allStudents = [];
+let filteredStudents = [];
+let currentPage = 1;
+let pageSize = 12;
+let viewMode = 'grid';
+let selectedStudent = null;
+let deleteStudentId = null;
+
+// ===== دوال مساعدة للحضور =====
+function getAttendanceBadgeClass(status) {
+    const classes = {
+        'present': 'attendance-present',
+        'absent': 'attendance-absent',
+        'late': 'attendance-late',
+        'permitted': 'attendance-permitted',
+        'excused': 'attendance-excused'
     };
+    return classes[status] || 'attendance-present';
 }
+
+function getStatusDotClass(status) {
+    const classes = {
+        'present': 'status-dot-present',
+        'absent': 'status-dot-absent',
+        'late': 'status-dot-late',
+        'permitted': 'status-dot-permitted',
+        'excused': 'status-dot-excused'
+    };
+    return classes[status] || 'status-dot-present';
+}
+
+function getAttendanceLabel(status) {
+    const labels = {
+        'present': 'حاضر',
+        'absent': 'غائب',
+        'late': 'متأخر',
+        'permitted': 'مستأذن',
+        'excused': 'معذور'
+    };
+    return labels[status] || 'حاضر';
+}
+
+// ===== تهيئة البيانات =====
+function initStudents() {
+    let data = studentsData;
+    
+    // إذا كانت string، حولها إلى array
+    if (typeof data === 'string') {
+        try {
+            data = JSON.parse(data);
+            console.log('✅ تم تحويل students من string إلى array');
+        } catch(e) {
+            console.error('❌ فشل تحويل students:', e);
+            data = [];
+        }
+    }
+    
+    // إذا كانت object وليست array، حولها
+    if (!Array.isArray(data) && typeof data === 'object' && data !== null) {
+        console.warn('⚠️ students ليست array، جاري التحويل');
+        data = Object.values(data);
+    }
+    
+    // تأكد من أنها array
+    if (!Array.isArray(data)) {
+        console.error('❌ students ليست array:', data);
+        data = [];
+    }
+    
+    allStudents = data;
+    console.log('📊 عدد الطلاب بعد التهيئة:', allStudents.length);
+    
+    // تهيئة البيانات لكل طالب
+    allStudents.forEach((student) => {
+        if (!student.initials) {
+            const names = student.full_name ? student.full_name.split(' ') : ['طالب'];
+            student.initials = names.map(n => n[0]).join('').substring(0, 3);
+        }
+        if (!student.attendance_stats) {
+            student.attendance_stats = { overall_percentage: 85, present_days: 40, absent_days: 5, late_days: 3, permitted_days: 2 };
+        }
+        if (!student.periods || student.periods.length === 0) {
+            student.periods = [
+                { name: 'الحصة الأولى', subject: 'رياضيات', time: '8:00-9:00', status: 'present', late_time: '', late_duration: '' },
+                { name: 'الحصة الثانية', subject: 'عربي', time: '9:00-10:00', status: 'present', late_time: '', late_duration: '' },
+                { name: 'الحصة الثالثة', subject: 'إنجليزي', time: '10:00-11:00', status: 'present', late_time: '', late_duration: '' },
+                { name: 'الحصة الرابعة', subject: 'علوم', time: '11:00-12:00', status: 'present', late_time: '', late_duration: '' },
+                { name: 'الحصة الخامسة', subject: 'تربية إسلامية', time: '12:00-13:00', status: 'present', late_time: '', late_duration: '' }
+            ];
+        }
+        if (!student.late_stats) {
+            student.late_stats = { total: 0, morning: 0, period: 0 };
+        }
+        if (student.assignments_total === undefined) student.assignments_total = 8;
+        if (student.assignments_completed === undefined) student.assignments_completed = Math.floor(Math.random() * 8);
+        if (student.activities_total === undefined) student.activities_total = 4;
+        if (student.activities_completed === undefined) student.activities_completed = Math.floor(Math.random() * 4);
+    });
+    
+    updateStats();
+    filterStudents();
+}
+
+// ===== تحديث الإحصائيات =====
+function updateStats() {
+    const present = allStudents.filter(s => s.attendance_status === 'present').length;
+    const absent = allStudents.filter(s => s.attendance_status === 'absent').length;
+    const late = allStudents.filter(s => s.attendance_status === 'late').length;
+    const permitted = allStudents.filter(s => s.attendance_status === 'permitted').length;
+    const totalAssignments = allStudents.reduce((sum, s) => sum + (s.assignments_total || 0), 0);
+    
+    document.getElementById('stat-present').textContent = present;
+    document.getElementById('stat-absent').textContent = absent;
+    document.getElementById('stat-late').textContent = late;
+    document.getElementById('stat-permitted').textContent = permitted;
+    document.getElementById('stat-assignments').textContent = totalAssignments;
+}
+
+// ===== تصفية الطلاب =====
+function filterStudents() {
+    const searchQuery = document.getElementById('searchInput').value.toLowerCase().trim();
+    const statusFilter = document.getElementById('statusFilter').value;
+    const gradeFilter = document.getElementById('gradeFilter').value;
+    
+    filteredStudents = allStudents.filter(student => {
+        let match = true;
+        if (searchQuery) {
+            match = match && (
+                (student.full_name && student.full_name.toLowerCase().includes(searchQuery)) ||
+                (student.student_number && student.student_number.toLowerCase().includes(searchQuery))
+            );
+        }
+        if (statusFilter) {
+            match = match && student.attendance_status === statusFilter;
+        }
+        if (gradeFilter) {
+            match = match && (student.grade_id === gradeFilter || student.grade_name === gradeFilter);
+        }
+        return match;
+    });
+    
+    currentPage = 1;
+    renderStudents();
+}
+
+// ===== عرض الطلاب =====
+function renderStudents() {
+    const gridView = document.getElementById('grid-view');
+    const listView = document.getElementById('list-view');
+    const emptyState = document.getElementById('empty-state');
+    const paginationContainer = document.getElementById('pagination-container');
+    
+    const total = filteredStudents.length;
+    const totalPages = Math.ceil(total / pageSize) || 1;
+    const startIndex = (currentPage - 1) * pageSize;
+    const endIndex = Math.min(startIndex + pageSize, total);
+    const pageStudents = filteredStudents.slice(startIndex, endIndex);
+    
+    if (total === 0) {
+        gridView.classList.add('hidden');
+        listView.classList.add('hidden');
+        paginationContainer.classList.add('hidden');
+        emptyState.classList.remove('hidden');
+        return;
+    }
+    
+    emptyState.classList.add('hidden');
+    paginationContainer.classList.remove('hidden');
+    
+    if (viewMode === 'grid') {
+        gridView.classList.remove('hidden');
+        listView.classList.add('hidden');
+        renderGrid(pageStudents);
+    } else {
+        gridView.classList.add('hidden');
+        listView.classList.remove('hidden');
+        renderList(pageStudents, startIndex);
+    }
+    
+    renderPagination(total, totalPages, startIndex, endIndex);
+}
+
+// ===== عرض بطاقات (Grid) =====
+function renderGrid(students) {
+    const container = document.getElementById('grid-view');
+    container.innerHTML = '';
+    
+    students.forEach(student => {
+        const card = document.createElement('div');
+        card.className = 'student-card';
+        card.innerHTML = `
+            <div class="p-4 border-b border-slate-100 dark:border-slate-700 flex items-start justify-between">
+                <div class="flex items-center gap-3">
+                    <div class="w-12 h-12 rounded-full bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center text-primary-600 dark:text-primary-400 font-bold text-lg">
+                        ${student.initials || 'ط'}
+                    </div>
+                    <div>
+                        <a href="/students/${student.id}" class="text-primary-600 dark:text-primary-400 hover:underline font-semibold">${student.full_name || 'طالب'}</a>
+                        <div class="text-xs text-slate-400">${student.student_number || ''}</div>
+                    </div>
+                </div>
+                <span class="${getAttendanceBadgeClass(student.attendance_status)} attendance-badge">
+                    <span class="${getStatusDotClass(student.attendance_status)} status-dot"></span>
+                    ${getAttendanceLabel(student.attendance_status)}
+                </span>
+            </div>
+            <div class="p-4 space-y-3">
+                <div class="info-grid grid grid-cols-2 gap-2 text-sm">
+                    <div><span class="text-slate-400">الجنس:</span> <span class="font-medium">${student.gender || '—'}</span></div>
+                    <div><span class="text-slate-400">الصف:</span> <span class="font-medium">${student.grade_name || '—'}</span></div>
+                    <div><span class="text-slate-400">الشعبة:</span> <span class="font-medium">${student.section_name || '—'}</span></div>
+                    <div><span class="text-slate-400">ولي الأمر:</span> <span class="font-medium">${student.guardian_phone || '—'}</span></div>
+                </div>
+                <div class="grid grid-cols-3 gap-2 pt-2 border-t border-slate-100 dark:border-slate-700">
+                    <div class="text-center p-2 bg-slate-50 dark:bg-slate-700/30 rounded-lg">
+                        <div class="text-sm font-bold text-amber-600">${(student.assignments_completed || 0)}/${(student.assignments_total || 0)}</div>
+                        <div class="text-xs text-slate-400">الواجبات</div>
+                    </div>
+                    <div class="text-center p-2 bg-slate-50 dark:bg-slate-700/30 rounded-lg">
+                        <div class="text-sm font-bold text-purple-600">${(student.activities_completed || 0)}/${(student.activities_total || 0)}</div>
+                        <div class="text-xs text-slate-400">الأنشطة</div>
+                    </div>
+                    <div class="text-center p-2 bg-slate-50 dark:bg-slate-700/30 rounded-lg">
+                        <div class="text-sm font-bold text-blue-600">${(student.attendance_stats?.overall_percentage || 0)}%</div>
+                        <div class="text-xs text-slate-400">نسبة الحضور</div>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2 pt-2 border-t border-slate-100 dark:border-slate-700">
+                    <button onclick="openAttendanceModal('${student.id}')" class="flex-1 bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400 hover:bg-primary-100 dark:hover:bg-primary-900/40 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors duration-200">📋 الحضور</button>
+                    <button onclick="alert('سيتم إضافة إدارة التأخر قريباً')" class="flex-1 bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/40 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors duration-200">⏰ التأخر</button>
+                </div>
+                <a href="/students/${student.id}" class="block w-full text-center bg-slate-50 dark:bg-slate-700/50 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors duration-200">عرض التفاصيل الكاملة →</a>
+            </div>
+        `;
+        container.appendChild(card);
+    });
+}
+
+// ===== عرض قائمة (List) =====
+function renderList(students, startIndex) {
+    const tbody = document.getElementById('list-body');
+    tbody.innerHTML = '';
+    
+    students.forEach((student, index) => {
+        const tr = document.createElement('tr');
+        tr.className = 'hover:bg-slate-50 dark:hover:bg-slate-700/30';
+        tr.innerHTML = `
+            <td class="p-3 text-center">${startIndex + index + 1}</td>
+            <td class="p-3">
+                <a href="/students/${student.id}" class="text-primary-600 dark:text-primary-400 hover:underline font-medium">${student.full_name || 'طالب'}</a>
+            </td>
+            <td class="p-3 font-mono text-xs">${student.student_number || ''}</td>
+            <td class="p-3">${student.grade_name || '—'}</td>
+            <td class="p-3">${student.section_name || '—'}</td>
+            <td class="p-3">
+                <span class="${getAttendanceBadgeClass(student.attendance_status)} attendance-badge">
+                    <span class="${getStatusDotClass(student.attendance_status)} status-dot"></span>
+                    ${getAttendanceLabel(student.attendance_status)}
+                </span>
+            </td>
+            <td class="p-3"><span class="text-sm font-medium text-amber-600">${(student.assignments_completed || 0)}/${(student.assignments_total || 0)}</span></td>
+            <td class="p-3"><span class="text-sm font-medium text-purple-600">${(student.activities_completed || 0)}/${(student.activities_total || 0)}</span></td>
+            <td class="p-3"><span class="text-sm font-medium text-blue-600">${(student.attendance_stats?.overall_percentage || 0)}%</span></td>
+            <td class="p-3">
+                <div class="flex items-center gap-2 flex-wrap">
+                    <button onclick="openAttendanceModal('${student.id}')" class="text-primary-600 text-xs hover:underline">حضور</button>
+                    <button onclick="alert('سيتم إضافة إدارة التأخر قريباً')" class="text-amber-600 text-xs hover:underline">تأخير</button>
+                    {% if can('students.update') %}
+                    <a href="/students/${student.id}/edit" class="text-amber-600 text-xs hover:underline">تعديل</a>
+                    {% endif %}
+                    {% if can('students.delete') %}
+                    <button onclick="confirmDelete('${student.id}', '${student.full_name}')" class="text-red-600 text-xs hover:underline">حذف</button>
+                    {% endif %}
+                </div>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+// ===== عرض الترقيم =====
+function renderPagination(total, totalPages, startIndex, endIndex) {
+    const info = document.getElementById('pagination-info');
+    const buttons = document.getElementById('pagination-buttons');
+    
+    info.textContent = `عرض ${startIndex + 1} - ${endIndex} من ${total}`;
+    buttons.innerHTML = '';
+    
+    if (totalPages <= 1) return;
+    
+    // زر السابق
+    const prevBtn = document.createElement('button');
+    prevBtn.textContent = 'السابق';
+    prevBtn.className = `bg-slate-100 dark:bg-slate-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200 ${currentPage === 1 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-slate-200 dark:hover:bg-slate-600'}`;
+    prevBtn.onclick = () => { if (currentPage > 1) { currentPage--; renderStudents(); } };
+    buttons.appendChild(prevBtn);
+    
+    // أرقام الصفحات
+    let pages = [];
+    if (totalPages <= 7) {
+        for (let i = 1; i <= totalPages; i++) pages.push(i);
+    } else {
+        pages.push(1);
+        if (currentPage > 3) pages.push('...');
+        for (let i = Math.max(2, currentPage - 2); i <= Math.min(currentPage + 2, totalPages - 1); i++) pages.push(i);
+        if (currentPage < totalPages - 2) pages.push('...');
+        pages.push(totalPages);
+    }
+    
+    pages.forEach(p => {
+        const btn = document.createElement('button');
+        btn.textContent = p;
+        if (p === '...') {
+            btn.className = 'px-3 py-2 text-sm';
+            btn.disabled = true;
+        } else {
+            btn.className = `px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-200 ${p === currentPage ? 'bg-primary-600 text-white' : 'bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600'}`;
+            btn.onclick = () => { currentPage = p; renderStudents(); };
+        }
+        buttons.appendChild(btn);
+    });
+    
+    // زر التالي
+    const nextBtn = document.createElement('button');
+    nextBtn.textContent = 'التالي';
+    nextBtn.className = `bg-slate-100 dark:bg-slate-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200 ${currentPage === totalPages ? 'opacity-50 cursor-not-allowed' : 'hover:bg-slate-200 dark:hover:bg-slate-600'}`;
+    nextBtn.onclick = () => { if (currentPage < totalPages) { currentPage++; renderStudents(); } };
+    buttons.appendChild(nextBtn);
+}
+
+// ===== تغيير وضع العرض =====
+function setViewMode(mode) {
+    viewMode = mode;
+    const gridBtn = document.getElementById('gridBtn');
+    const listBtn = document.getElementById('listBtn');
+    
+    if (mode === 'grid') {
+        gridBtn.className = 'bg-primary-600 text-white px-3 py-2 rounded-lg text-sm transition-colors duration-200';
+        listBtn.className = 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-3 py-2 rounded-lg text-sm transition-colors duration-200';
+    } else {
+        gridBtn.className = 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-3 py-2 rounded-lg text-sm transition-colors duration-200';
+        listBtn.className = 'bg-primary-600 text-white px-3 py-2 rounded-lg text-sm transition-colors duration-200';
+    }
+    renderStudents();
+}
+
+// ===== دوال المودالات =====
+function openModal(id) {
+    const el = document.getElementById(id);
+    if (el) {
+        el.classList.remove('hidden');
+        el.classList.add('flex');
+        document.body.style.overflow = 'hidden';
+    }
+}
+
+function closeModal(id) {
+    const el = document.getElementById(id);
+    if (el) {
+        el.classList.add('hidden');
+        el.classList.remove('flex');
+        document.body.style.overflow = '';
+    }
+}
+
+// ===== فتح مودال الحضور =====
+function openAttendanceModal(studentId) {
+    const student = allStudents.find(s => s.id === studentId);
+    if (!student) return;
+    
+    selectedStudent = student;
+    document.getElementById('attendance-student-name').textContent = 'الطالب: ' + student.full_name;
+    
+    // تحديث أزرار الحالة
+    const buttons = document.getElementById('attendance-status-buttons').querySelectorAll('button');
+    buttons.forEach(btn => {
+        const status = btn.textContent.includes('حاضر') ? 'present' :
+                      btn.textContent.includes('غائب') ? 'absent' :
+                      btn.textContent.includes('متأخر') ? 'late' :
+                      btn.textContent.includes('مستأذن') ? 'permitted' : 'excused';
+        if (student.attendance_status === status) {
+            btn.className = 'w-full text-right px-4 py-2 rounded-lg border-2 border-primary-500 bg-primary-50 dark:bg-primary-900/20 transition-all duration-200';
+        } else {
+            btn.className = 'w-full text-right px-4 py-2 rounded-lg border-2 border-transparent hover:border-slate-300 transition-all duration-200';
+        }
+    });
+    
+    // عرض الإحصائيات
+    const statsContainer = document.getElementById('attendance-stats');
+    statsContainer.innerHTML = `
+        <div>
+            <div class="flex justify-between text-sm">
+                <span class="text-slate-400">نسبة الحضور الكلية</span>
+                <span class="font-semibold">${student.attendance_stats?.overall_percentage || 0}%</span>
+            </div>
+            <div class="w-full h-1.5 bg-slate-200 dark:bg-slate-600 rounded-full mt-1">
+                <div class="h-full bg-primary-600 rounded-full transition-all duration-500" style="width: ${student.attendance_stats?.overall_percentage || 0}%"></div>
+            </div>
+        </div>
+        <div class="grid grid-cols-2 gap-2 text-sm">
+            <div class="text-center p-2 bg-white dark:bg-slate-800 rounded-lg">
+                <div class="text-emerald-600 font-bold">${student.attendance_stats?.present_days || 0}</div>
+                <div class="text-slate-400 text-xs">أيام حضور</div>
+            </div>
+            <div class="text-center p-2 bg-white dark:bg-slate-800 rounded-lg">
+                <div class="text-red-600 font-bold">${student.attendance_stats?.absent_days || 0}</div>
+                <div class="text-slate-400 text-xs">أيام غياب</div>
+            </div>
+            <div class="text-center p-2 bg-white dark:bg-slate-800 rounded-lg">
+                <div class="text-amber-600 font-bold">${student.attendance_stats?.late_days || 0}</div>
+                <div class="text-slate-400 text-xs">أيام تأخر</div>
+            </div>
+            <div class="text-center p-2 bg-white dark:bg-slate-800 rounded-lg">
+                <div class="text-blue-600 font-bold">${student.attendance_stats?.permitted_days || 0}</div>
+                <div class="text-slate-400 text-xs">أيام إذن</div>
+            </div>
+        </div>
+    `;
+    
+    openModal('attendanceModal');
+}
+
+// ===== تعيين حالة الحضور =====
+function setAttendance(status) {
+    if (!selectedStudent) return;
+    selectedStudent.attendance_status = status;
+    
+    // تحديث الأزرار
+    const buttons = document.getElementById('attendance-status-buttons').querySelectorAll('button');
+    buttons.forEach(btn => {
+        const btnStatus = btn.textContent.includes('حاضر') ? 'present' :
+                         btn.textContent.includes('غائب') ? 'absent' :
+                         btn.textContent.includes('متأخر') ? 'late' :
+                         btn.textContent.includes('مستأذن') ? 'permitted' : 'excused';
+        if (btnStatus === status) {
+            btn.className = 'w-full text-right px-4 py-2 rounded-lg border-2 border-primary-500 bg-primary-50 dark:bg-primary-900/20 transition-all duration-200';
+        } else {
+            btn.className = 'w-full text-right px-4 py-2 rounded-lg border-2 border-transparent hover:border-slate-300 transition-all duration-200';
+        }
+    });
+}
+
+// ===== حفظ الحضور =====
+function saveAttendance() {
+    if (!selectedStudent) {
+        alert('❌ لم يتم اختيار طالب');
+        return;
+    }
+    
+    fetch(`/api/students/${selectedStudent.id}/attendance`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            status: selectedStudent.attendance_status,
+            date: new Date().toISOString().split('T')[0]
+        })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            alert('✅ تم حفظ حالة الحضور بنجاح');
+            updateStats();
+            renderStudents();
+            closeModal('attendanceModal');
+        } else {
+            alert('❌ ' + (data.message || 'حدث خطأ'));
+        }
+    })
+    .catch(err => alert('❌ حدث خطأ: ' + err.message));
+}
+
+// ===== تأكيد الحذف =====
+function confirmDelete(id, name) {
+    deleteStudentId = id;
+    document.getElementById('deleteStudentName').textContent = name || 'غير معروف';
+    document.getElementById('deleteForm').action = '/students/' + id;
+    openModal('deleteModal');
+}
+
+// ===== تصدير البيانات =====
+function exportData() {
+    window.location.href = '/students/export?format=excel';
+}
+
+// ===== تشغيل التطبيق =====
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('🚀 بدء تشغيل التطبيق');
+    initStudents();
+    console.log('✅ تم تشغيل التطبيق بنجاح');
+});
 </script>
 
 {% endblock %}
