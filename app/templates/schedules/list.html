@@ -55,7 +55,13 @@
             <div class="flex items-center justify-between">
                 <span class="text-sm text-slate-500 dark:text-slate-400">إجمالي الحصص</span>
                 <span class="text-2xl font-bold text-primary-600 dark:text-primary-400">
-                    {{ items|sum(attribute='entries_count') }}
+                    {% set total = 0 %}
+                    {% for item in items %}
+                        {% if item.entries_count %}
+                            {% set total = total + item.entries_count %}
+                        {% endif %}
+                    {% endfor %}
+                    {{ total }}
                 </span>
             </div>
         </div>
@@ -70,25 +76,33 @@
                     <tr>
                         <th class="text-right px-6 py-3 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">#</th>
                         <th class="text-right px-6 py-3 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">اسم الجدول</th>
+                        <th class="text-right px-6 py-3 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">المرحلة</th>
+                        <th class="text-right px-6 py-3 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">الصف</th>
                         <th class="text-right px-6 py-3 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">الشعبة</th>
                         <th class="text-right px-6 py-3 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">العام الدراسي</th>
                         <th class="text-right px-6 py-3 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">عدد الحصص</th>
                         <th class="text-right px-6 py-3 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">الحالة</th>
-                        <th class="text-center px-6 py-3 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider w-20">الإجراءات</th>
+                        <th class="text-center px-6 py-3 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">الإجراءات</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
                     {% for item in items %}
                     <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/20 transition-colors duration-200">
-                        <td class="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">{{ loop.index }}</td>
+                        <td class="px-6 py-4 text-sm text-slate-600 dark:text-slate-400 text-center">{{ loop.index }}</td>
                         <td class="px-6 py-4 text-sm font-medium text-slate-800 dark:text-white">{{ item.name }}</td>
                         <td class="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">
-                            {{ item.section_name or item.section_id }}
+                            {{ item.stage_name or item.stage_id or '-' }}
                         </td>
                         <td class="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">
-                            {{ item.academic_year_name or item.academic_year_id }}
+                            {{ item.grade_name or item.grade_id or '-' }}
                         </td>
-                        <td class="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">{{ item.entries_count or 0 }}</td>
+                        <td class="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">
+                            {{ item.section_name or item.section_id or '-' }}
+                        </td>
+                        <td class="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">
+                            {{ item.year_name or item.academic_year_name or item.academic_year_id or '-' }}
+                        </td>
+                        <td class="px-6 py-4 text-sm text-slate-600 dark:text-slate-400 text-center">{{ item.entries_count or 0 }}</td>
                         <td class="px-6 py-4 text-sm">
                             {% if item.is_active %}
                             <span class="px-2 py-1 text-xs bg-green-50 text-green-600 dark:bg-green-900/20 dark:text-green-400 rounded-full">مفعل</span>
@@ -104,10 +118,10 @@
                                         <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z"/>
                                     </svg>
                                 </button>
-                                <div class="dropdown-menu hidden absolute left-0 mt-2 w-44 rounded-xl shadow-lg bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 z-50">
+                                <div class="dropdown-menu hidden absolute left-0 mt-2 w-48 rounded-xl shadow-lg bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 z-50">
                                     <div class="py-1">
                                         {% if can('schedules.view') %}
-                                        <a href="/schedules/{{ item.id }}/view" 
+                                        <a href="/schedules/{{ item.id }}" 
                                            class="flex items-center gap-2 px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors duration-200">
                                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
@@ -117,7 +131,7 @@
                                         </a>
                                         {% endif %}
                                         {% if can('schedules.update') %}
-                                        <a href="/schedules/{{ item.id }}/update" 
+                                        <a href="/schedules/{{ item.id }}/edit" 
                                            class="flex items-center gap-2 px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors duration-200">
                                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
@@ -177,13 +191,15 @@
     </div>
 </div>
 
-<script src="/static/js/schedule.js"></script>
-
 <script>
+// ============================================================
+// التحكم في القائمة المنسدلة
+// ============================================================
 function toggleDropdown(btn) {
     const container = btn.closest('.dropdown-container');
     const menu = container.querySelector('.dropdown-menu');
     
+    // إغلاق القوائم المفتوحة الأخرى
     document.querySelectorAll('.dropdown-menu.show').forEach(function(m) {
         if (m !== menu) {
             m.classList.remove('show');
@@ -191,10 +207,12 @@ function toggleDropdown(btn) {
         }
     });
     
+    // تبديل حالة القائمة الحالية
     menu.classList.toggle('hidden');
     menu.classList.toggle('show');
 }
 
+// إغلاق القائمة عند النقر خارجها
 document.addEventListener('click', function(event) {
     const isDropdownButton = event.target.closest('.dropdown-btn');
     const isDropdownMenu = event.target.closest('.dropdown-menu');
@@ -207,13 +225,20 @@ document.addEventListener('click', function(event) {
     }
 });
 
+// ============================================================
+// حذف الجدول
+// ============================================================
 function confirmDelete(url, message = 'هل أنت متأكد من الحذف؟') {
     if (confirm(message)) {
+        // تعطيل الأزرار أثناء المعالجة
         const buttons = document.querySelectorAll('button');
         buttons.forEach(btn => btn.disabled = true);
+        
         fetch(url, {
             method: 'DELETE',
-            headers: { 'Content-Type': 'application/json' }
+            headers: { 
+                'Content-Type': 'application/json'
+            }
         })
         .then(response => response.json())
         .then(data => {
@@ -221,30 +246,43 @@ function confirmDelete(url, message = 'هل أنت متأكد من الحذف؟'
                 showMessage('✅ ' + data.message, 'success');
                 setTimeout(() => window.location.reload(), 1500);
             } else {
-                showMessage('❌ ' + (data.message || 'حدث خطأ أثناء الحذف'), 'error');
+                showMessage('❌ ' + (data.detail || data.message || 'حدث خطأ أثناء الحذف'), 'error');
                 buttons.forEach(btn => btn.disabled = false);
             }
         })
         .catch(error => {
             showMessage('❌ حدث خطأ في الاتصال بالخادم', 'error');
             buttons.forEach(btn => btn.disabled = false);
-            console.error(error);
+            console.error('Error:', error);
         });
     }
 }
 
+// ============================================================
+// عرض الرسائل
+// ============================================================
 function showMessage(message, type = 'success') {
     const colors = {
         success: 'bg-green-50 text-green-800 border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800',
         error: 'bg-red-50 text-red-800 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800',
-        warning: 'bg-yellow-50 text-yellow-800 border-yellow-200 dark:bg-yellow-900/20 dark:text-yellow-400 dark:border-yellow-800'
+        warning: 'bg-yellow-50 text-yellow-800 border-yellow-200 dark:bg-yellow-900/20 dark:text-yellow-400 dark:border-yellow-800',
+        info: 'bg-blue-50 text-blue-800 border-blue-200 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-800'
     };
+    
+    // إزالة الرسائل السابقة
     document.querySelectorAll('.toast-message').forEach(el => el.remove());
+    
     const div = document.createElement('div');
-    div.className = `toast-message fixed top-4 right-4 p-4 rounded-lg border ${colors[type]} shadow-lg z-50 max-w-md animate-slide-in`;
+    div.className = `toast-message fixed top-4 right-4 p-4 rounded-lg border ${colors[type] || colors.info} shadow-lg z-50 max-w-md animate-slide-in`;
     div.innerHTML = message;
     document.body.appendChild(div);
-    setTimeout(() => { div.remove(); }, 5000);
+    
+    // إخفاء الرسالة بعد 5 ثواني
+    setTimeout(() => { 
+        div.style.opacity = '0';
+        div.style.transition = 'opacity 0.3s ease';
+        setTimeout(() => div.remove(), 300);
+    }, 5000);
 }
 </script>
 
@@ -256,6 +294,7 @@ function showMessage(message, type = 'success') {
 .animate-slide-in {
     animation: slideIn 0.3s ease-out;
 }
+
 .dropdown-menu {
     min-width: 160px;
     transform-origin: top right;
@@ -266,13 +305,35 @@ function showMessage(message, type = 'success') {
 .dropdown-menu.hidden {
     display: none !important;
 }
+
+/* تحسينات الجدول */
 table {
-    min-width: 800px;
+    min-width: 900px;
 }
+
 @media (max-width: 768px) {
     table {
-        min-width: 600px;
+        min-width: 700px;
     }
+}
+
+/* تنسيق الصفوف */
+tbody tr:last-child {
+    border-bottom: none;
+}
+
+/* تنسيق الأعمدة */
+td, th {
+    white-space: nowrap;
+}
+
+/* تنسيق الحالة */
+.status-badge {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 500;
 }
 </style>
 {% endblock %}
