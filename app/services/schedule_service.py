@@ -90,16 +90,16 @@ class ScheduleService:
     async def find_entry_conflict(
         self,
         schedule_id: str,
-        day_of_week: int,
-        period_id: str
+        day: int,
+        period: int
     ) -> Optional[ScheduleEntry]:
         """البحث عن تعارض في الحصص (نفس اليوم والفترة)"""
         result = await self.db.execute(
             select(ScheduleEntry)
             .where(
                 ScheduleEntry.schedule_id == schedule_id,
-                ScheduleEntry.day == day_of_week,
-                ScheduleEntry.period == period_id,
+                ScheduleEntry.day == day,
+                ScheduleEntry.period == period,
                 ScheduleEntry.is_active == True
             )
         )
@@ -110,7 +110,6 @@ class ScheduleService:
     async def get_section_details(self, section_id: str) -> Dict[str, Any]:
         """جلب تفاصيل الشعبة مع الصف والمرحلة"""
         try:
-            # جلب الشعبة مع العلاقات
             result = await self.db.execute(
                 select(Section)
                 .options(
@@ -185,7 +184,6 @@ class ScheduleService:
     async def list_schedules(self, school_id: str) -> List[Dict[str, Any]]:
         """جلب جميع الجداول مع الأسماء والتفاصيل الكاملة"""
         try:
-            # ✅ جلب الجداول بدون استخدام selectinload على علاقات غير موجودة
             result = await self.db.execute(
                 select(Schedule)
                 .where(Schedule.school_id == school_id)
@@ -199,13 +197,9 @@ class ScheduleService:
             
             result_list = []
             for schedule in schedules:
-                # ✅ جلب تفاصيل الشعبة يدوياً
                 section_details = await self.get_section_details(schedule.section_id)
-                
-                # ✅ جلب اسم العام الدراسي
                 year_name = await self.get_academic_year_name(schedule.year_id)
                 
-                # ✅ حساب عدد الحصص
                 entries_count_result = await self.db.execute(
                     select(func.count(ScheduleEntry.id))
                     .where(
@@ -221,13 +215,13 @@ class ScheduleService:
                     "school_id": str(schedule.school_id),
                     "section_id": str(schedule.section_id) if schedule.section_id else None,
                     "section_name": section_details.get("name"),
-                    "grade_id": str(schedule.grade_id) if schedule.grade_id else section_details.get("grade_id"),
+                    "grade_id": section_details.get("grade_id"),
                     "grade_name": section_details.get("grade_name"),
-                    "stage_id": str(schedule.stage_id) if schedule.stage_id else section_details.get("stage_id"),
+                    "stage_id": section_details.get("stage_id"),
                     "stage_name": section_details.get("stage_name"),
                     "year_id": str(schedule.year_id) if schedule.year_id else None,
                     "year_name": year_name,
-                    "academic_year_name": year_name,  # للتوافق مع القالب
+                    "academic_year_name": year_name,
                     "academic_year_id": str(schedule.year_id) if schedule.year_id else None,
                     "is_active": schedule.is_active,
                     "created_at": schedule.created_at,
@@ -263,9 +257,9 @@ class ScheduleService:
                 "school_id": str(schedule.school_id),
                 "section_id": str(schedule.section_id) if schedule.section_id else None,
                 "section_name": section_details.get("name"),
-                "grade_id": str(schedule.grade_id) if schedule.grade_id else section_details.get("grade_id"),
+                "grade_id": section_details.get("grade_id"),
                 "grade_name": section_details.get("grade_name"),
-                "stage_id": str(schedule.stage_id) if schedule.stage_id else section_details.get("stage_id"),
+                "stage_id": section_details.get("stage_id"),
                 "stage_name": section_details.get("stage_name"),
                 "year_id": str(schedule.year_id) if schedule.year_id else None,
                 "year_name": year_name,
@@ -328,6 +322,10 @@ class ScheduleService:
             print(f"❌ Error in get_schedule_with_entries: {str(e)}")
             return None
 
+    # ============================================================
+    # ✅ create_schedule - بدون grade_id و stage_id
+    # ============================================================
+    
     async def create_schedule(self, school_id: str, req: ScheduleCreate) -> Schedule:
         """إنشاء جدول جديد"""
         try:
@@ -373,15 +371,13 @@ class ScheduleService:
             
             print("✅ لا يوجد جدول مكرر")
             
-            # إنشاء الجدول
+            # ✅ إنشاء الجدول - استخدام الحقول الموجودة فقط
             schedule = Schedule(
                 id=str(uuid.uuid4()),
                 school_id=school_id,
                 name=req.name,
                 section_id=req.section_id,
                 year_id=req.year_id,
-                grade_id=section.grade_id if section.grade_id else req.grade_id,
-                stage_id=section.grade.stage_id if section.grade and section.grade.stage_id else req.stage_id,
                 is_active=req.is_active,
                 created_at=datetime.utcnow(),
                 updated_at=datetime.utcnow(),
@@ -396,7 +392,7 @@ class ScheduleService:
                 if not subject:
                     raise ValidationException(f"المادة غير موجودة: {entry_data.subject_id}")
                 
-                # التحقق من وجود المعلم (إذا تم تحديده)
+                # التحقق من وجود المعلم
                 if entry_data.teacher_id:
                     teacher = await self.find_teacher_by_id(entry_data.teacher_id)
                     if not teacher:
@@ -447,6 +443,11 @@ class ScheduleService:
                 raise NotFoundException("الجدول غير موجود")
             
             update_data = req.model_dump(exclude_unset=True)
+            # ✅ إزالة الحقول غير الموجودة في النموذج
+            excluded_fields = ['grade_id', 'stage_id']
+            for field in excluded_fields:
+                update_data.pop(field, None)
+            
             for key, value in update_data.items():
                 if hasattr(schedule, key):
                     setattr(schedule, key, value)
@@ -472,11 +473,9 @@ class ScheduleService:
             if not schedule:
                 raise NotFoundException("الجدول غير موجود")
             
-            # تعطيل الجدول بدلاً من حذفه
             schedule.is_active = False
             schedule.updated_at = datetime.utcnow()
             
-            # تعطيل الحصص أيضاً
             entries_result = await self.db.execute(
                 select(ScheduleEntry).where(ScheduleEntry.schedule_id == schedule_id)
             )
@@ -508,7 +507,6 @@ class ScheduleService:
             print(f"   teacher_id: {req.teacher_id}")
             print("=" * 50)
             
-            # التحقق من وجود الجدول
             schedule_result = await self.db.execute(
                 select(Schedule).where(Schedule.id == schedule_id)
             )
@@ -516,20 +514,17 @@ class ScheduleService:
             if not schedule:
                 raise NotFoundException("الجدول غير موجود")
             
-            # التحقق من وجود المادة
             subject = await self.find_subject_by_id(req.subject_id)
             if not subject:
                 raise ValidationException(f"المادة غير موجودة: {req.subject_id}")
             print(f"✅ تم العثور على المادة: {subject.name}")
             
-            # التحقق من وجود المعلم
             if req.teacher_id:
                 teacher = await self.find_teacher_by_id(req.teacher_id)
                 if not teacher:
                     raise ValidationException(f"المعلم غير موجود: {req.teacher_id}")
                 print(f"✅ تم العثور على المعلم: {teacher.first_name} {teacher.last_name}")
             
-            # التحقق من عدم وجود تعارض
             conflict = await self.find_entry_conflict(
                 schedule_id, req.day, req.period
             )
@@ -538,7 +533,6 @@ class ScheduleService:
             
             print("✅ لا يوجد تعارض")
             
-            # إنشاء الحصة
             entry = ScheduleEntry(
                 id=str(uuid.uuid4()),
                 schedule_id=schedule_id,
@@ -714,7 +708,6 @@ class ScheduleService:
     async def get_teachers(self, school_id: str) -> List[Dict[str, Any]]:
         """جلب جميع المعلمين"""
         try:
-            # جلب دور المعلم
             role_result = await self.db.execute(
                 select(Role).where(Role.key == "teacher", Role.school_id == school_id)
             )
