@@ -61,15 +61,19 @@
     }
 </style>
 
-<div class="space-y-6" x-data="studentsApp()" x-init="init()">
+<div class="space-y-6" x-data="studentsApp({{ students | safe }})" x-init="init()">
     
-    <!-- رسالة تصحيح مؤقتة -->
-    <div class="bg-yellow-100 dark:bg-yellow-900/20 p-3 rounded-lg text-sm text-yellow-800 dark:text-yellow-200 border border-yellow-200 dark:border-yellow-700">
-        <div class="flex items-center gap-2 flex-wrap">
-            <span>📊 عدد الطلاب في البيانات: <strong x-text="students?.length || 0"></strong></span>
-            <span x-show="students?.length > 0" class="text-emerald-600">✅</span>
-            <span x-show="!students || students.length === 0" class="text-red-600">❌</span>
-            <span class="text-slate-400 text-xs">(يمكن إزالة هذه الرسالة بعد التأكد من ظهور البيانات)</span>
+    <!-- ============================================================ -->
+    <!-- معلومات التصحيح                                               -->
+    <!-- ============================================================ -->
+    <div class="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg border border-blue-200 dark:border-blue-700">
+        <h3 class="font-bold text-blue-800 dark:text-blue-200">🔍 معلومات التصحيح</h3>
+        <div class="text-sm text-blue-700 dark:text-blue-300 mt-2 space-y-1">
+            <div>📊 عدد الطلاب في البيانات: <span class="font-bold" x-text="students?.length || 0"></span></div>
+            <div>📊 حالة التحميل: <span x-show="students?.length > 0" class="text-emerald-600 font-bold">✅ جاهز</span><span x-show="!students || students.length === 0" class="text-red-600 font-bold">⏳ جاري التحميل...</span></div>
+            <div>📊 عدد الطلاب المعروضين: <span class="font-bold" x-text="pageStudents?.length || 0"></span></div>
+            <div>📊 إجمالي الصفحات: <span class="font-bold" x-text="totalPages"></span></div>
+            <div>📊 وضع العرض: <span class="font-bold" x-text="viewMode"></span></div>
         </div>
     </div>
     
@@ -226,19 +230,20 @@
             <p class="text-slate-400 mt-3">جاري تحميل البيانات...</p>
         </div>
         
+        <!-- عرض البطاقات -->
         <template x-for="student in pageStudents" :key="student.id">
             <div class="student-card">
                 <!-- رأس البطاقة -->
                 <div class="p-4 border-b border-slate-100 dark:border-slate-700 flex items-start justify-between">
                     <div class="flex items-center gap-3">
                         <div class="w-12 h-12 rounded-full bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center text-primary-600 dark:text-primary-400 font-bold text-lg">
-                            <span x-text="student.initials"></span>
+                            <span x-text="student.initials || 'ط'"></span>
                         </div>
                         <div>
                             <a :href="'/students/' + student.id" 
                                class="text-primary-600 dark:text-primary-400 hover:underline font-semibold"
-                               x-text="student.full_name"></a>
-                            <div class="text-xs text-slate-400" x-text="student.student_number"></div>
+                               x-text="student.full_name || 'طالب'"></a>
+                            <div class="text-xs text-slate-400" x-text="student.student_number || ''"></div>
                         </div>
                     </div>
                     <span :class="getAttendanceBadgeClass(student.attendance_status)" class="attendance-badge">
@@ -272,15 +277,15 @@
                     <!-- إحصائيات الواجبات والأنشطة -->
                     <div class="grid grid-cols-3 gap-2 pt-2 border-t border-slate-100 dark:border-slate-700">
                         <div class="text-center p-2 bg-slate-50 dark:bg-slate-700/30 rounded-lg">
-                            <div class="text-sm font-bold text-amber-600" x-text="student.assignments_completed + '/' + student.assignments_total"></div>
+                            <div class="text-sm font-bold text-amber-600" x-text="(student.assignments_completed || 0) + '/' + (student.assignments_total || 0)"></div>
                             <div class="text-xs text-slate-400">الواجبات</div>
                         </div>
                         <div class="text-center p-2 bg-slate-50 dark:bg-slate-700/30 rounded-lg">
-                            <div class="text-sm font-bold text-purple-600" x-text="student.activities_completed + '/' + student.activities_total"></div>
+                            <div class="text-sm font-bold text-purple-600" x-text="(student.activities_completed || 0) + '/' + (student.activities_total || 0)"></div>
                             <div class="text-xs text-slate-400">الأنشطة</div>
                         </div>
                         <div class="text-center p-2 bg-slate-50 dark:bg-slate-700/30 rounded-lg">
-                            <div class="text-sm font-bold text-blue-600" x-text="student.attendance_stats?.overall_percentage || 0 + '%'"></div>
+                            <div class="text-sm font-bold text-blue-600" x-text="(student.attendance_stats?.overall_percentage || 0) + '%'"></div>
                             <div class="text-xs text-slate-400">نسبة الحضور</div>
                         </div>
                     </div>
@@ -290,21 +295,21 @@
                         <div>
                             <div class="flex justify-between text-xs text-slate-400">
                                 <span>تقدم الواجبات</span>
-                                <span x-text="Math.round((student.assignments_completed / (student.assignments_total || 1)) * 100) + '%'"></span>
+                                <span x-text="Math.round(((student.assignments_completed || 0) / ((student.assignments_total || 1) || 1)) * 100) + '%'"></span>
                             </div>
                             <div class="w-full h-1.5 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
                                 <div class="h-full bg-amber-500 rounded-full transition-all duration-500"
-                                     :style="'width: ' + ((student.assignments_total || 1) > 0 ? (student.assignments_completed / student.assignments_total * 100) : 0) + '%'"></div>
+                                     :style="'width: ' + (((student.assignments_total || 1) > 0) ? ((student.assignments_completed || 0) / (student.assignments_total || 1) * 100) : 0) + '%'"></div>
                             </div>
                         </div>
                         <div>
                             <div class="flex justify-between text-xs text-slate-400">
                                 <span>تقدم الأنشطة</span>
-                                <span x-text="Math.round((student.activities_completed / (student.activities_total || 1)) * 100) + '%'"></span>
+                                <span x-text="Math.round(((student.activities_completed || 0) / ((student.activities_total || 1) || 1)) * 100) + '%'"></span>
                             </div>
                             <div class="w-full h-1.5 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
                                 <div class="h-full bg-purple-500 rounded-full transition-all duration-500"
-                                     :style="'width: ' + ((student.activities_total || 1) > 0 ? (student.activities_completed / student.activities_total * 100) : 0) + '%'"></div>
+                                     :style="'width: ' + (((student.activities_total || 1) > 0) ? ((student.activities_completed || 0) / (student.activities_total || 1) * 100) : 0) + '%'"></div>
                             </div>
                         </div>
                     </div>
@@ -372,9 +377,9 @@
                             <td class="p-3">
                                 <a :href="'/students/' + student.id" 
                                    class="text-primary-600 dark:text-primary-400 hover:underline font-medium"
-                                   x-text="student.full_name"></a>
+                                   x-text="student.full_name || 'طالب'"></a>
                             </td>
-                            <td class="p-3 font-mono text-xs" x-text="student.student_number"></td>
+                            <td class="p-3 font-mono text-xs" x-text="student.student_number || ''"></td>
                             <td class="p-3" x-text="student.grade_name || '—'"></td>
                             <td class="p-3" x-text="student.section_name || '—'"></td>
                             <td class="p-3">
@@ -384,13 +389,13 @@
                                 </span>
                             </td>
                             <td class="p-3">
-                                <span class="text-sm font-medium text-amber-600" x-text="student.assignments_completed + '/' + student.assignments_total"></span>
+                                <span class="text-sm font-medium text-amber-600" x-text="(student.assignments_completed || 0) + '/' + (student.assignments_total || 0)"></span>
                             </td>
                             <td class="p-3">
-                                <span class="text-sm font-medium text-purple-600" x-text="student.activities_completed + '/' + student.activities_total"></span>
+                                <span class="text-sm font-medium text-purple-600" x-text="(student.activities_completed || 0) + '/' + (student.activities_total || 0)"></span>
                             </td>
                             <td class="p-3">
-                                <span class="text-sm font-medium text-blue-600" x-text="student.attendance_stats?.overall_percentage || 0 + '%'"></span>
+                                <span class="text-sm font-medium text-blue-600" x-text="(student.attendance_stats?.overall_percentage || 0) + '%'"></span>
                             </td>
                             <td class="p-3">
                                 <div class="flex items-center gap-2 flex-wrap">
@@ -458,7 +463,7 @@
         <div class="flex items-center justify-between mb-4">
             <div>
                 <h2 class="text-xl font-bold text-slate-800 dark:text-white">إدارة الحضور</h2>
-                <p class="text-sm text-slate-400" x-text="'الطالب: ' + selectedStudent?.full_name"></p>
+                <p class="text-sm text-slate-400" x-text="'الطالب: ' + (selectedStudent?.full_name || '')"></p>
             </div>
             <button @click="closeModal('attendanceModal')" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -507,7 +512,7 @@
                     <div>
                         <div class="flex justify-between text-sm">
                             <span class="text-slate-400">نسبة الحضور الكلية</span>
-                            <span class="font-semibold" x-text="selectedStudent?.attendance_stats?.overall_percentage || 0 + '%'"></span>
+                            <span class="font-semibold" x-text="(selectedStudent?.attendance_stats?.overall_percentage || 0) + '%'"></span>
                         </div>
                         <div class="w-full h-1.5 bg-slate-200 dark:bg-slate-600 rounded-full mt-1">
                             <div class="h-full bg-primary-600 rounded-full transition-all duration-500"
@@ -559,7 +564,7 @@
         <div class="flex items-center justify-between mb-4">
             <div>
                 <h2 class="text-xl font-bold text-slate-800 dark:text-white">⏰ إدارة التأخر الصباحي</h2>
-                <p class="text-sm text-slate-400" x-text="'الطالب: ' + selectedStudent?.full_name"></p>
+                <p class="text-sm text-slate-400" x-text="'الطالب: ' + (selectedStudent?.full_name || '')"></p>
             </div>
             <button @click="closeModal('lateModal')" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -600,10 +605,10 @@
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
-                    <template x-for="(period, idx) in selectedStudent?.periods || []" :key="idx">
+                    <template x-for="(period, idx) in (selectedStudent?.periods || [])" :key="idx">
                         <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/30">
                             <td class="p-3 text-center" x-text="idx + 1"></td>
-                            <td class="p-3 font-medium" x-text="period.name"></td>
+                            <td class="p-3 font-medium" x-text="period.name || ''"></td>
                             <td class="p-3" x-text="period.subject || '—'"></td>
                             <td class="p-3 text-sm" x-text="period.time || '—'"></td>
                             <td class="p-3">
@@ -674,10 +679,10 @@
 <!-- JavaScript (Alpine.js) - النسخة المحدثة                      -->
 <!-- ============================================================ -->
 <script>
-function studentsApp() {
+function studentsApp(initialStudents = []) {
     return {
         // ---- البيانات الأساسية ----
-        students: {{ students | safe }},
+        students: [],
         searchQuery: '',
         filterStatus: '',
         filterGrade: '',
@@ -692,27 +697,36 @@ function studentsApp() {
         // ---- التهيئة ----
         init() {
             console.log('🚀 بدء تهيئة studentsApp');
+            console.log('📊 initialStudents:', initialStudents);
+            console.log('📊 نوع initialStudents:', typeof initialStudents);
             
-            // ✅ تحويل students إذا كانت string
-            if (typeof this.students === 'string') {
+            // ✅ تعيين البيانات
+            let studentsData = initialStudents;
+            
+            // إذا كانت string، حولها إلى array
+            if (typeof studentsData === 'string') {
                 try {
-                    this.students = JSON.parse(this.students);
+                    studentsData = JSON.parse(studentsData);
                     console.log('✅ تم تحويل students من string إلى array');
                 } catch(e) {
                     console.error('❌ فشل تحويل students:', e);
-                    this.students = [];
+                    studentsData = [];
                 }
             }
             
-            // ✅ تأكد من أنها array
-            if (!Array.isArray(this.students)) {
+            // إذا كانت object وليست array، حولها
+            if (!Array.isArray(studentsData) && typeof studentsData === 'object' && studentsData !== null) {
                 console.warn('⚠️ students ليست array، جاري التحويل');
-                if (typeof this.students === 'object' && this.students !== null) {
-                    this.students = Object.values(this.students);
-                } else {
-                    this.students = [];
-                }
+                studentsData = Object.values(studentsData);
             }
+            
+            // تأكد من أنها array
+            if (!Array.isArray(studentsData)) {
+                console.error('❌ students ليست array:', studentsData);
+                studentsData = [];
+            }
+            
+            this.students = studentsData;
             
             console.log('📊 عدد الطلاب بعد التهيئة:', this.students.length);
             if (this.students.length > 0) {
@@ -806,6 +820,11 @@ function studentsApp() {
             
             // ✅ تحديث القائمة
             this.filterStudents();
+            
+            // ✅ تحديث واجهة المستخدم
+            this.$nextTick(() => {
+                console.log('✅ تم تحديث واجهة المستخدم');
+            });
         },
         
         // ---- الإحصائيات ----
@@ -934,7 +953,7 @@ function studentsApp() {
         confirmDelete(id, name) {
             this.deleteStudentId = id;
             const nameEl = document.getElementById('deleteStudentName');
-            if (nameEl) nameEl.textContent = name;
+            if (nameEl) nameEl.textContent = name || 'غير معروف';
             this.openModal('deleteModal');
         },
         
@@ -946,7 +965,10 @@ function studentsApp() {
         },
         
         saveAttendance() {
-            if (!this.selectedStudent) return;
+            if (!this.selectedStudent) {
+                alert('❌ لم يتم اختيار طالب');
+                return;
+            }
             fetch(`/api/students/${this.selectedStudent.id}/attendance`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -961,7 +983,7 @@ function studentsApp() {
                     alert('✅ تم حفظ حالة الحضور بنجاح');
                     this.closeModal('attendanceModal');
                 } else {
-                    alert('❌ ' + data.message);
+                    alert('❌ ' + (data.message || 'حدث خطأ'));
                 }
             })
             .catch(err => alert('❌ حدث خطأ: ' + err.message));
@@ -998,7 +1020,10 @@ function studentsApp() {
         },
         
         saveLateStatus() {
-            if (!this.selectedStudent) return;
+            if (!this.selectedStudent) {
+                alert('❌ لم يتم اختيار طالب');
+                return;
+            }
             fetch(`/api/students/${this.selectedStudent.id}/late`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -1012,7 +1037,7 @@ function studentsApp() {
                     alert('✅ تم حفظ حالة التأخر بنجاح');
                     this.closeModal('lateModal');
                 } else {
-                    alert('❌ ' + data.message);
+                    alert('❌ ' + (data.message || 'حدث خطأ'));
                 }
             })
             .catch(err => alert('❌ حدث خطأ: ' + err.message));
