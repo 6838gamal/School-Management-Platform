@@ -109,60 +109,87 @@ class ScheduleService:
 
     async def get_section_details(self, section_id: str) -> Dict[str, Any]:
         """جلب تفاصيل الشعبة مع الصف والمرحلة"""
-        section = await self.find_section_by_id(section_id)
-        if not section:
-            return {"name": None, "grade_name": None, "stage_name": None}
-        
-        return {
-            "name": section.name,
-            "grade_name": section.grade.name if section.grade else None,
-            "stage_name": section.grade.stage.name if section.grade and section.grade.stage else None,
-            "grade_id": str(section.grade_id) if section.grade_id else None,
-            "stage_id": str(section.grade.stage_id) if section.grade and section.grade.stage else None,
-        }
+        try:
+            # جلب الشعبة مع العلاقات
+            result = await self.db.execute(
+                select(Section)
+                .options(
+                    selectinload(Section.grade).selectinload(Grade.stage)
+                )
+                .where(Section.id == section_id)
+            )
+            section = result.scalar_one_or_none()
+            if not section:
+                return {"name": None, "grade_name": None, "stage_name": None, "grade_id": None, "stage_id": None}
+            
+            return {
+                "name": section.name,
+                "grade_name": section.grade.name if section.grade else None,
+                "stage_name": section.grade.stage.name if section.grade and section.grade.stage else None,
+                "grade_id": str(section.grade_id) if section.grade_id else None,
+                "stage_id": str(section.grade.stage_id) if section.grade and section.grade.stage else None,
+            }
+        except Exception as e:
+            print(f"⚠️ Error in get_section_details: {str(e)}")
+            return {"name": None, "grade_name": None, "stage_name": None, "grade_id": None, "stage_id": None}
 
     async def get_academic_year_name(self, year_id: str) -> Optional[str]:
         """جلب اسم العام الدراسي"""
-        year = await self.find_academic_year_by_id(year_id)
-        return year.name if year else None
+        try:
+            year = await self.find_academic_year_by_id(year_id)
+            return year.name if year else None
+        except Exception as e:
+            print(f"⚠️ Error in get_academic_year_name: {str(e)}")
+            return None
 
     async def get_subject_name(self, subject_id: str) -> Optional[str]:
         """جلب اسم المادة"""
-        subject = await self.find_subject_by_id(subject_id)
-        return subject.name if subject else None
+        try:
+            subject = await self.find_subject_by_id(subject_id)
+            return subject.name if subject else None
+        except Exception as e:
+            print(f"⚠️ Error in get_subject_name: {str(e)}")
+            return None
 
     async def get_teacher_name(self, teacher_id: str) -> Optional[str]:
         """جلب اسم المعلم"""
-        teacher = await self.find_teacher_by_id(teacher_id)
-        if teacher:
-            return f"{teacher.first_name} {teacher.last_name}".strip() or teacher.full_name
-        return None
+        try:
+            teacher = await self.find_teacher_by_id(teacher_id)
+            if teacher:
+                return f"{teacher.first_name} {teacher.last_name}".strip() or teacher.full_name
+            return None
+        except Exception as e:
+            print(f"⚠️ Error in get_teacher_name: {str(e)}")
+            return None
 
     async def get_room_name(self, room_id: str) -> Optional[str]:
         """جلب اسم القاعة"""
-        room = await self.find_room_by_id(room_id)
-        return room.name if room else None
+        try:
+            room = await self.find_room_by_id(room_id)
+            return room.name if room else None
+        except Exception as e:
+            print(f"⚠️ Error in get_room_name: {str(e)}")
+            return None
 
     async def get_period_name(self, period_id: str) -> Optional[str]:
         """جلب اسم الفترة"""
-        period = await self.find_period_by_id(period_id)
-        return period.name if period else None
+        try:
+            period = await self.find_period_by_id(period_id)
+            return period.name if period else None
+        except Exception as e:
+            print(f"⚠️ Error in get_period_name: {str(e)}")
+            return None
 
     # ============= الجداول =============
 
     async def list_schedules(self, school_id: str) -> List[Dict[str, Any]]:
         """جلب جميع الجداول مع الأسماء والتفاصيل الكاملة"""
         try:
+            # ✅ جلب الجداول بدون استخدام selectinload على علاقات غير موجودة
             result = await self.db.execute(
                 select(Schedule)
                 .where(Schedule.school_id == school_id)
                 .order_by(Schedule.created_at.desc())
-                .options(
-                    selectinload(Schedule.section),
-                    selectinload(Schedule.grade),
-                    selectinload(Schedule.stage),
-                    selectinload(Schedule.year)
-                )
             )
             schedules = list(result.scalars().all())
             
@@ -172,13 +199,13 @@ class ScheduleService:
             
             result_list = []
             for schedule in schedules:
-                # جلب تفاصيل الشعبة
+                # ✅ جلب تفاصيل الشعبة يدوياً
                 section_details = await self.get_section_details(schedule.section_id)
                 
-                # جلب اسم العام الدراسي
+                # ✅ جلب اسم العام الدراسي
                 year_name = await self.get_academic_year_name(schedule.year_id)
                 
-                # حساب عدد الحصص
+                # ✅ حساب عدد الحصص
                 entries_count_result = await self.db.execute(
                     select(func.count(ScheduleEntry.id))
                     .where(
@@ -221,14 +248,7 @@ class ScheduleService:
         """جلب جدول بواسطة المعرف مع الأسماء"""
         try:
             result = await self.db.execute(
-                select(Schedule)
-                .where(Schedule.id == schedule_id)
-                .options(
-                    selectinload(Schedule.section),
-                    selectinload(Schedule.grade),
-                    selectinload(Schedule.stage),
-                    selectinload(Schedule.year)
-                )
+                select(Schedule).where(Schedule.id == schedule_id)
             )
             schedule = result.scalar_one_or_none()
             if not schedule:
