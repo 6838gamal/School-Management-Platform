@@ -6,22 +6,15 @@ from enum import Enum
 
 
 # ============================================================
-# ✅ Enums - محاولة استخدام قيم مختلفة
+# Enums
 # ============================================================
 
 class ScheduleStatus(str, Enum):
-    """حالة الجدول"""
-    # ✅ جرب هذه القيم بدلاً من DRAFT
-    DRAFT = "draft"  # أو جرب "مسودة"
-    PUBLISHED = "published"  # أو جرب "منشور"
-    ARCHIVED = "archived"  # أو جرب "مؤرشف"
-    CANCELLED = "cancelled"  # أو جرب "ملغي"
-    
-    # إذا كانت القيم بالعربية:
-    # DRAFT = "مسودة"
-    # PUBLISHED = "منشور"
-    # ARCHIVED = "مؤرشف"
-    # CANCELLED = "ملغي"
+    """حالة الجدول - متوافقة مع قاعدة البيانات"""
+    DRAFT = "draft"
+    PUBLISHED = "published"
+    ARCHIVED = "archived"
+    CANCELLED = "cancelled"
 
 
 class DayOfWeek(int, Enum):
@@ -59,14 +52,25 @@ class DayOfWeek(int, Enum):
             6: "Saturday"
         }
         return names.get(self.value, "Unknown")
+    
+    @classmethod
+    def is_weekend(cls, day: int) -> bool:
+        return day in [5, 6]
+    
+    @classmethod
+    def is_active_day(cls, day: int) -> bool:
+        return day in [0, 1, 2, 3, 4]
 
 
 # ============================================================
-# ✅ Schedule Entry Schemas
+# Schedule Entry Schemas (متوافقة مع القالب)
 # ============================================================
 
 class ScheduleEntryBase(BaseModel):
-    """القاعدة المشتركة للحصة"""
+    """
+    القاعدة المشتركة للحصة
+    متوافقة مع البيانات المرسلة من القالب
+    """
     day: int = Field(..., ge=0, le=6, description="رقم اليوم (0=الأحد, 6=السبت)")
     period: int = Field(..., ge=1, le=8, description="رقم الفترة/الحصة (1-8)")
     subject_id: str = Field(..., description="معرف المادة")
@@ -94,6 +98,13 @@ class ScheduleEntryBase(BaseModel):
         if not v or v == '':
             raise ValueError('معرف المادة مطلوب')
         return v
+    
+    @field_validator('teacher_id')
+    @classmethod
+    def validate_teacher_id(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and v == '':
+            return None
+        return v
 
 
 class ScheduleEntryCreate(ScheduleEntryBase):
@@ -110,6 +121,20 @@ class ScheduleEntryUpdate(BaseModel):
     room_id: Optional[str] = None
     notes: Optional[str] = Field(None, max_length=500)
     is_active: Optional[bool] = None
+    
+    @field_validator('day')
+    @classmethod
+    def validate_day(cls, v: Optional[int]) -> Optional[int]:
+        if v is not None and (v < 0 or v > 6):
+            raise ValueError('رقم اليوم يجب أن يكون بين 0 و 6')
+        return v
+
+    @field_validator('period')
+    @classmethod
+    def validate_period(cls, v: Optional[int]) -> Optional[int]:
+        if v is not None and (v < 1 or v > 8):
+            raise ValueError('رقم الفترة يجب أن يكون بين 1 و 8')
+        return v
 
 
 class ScheduleEntryResponse(BaseModel):
@@ -145,7 +170,7 @@ class ScheduleEntryResponse(BaseModel):
 
 
 # ============================================================
-# ✅ Schedule Schemas - مع إزالة status من الإنشاء مؤقتاً
+# Schedule Schemas (متوافقة مع القالب)
 # ============================================================
 
 class ScheduleBase(BaseModel):
@@ -212,7 +237,6 @@ class ScheduleUpdate(BaseModel):
     
     @model_validator(mode='after')
     def validate_dates(self) -> 'ScheduleUpdate':
-        """التحقق من صحة التواريخ"""
         if self.start_date and self.end_date:
             if self.start_date > self.end_date:
                 raise ValueError('تاريخ البداية يجب أن يكون قبل تاريخ النهاية')
@@ -244,10 +268,13 @@ class ScheduleResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     
+    # إحصائيات
     entries_count: int = 0
     total_periods: int = 0
     days_count: int = 0
     periods_per_day: int = 0
+    
+    # الحصص
     entries: List[ScheduleEntryResponse] = Field(default_factory=list)
     
     class Config:
@@ -261,6 +288,23 @@ class ScheduleListResponse(BaseModel):
     page: int
     page_size: int
     pages: int
+
+
+# ============================================================
+# Filter Schemas
+# ============================================================
+
+class ScheduleFilter(BaseModel):
+    """فلترة الجداول"""
+    section_id: Optional[str] = None
+    year_id: Optional[str] = None
+    stage_id: Optional[str] = None
+    grade_id: Optional[str] = None
+    status: Optional[ScheduleStatus] = None
+    is_active: Optional[bool] = None
+    search: Optional[str] = Field(None, description="بحث في الاسم والوصف")
+    start_date_from: Optional[date] = None
+    start_date_to: Optional[date] = None
 
 
 # ============================================================
@@ -363,23 +407,6 @@ class ScheduleValidationResult(BaseModel):
 
 
 # ============================================================
-# Filter Schemas
-# ============================================================
-
-class ScheduleFilter(BaseModel):
-    """فلترة الجداول"""
-    section_id: Optional[str] = None
-    year_id: Optional[str] = None
-    stage_id: Optional[str] = None
-    grade_id: Optional[str] = None
-    status: Optional[ScheduleStatus] = None
-    is_active: Optional[bool] = None
-    search: Optional[str] = Field(None, description="بحث في الاسم والوصف")
-    start_date_from: Optional[date] = None
-    start_date_to: Optional[date] = None
-
-
-# ============================================================
 # Forward references for Pydantic
 # ============================================================
 ScheduleCreate.model_rebuild()
@@ -392,17 +419,24 @@ ScheduleTemplateResponse.model_rebuild()
 # تحديث __all__
 # ============================================================
 __all__ = [
+    # Enums
     "ScheduleStatus",
     "DayOfWeek",
+    
+    # Schedule
     "ScheduleBase",
     "ScheduleCreate",
     "ScheduleUpdate",
     "ScheduleResponse",
     "ScheduleListResponse",
+    
+    # Schedule Entry
     "ScheduleEntryBase",
     "ScheduleEntryCreate",
     "ScheduleEntryUpdate",
     "ScheduleEntryResponse",
+    
+    # Templates
     "ScheduleTemplateBase",
     "ScheduleTemplateCreate",
     "ScheduleTemplateUpdate",
@@ -410,9 +444,13 @@ __all__ = [
     "ScheduleTemplateEntryBase",
     "ScheduleTemplateEntryCreate",
     "ScheduleTemplateEntryResponse",
+    
+    # Batch Operations
     "ScheduleBulkCreate",
     "ScheduleBulkResponse",
     "ScheduleCopyRequest",
     "ScheduleValidationResult",
+    
+    # Filters
     "ScheduleFilter",
 ]
