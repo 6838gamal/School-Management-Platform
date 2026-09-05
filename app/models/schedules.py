@@ -1,3 +1,5 @@
+# app/models/schedules.py
+
 """
 Schedule models - الجداول الدراسية والحصص
 """
@@ -64,32 +66,25 @@ class DayOfWeek(str, enum.Enum):
         return mapping.get(number, cls.SUNDAY)
 
 
-class ScheduleStatus(str, enum.Enum):
-    """حالة الجدول"""
-    DRAFT = "draft"          # مسودة
-    PUBLISHED = "published"   # منشور
-    ARCHIVED = "archived"     # مؤرشف
-    CANCELLED = "cancelled"   # ملغي
+# ✅ تغيير ScheduleStatus إلى قيم نصية فقط (بدون Enum)
+class ScheduleStatus:
+    """حالة الجدول - قيم نصية"""
+    DRAFT = "draft"
+    PUBLISHED = "published"
+    ARCHIVED = "archived"
+    CANCELLED = "cancelled"
 
 
 class Schedule(UUIDPkMixin, TimestampMixin, Base):
     """
     الجدول الدراسي الرئيسي
-    
-    العلاقات:
-    - School → Schedule (one-to-many)
-    - Section → Schedule (one-to-many)
-    - AcademicYear → Schedule (one-to-many)
-    - Schedule → ScheduleEntry (one-to-many)
     """
     __tablename__ = "schedules"
     __table_args__ = (
-        # منع تكرار الجدول لنفس الشعبة والسنة
         UniqueConstraint(
             "school_id", "section_id", "year_id", 
             name="uq_schedule_section_year"
         ),
-        # منع تكرار اسم الجدول في نفس المدرسة
         UniqueConstraint(
             "school_id", "name", 
             name="uq_schedule_school_name"
@@ -135,9 +130,10 @@ class Schedule(UUIDPkMixin, TimestampMixin, Base):
     )
     
     # ========== إعدادات الجدول ==========
-    status: Mapped[ScheduleStatus] = mapped_column(
-        Enum(ScheduleStatus), 
-        default=ScheduleStatus.DRAFT,
+    # ✅ تغيير من Enum إلى String
+    status: Mapped[str] = mapped_column(
+        String(50), 
+        default="draft",
         nullable=False,
         doc="حالة الجدول"
     )
@@ -196,7 +192,6 @@ class Schedule(UUIDPkMixin, TimestampMixin, Base):
         """إجمالي عدد الحصص في الأسبوع"""
         if not self.entries:
             return 0
-        # عدد الأيام × عدد الحصص في اليوم
         days = set(e.day_of_week for e in self.entries)
         periods_per_day = {}
         for day in days:
@@ -217,22 +212,17 @@ class Schedule(UUIDPkMixin, TimestampMixin, Base):
 class ScheduleEntry(UUIDPkMixin, TimestampMixin, Base):
     """
     مدخل في الجدول الدراسي (حصة واحدة)
-    
-    يمثل حصة دراسية محددة في يوم معين وفترة معينة
     """
     __tablename__ = "schedule_entries"
     __table_args__ = (
-        # منع تكرار الحصة في نفس اليوم والفترة
         UniqueConstraint(
             "schedule_id", "day_of_week", "period_id", 
             name="uq_schedule_day_period"
         ),
-        # منع تكرار نفس المادة في نفس اليوم للجدول الواحد
         UniqueConstraint(
             "schedule_id", "day_of_week", "subject_id",
             name="uq_schedule_day_subject"
         ),
-        # منع تكرار نفس المعلم في نفس اليوم والفترة
         UniqueConstraint(
             "schedule_id", "day_of_week", "period_id", "teacher_id",
             name="uq_schedule_day_period_teacher"
@@ -334,7 +324,7 @@ class ScheduleEntry(UUIDPkMixin, TimestampMixin, Base):
     @property
     def is_weekend(self) -> bool:
         """هل اليوم عطلة؟"""
-        return self.day_of_week in [5, 6]  # الجمعة والسبت
+        return self.day_of_week in [5, 6]
     
     @property
     def is_active_day(self) -> bool:
@@ -376,7 +366,6 @@ class ScheduleTemplate(UUIDPkMixin, TimestampMixin, Base):
         doc="وصف القالب"
     )
     
-    # إعدادات الجدول
     days_count: Mapped[int] = mapped_column(
         Integer, 
         default=5,
@@ -394,7 +383,6 @@ class ScheduleTemplate(UUIDPkMixin, TimestampMixin, Base):
         default=True
     )
     
-    # العلاقات
     entries: Mapped[list["ScheduleTemplateEntry"]] = relationship(
         "ScheduleTemplateEntry", 
         back_populates="template", 
@@ -441,7 +429,6 @@ class ScheduleTemplateEntry(UUIDPkMixin, TimestampMixin, Base):
         index=True
     )
     
-    # العلاقات
     template: Mapped["ScheduleTemplate"] = relationship(
         "ScheduleTemplate", 
         back_populates="entries"
