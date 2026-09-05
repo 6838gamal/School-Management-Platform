@@ -98,8 +98,8 @@ class ScheduleService:
             select(ScheduleEntry)
             .where(
                 ScheduleEntry.schedule_id == schedule_id,
-                ScheduleEntry.day == day,
-                ScheduleEntry.period == period,
+                ScheduleEntry.day_of_week == day,
+                ScheduleEntry.period_id == str(period),
                 ScheduleEntry.is_active == True
             )
         )
@@ -286,7 +286,7 @@ class ScheduleService:
                     ScheduleEntry.schedule_id == schedule_id,
                     ScheduleEntry.is_active == True
                 )
-                .order_by(ScheduleEntry.day, ScheduleEntry.period)
+                .order_by(ScheduleEntry.day_of_week, ScheduleEntry.period_id)
             )
             entries = list(entries_result.scalars().all())
             
@@ -299,9 +299,9 @@ class ScheduleService:
                 
                 entries_with_names.append({
                     "id": str(entry.id),
-                    "day": entry.day,
-                    "day_of_week": entry.day,
-                    "period": entry.period,
+                    "day": entry.day_of_week,
+                    "day_of_week": entry.day_of_week,
+                    "period": int(entry.period_id) if entry.period_id and entry.period_id.isdigit() else None,
                     "period_id": str(entry.period_id) if entry.period_id else None,
                     "period_name": period_name,
                     "subject_id": str(entry.subject_id) if entry.subject_id else None,
@@ -371,7 +371,7 @@ class ScheduleService:
             
             print("✅ لا يوجد جدول مكرر")
             
-            # ✅ إنشاء الجدول - استخدام الحقول الموجودة فقط
+            # إنشاء الجدول - بدون status
             schedule = Schedule(
                 id=str(uuid.uuid4()),
                 school_id=school_id,
@@ -405,11 +405,12 @@ class ScheduleService:
                 if conflict:
                     raise ValidationException(f"يوجد بالفعل حصة في اليوم {entry_data.day} والفترة {entry_data.period}")
                 
+                # إنشاء الحصة مع الحقول الصحيحة
                 entry = ScheduleEntry(
                     id=str(uuid.uuid4()),
                     schedule_id=schedule.id,
-                    day=entry_data.day,
-                    period=entry_data.period,
+                    day_of_week=entry_data.day,
+                    period_id=str(entry_data.period),
                     subject_id=entry_data.subject_id,
                     teacher_id=entry_data.teacher_id,
                     is_active=True,
@@ -443,7 +444,7 @@ class ScheduleService:
                 raise NotFoundException("الجدول غير موجود")
             
             update_data = req.model_dump(exclude_unset=True)
-            # ✅ إزالة الحقول غير الموجودة في النموذج
+            # إزالة الحقول غير الموجودة في النموذج
             excluded_fields = ['grade_id', 'stage_id']
             for field in excluded_fields:
                 update_data.pop(field, None)
@@ -525,6 +526,7 @@ class ScheduleService:
                     raise ValidationException(f"المعلم غير موجود: {req.teacher_id}")
                 print(f"✅ تم العثور على المعلم: {teacher.first_name} {teacher.last_name}")
             
+            # التحقق من عدم وجود تعارض
             conflict = await self.find_entry_conflict(
                 schedule_id, req.day, req.period
             )
@@ -533,11 +535,12 @@ class ScheduleService:
             
             print("✅ لا يوجد تعارض")
             
+            # إنشاء الحصة
             entry = ScheduleEntry(
                 id=str(uuid.uuid4()),
                 schedule_id=schedule_id,
-                day=req.day,
-                period=req.period,
+                day_of_week=req.day,
+                period_id=str(req.period),
                 subject_id=req.subject_id,
                 teacher_id=req.teacher_id,
                 is_active=True,
@@ -570,6 +573,13 @@ class ScheduleService:
                 raise NotFoundException("المدخل غير موجود")
             
             update_data = req.model_dump(exclude_unset=True)
+            
+            # تحويل الحقول إلى الصيغة الصحيحة
+            if 'day' in update_data:
+                update_data['day_of_week'] = update_data.pop('day')
+            if 'period' in update_data:
+                update_data['period_id'] = str(update_data.pop('period'))
+            
             for key, value in update_data.items():
                 if hasattr(entry, key):
                     setattr(entry, key, value)
