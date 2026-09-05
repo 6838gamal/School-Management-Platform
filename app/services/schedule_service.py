@@ -397,10 +397,11 @@ class ScheduleService:
                 if conflict:
                     raise ValidationException(f"يوجد بالفعل حصة في اليوم {entry_data.day} والفترة {entry_data.period}")
                 
-                # إنشاء الحصة
+                # ✅ إنشاء الحصة مع school_id
                 entry = ScheduleEntry(
                     id=str(uuid.uuid4()),
                     schedule_id=schedule.id,
+                    school_id=school_id,  # ✅ إضافة school_id
                     day_of_week=entry_data.day,
                     period_id=str(entry_data.period),
                     subject_id=entry_data.subject_id,
@@ -468,12 +469,11 @@ class ScheduleService:
             schedule.is_active = False
             schedule.updated_at = datetime.utcnow()
             
-            # حذف الحصص (تعطيلها)
+            # حذف الحصص
             entries_result = await self.db.execute(
                 select(ScheduleEntry).where(ScheduleEntry.schedule_id == schedule_id)
             )
             entries = list(entries_result.scalars().all())
-            # ملاحظة: ScheduleEntry لا يحتوي على is_active، لذا نحذفها مباشرة
             for entry in entries:
                 await self.db.delete(entry)
             
@@ -531,6 +531,7 @@ class ScheduleService:
             entry = ScheduleEntry(
                 id=str(uuid.uuid4()),
                 schedule_id=schedule_id,
+                school_id=schedule.school_id,  # ✅ إضافة school_id
                 day_of_week=req.day,
                 period_id=str(req.period),
                 subject_id=req.subject_id,
