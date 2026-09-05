@@ -2,6 +2,13 @@
 from alembic import op
 import sqlalchemy as sa
 
+
+revision = '0029'
+down_revision = '0028' # ⚠️ استبدل هذا بالـ revision السابق
+branch_labels = None
+depends_on = None
+
+
 def upgrade():
     # تغيير نوع period_id في schedule_entries
     op.alter_column('schedule_entries', 'period_id',
