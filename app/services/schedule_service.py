@@ -1,4 +1,4 @@
-"""Schedule service with full academic hierarchy support."""
+"""Schedule service with full academic hierarchy support - Manual queries only."""
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, func, text, or_
 from sqlalchemy.orm import selectinload
@@ -24,18 +24,14 @@ class ScheduleService:
         self.db = db
 
     # ============================================================
-    # 1️⃣ دوال مساعدة للبحث والتحقق (Finders)
+    # 1️⃣ دوال مساعدة للبحث والتحقق (Finders - بدون علاقات)
     # ============================================================
 
     async def find_section_by_id(self, section_id: str) -> Optional[Section]:
-        """البحث عن شعبة بالمعرف مع تحميل العلاقات"""
+        """البحث عن شعبة بالمعرف - بدون استخدام العلاقات"""
         try:
             result = await self.db.execute(
-                select(Section)
-                .options(
-                    selectinload(Section.grade).selectinload(Grade.stage)
-                )
-                .where(Section.id == section_id)
+                select(Section).where(Section.id == section_id)
             )
             return result.scalar_one_or_none()
         except Exception as e:
@@ -141,11 +137,37 @@ class ScheduleService:
             return None
 
     # ============================================================
-    # 2️⃣ دوال مساعدة لجلب الأسماء والتفاصيل
+    # 2️⃣ دوال مساعدة لجلب الأسماء والتفاصيل (بحث يدوي)
     # ============================================================
 
+    async def get_grade_by_id(self, grade_id: str) -> Optional[Grade]:
+        """جلب الصف بالمعرف"""
+        try:
+            if not grade_id:
+                return None
+            result = await self.db.execute(
+                select(Grade).where(Grade.id == grade_id)
+            )
+            return result.scalar_one_or_none()
+        except Exception as e:
+            print(f"⚠️ Error in get_grade_by_id: {str(e)}")
+            return None
+
+    async def get_stage_by_id(self, stage_id: str) -> Optional[Stage]:
+        """جلب المرحلة بالمعرف"""
+        try:
+            if not stage_id:
+                return None
+            result = await self.db.execute(
+                select(Stage).where(Stage.id == stage_id)
+            )
+            return result.scalar_one_or_none()
+        except Exception as e:
+            print(f"⚠️ Error in get_stage_by_id: {str(e)}")
+            return None
+
     async def get_section_details(self, section_id: str) -> Dict[str, Any]:
-        """جلب تفاصيل الشعبة مع الصف والمرحلة والسنة"""
+        """جلب تفاصيل الشعبة مع الصف والمرحلة والسنة - بحث يدوي"""
         try:
             if not section_id:
                 return {
@@ -159,14 +181,8 @@ class ScheduleService:
                     "display_name": None
                 }
             
-            result = await self.db.execute(
-                select(Section)
-                .options(
-                    selectinload(Section.grade).selectinload(Grade.stage)
-                )
-                .where(Section.id == section_id)
-            )
-            section = result.scalar_one_or_none()
+            # 1. جلب الشعبة
+            section = await self.find_section_by_id(section_id)
             if not section:
                 return {
                     "name": None, 
@@ -179,28 +195,46 @@ class ScheduleService:
                     "display_name": None
                 }
             
-            grade = section.grade
-            stage = grade.stage if grade else None
-            year = None
+            # 2. جلب الصف يدوياً
+            grade = None
+            grade_name = None
+            stage_id = None
+            stage_name = None
+            year_id = None
+            year_name = None
             
-            # جلب السنة من grade أو stage
-            if grade and grade.year_id:
-                year = await self.find_academic_year_by_id(grade.year_id)
-            elif stage and stage.year_id:
-                year = await self.find_academic_year_by_id(stage.year_id)
+            if section.grade_id:
+                grade = await self.get_grade_by_id(section.grade_id)
+                if grade:
+                    grade_name = grade.name
+                    year_id = grade.year_id
+                    
+                    # 3. جلب المرحلة يدوياً
+                    if grade.stage_id:
+                        stage = await self.get_stage_by_id(grade.stage_id)
+                        if stage:
+                            stage_id = stage.id
+                            stage_name = stage.name
+                    
+                    # 4. جلب السنة يدوياً
+                    if year_id:
+                        year = await self.find_academic_year_by_id(year_id)
+                        if year:
+                            year_name = year.name
             
             return {
                 "name": section.name,
-                "grade_name": grade.name if grade else None,
-                "stage_name": stage.name if stage else None,
-                "grade_id": str(grade.id) if grade else None,
-                "stage_id": str(stage.id) if stage else None,
-                "year_id": str(year.id) if year else None,
-                "year_name": year.name if year else None,
-                "display_name": f"{stage.name if stage else ''} - {grade.name if grade else ''} - {section.name}".strip(" - ")
+                "grade_name": grade_name,
+                "stage_name": stage_name,
+                "grade_id": str(section.grade_id) if section.grade_id else None,
+                "stage_id": str(stage_id) if stage_id else None,
+                "year_id": str(year_id) if year_id else None,
+                "year_name": year_name,
+                "display_name": f"{stage_name if stage_name else ''} - {grade_name if grade_name else ''} - {section.name}".strip(" - ")
             }
         except Exception as e:
             print(f"⚠️ Error in get_section_details: {str(e)}")
+            traceback.print_exc()
             return {
                 "name": None, 
                 "grade_name": None, 
@@ -270,7 +304,7 @@ class ScheduleService:
             return None
 
     # ============================================================
-    # 3️⃣ دوال التصفية المتدرجة (Hierarchy)
+    # 3️⃣ دوال التصفية المتدرجة (Hierarchy - بحث يدوي)
     # ============================================================
 
     async def get_academic_years(self, school_id: str) -> List[Dict[str, Any]]:
@@ -306,10 +340,7 @@ class ScheduleService:
         school_id: str, 
         year_id: Optional[str] = None
     ) -> List[Dict[str, Any]]:
-        """
-        جلب المراحل حسب السنة الدراسية.
-        إذا لم يتم تحديد سنة، جلب جميع المراحل النشطة.
-        """
+        """جلب المراحل حسب السنة الدراسية - بحث يدوي"""
         try:
             stmt = select(Stage).where(
                 Stage.school_id == school_id,
@@ -343,10 +374,7 @@ class ScheduleService:
         stage_id: Optional[str] = None,
         year_id: Optional[str] = None
     ) -> List[Dict[str, Any]]:
-        """
-        جلب الصفوف حسب المرحلة.
-        إذا لم يتم تحديد مرحلة، جلب جميع الصفوف النشطة.
-        """
+        """جلب الصفوف حسب المرحلة - بحث يدوي"""
         try:
             stmt = select(Grade).where(
                 Grade.school_id == school_id,
@@ -385,10 +413,7 @@ class ScheduleService:
         stage_id: Optional[str] = None,
         include_all: bool = False
     ) -> List[Dict[str, Any]]:
-        """
-        جلب الشعب حسب الصف.
-        إذا لم يتم تحديد صف، جلب جميع الشعب مع إمكانية التصفية حسب السنة والمرحلة.
-        """
+        """جلب الشعب حسب الصف - بحث يدوي بدون علاقات"""
         try:
             stmt = select(Section).where(
                 Section.school_id == school_id,
@@ -413,7 +438,6 @@ class ScheduleService:
                 else:
                     return []
             elif year_id and not include_all:
-                # جلب الصفوف في السنة المحددة
                 grades_result = await self.db.execute(
                     select(Grade.id).where(
                         Grade.school_id == school_id,
@@ -427,7 +451,6 @@ class ScheduleService:
                 else:
                     return []
             elif stage_id and not include_all:
-                # جلب الصفوف في المرحلة المحددة
                 grades_result = await self.db.execute(
                     select(Grade.id).where(
                         Grade.school_id == school_id,
@@ -446,42 +469,47 @@ class ScheduleService:
             result = await self.db.execute(stmt)
             sections = result.scalars().all()
             
-            # جلب تفاصيل إضافية لكل شعبة
+            # جلب تفاصيل إضافية لكل شعبة - يدوياً
             sections_data = []
             for section in sections:
-                # جلب الصف والمرحلة والسنة
-                grade = None
-                stage = None
-                year = None
+                # جلب الصف
+                grade_name = None
+                stage_name = None
+                year_name = None
+                grade_stage_id = None
+                grade_year_id = None
                 
                 if section.grade_id:
-                    grade_result = await self.db.execute(
-                        select(Grade).where(Grade.id == section.grade_id)
-                    )
-                    grade = grade_result.scalar_one_or_none()
-                    
+                    grade = await self.get_grade_by_id(section.grade_id)
                     if grade:
+                        grade_name = grade.name
+                        grade_year_id = grade.year_id
+                        grade_stage_id = grade.stage_id
+                        
+                        # جلب المرحلة
+                        if grade.stage_id:
+                            stage = await self.get_stage_by_id(grade.stage_id)
+                            if stage:
+                                stage_name = stage.name
+                        
+                        # جلب السنة
                         if grade.year_id:
                             year = await self.find_academic_year_by_id(grade.year_id)
-                        
-                        if grade.stage_id:
-                            stage_result = await self.db.execute(
-                                select(Stage).where(Stage.id == grade.stage_id)
-                            )
-                            stage = stage_result.scalar_one_or_none()
+                            if year:
+                                year_name = year.name
                 
                 sections_data.append({
                     "id": str(section.id),
                     "name": section.name,
                     "grade_id": str(section.grade_id) if section.grade_id else None,
-                    "grade_name": grade.name if grade else None,
-                    "stage_id": str(stage.id) if stage else None,
-                    "stage_name": stage.name if stage else None,
-                    "year_id": str(year.id) if year else None,
-                    "year_name": year.name if year else None,
+                    "grade_name": grade_name,
+                    "stage_id": str(grade_stage_id) if grade_stage_id else None,
+                    "stage_name": stage_name,
+                    "year_id": str(grade_year_id) if grade_year_id else None,
+                    "year_name": year_name,
                     "capacity": section.capacity,
                     "is_active": section.is_active,
-                    "display_name": f"{stage.name if stage else ''} - {grade.name if grade else ''} - {section.name}".strip(" - ")
+                    "display_name": f"{stage_name if stage_name else ''} - {grade_name if grade_name else ''} - {section.name}".strip(" - ")
                 })
             
             return sections_data
@@ -497,21 +525,11 @@ class ScheduleService:
         stage_id: Optional[str] = None,
         grade_id: Optional[str] = None
     ) -> Dict[str, Any]:
-        """
-        جلب التسلسل الهرمي الكامل: السنوات ← المراحل ← الصفوف ← الشعب
-        مع إمكانية التصفية على أي مستوى
-        """
+        """جلب التسلسل الهرمي الكامل - بحث يدوي"""
         try:
-            # 1. جلب السنوات
             years = await self.get_academic_years(school_id)
-            
-            # 2. جلب المراحل (حسب السنة إذا كانت محددة)
             stages = await self.get_stages_by_year(school_id, year_id)
-            
-            # 3. جلب الصفوف (حسب المرحلة والسنة إذا كانت محددة)
             grades = await self.get_grades_by_stage(school_id, stage_id, year_id)
-            
-            # 4. جلب الشعب (حسب الصف إذا كان محددا)
             sections = await self.get_sections_by_grade(
                 school_id, grade_id, year_id, stage_id
             )
@@ -531,11 +549,11 @@ class ScheduleService:
             return {"years": [], "stages": [], "grades": [], "sections": []}
 
     # ============================================================
-    # 4️⃣ دوال جلب القوائم (للنماذج)
+    # 4️⃣ دوال جلب القوائم (للنماذج - بحث يدوي)
     # ============================================================
 
     async def get_all_sections(self, school_id: str) -> List[Dict[str, Any]]:
-        """جلب جميع الشعب كقواميس مع تفاصيل الصف والمرحلة (للمعارض)"""
+        """جلب جميع الشعب كقواميس مع تفاصيل الصف والمرحلة"""
         try:
             return await self.get_sections_by_grade(school_id, include_all=True)
         except Exception as e:
@@ -547,9 +565,6 @@ class ScheduleService:
         try:
             result = await self.db.execute(
                 select(Section)
-                .options(
-                    selectinload(Section.grade).selectinload(Grade.stage)
-                )
                 .where(Section.school_id == school_id)
                 .where(Section.is_active == True)
                 .order_by(Section.grade_id, Section.name)
@@ -682,7 +697,7 @@ class ScheduleService:
     # ============================================================
 
     async def list_schedules(self, school_id: str) -> List[Dict[str, Any]]:
-        """جلب جميع الجداول مع الأسماء والتفاصيل الكاملة"""
+        """جلب جميع الجداول مع الأسماء والتفاصيل الكاملة - بحث يدوي"""
         try:
             print("=" * 60)
             print("📊 جلب قائمة الجداول للمدرسة:", school_id)
@@ -709,7 +724,7 @@ class ScheduleService:
                 print(f"   📚 الشعبة: {schedule.section_id}")
                 print(f"   📅 العام الدراسي: {schedule.year_id}")
                 
-                # جلب تفاصيل الشعبة
+                # جلب تفاصيل الشعبة - بحث يدوي
                 section_details = await self.get_section_details(schedule.section_id)
                 print(f"   🏷️ اسم الشعبة: {section_details.get('name')}")
                 print(f"   🏷️ الصف: {section_details.get('grade_name')}")
@@ -760,7 +775,7 @@ class ScheduleService:
             return []
 
     async def get_schedule(self, schedule_id: str) -> Optional[Dict[str, Any]]:
-        """جلب جدول بواسطة المعرف مع الأسماء"""
+        """جلب جدول بواسطة المعرف مع الأسماء - بحث يدوي"""
         try:
             print("=" * 60)
             print(f"🔍 جلب تفاصيل الجدول: {schedule_id}")
@@ -811,7 +826,7 @@ class ScheduleService:
             return None
 
     async def get_schedule_with_entries(self, schedule_id: str) -> Optional[Dict[str, Any]]:
-        """جلب جدول مع جميع مدخلاته"""
+        """جلب جدول مع جميع مدخلاته - بحث يدوي"""
         try:
             print("=" * 60)
             print(f"🔍 جلب تفاصيل الجدول مع الحصص: {schedule_id}")
@@ -880,7 +895,7 @@ class ScheduleService:
     # ============================================================
 
     async def create_schedule(self, school_id: str, req: ScheduleCreate) -> Schedule:
-        """إنشاء جدول جديد"""
+        """إنشاء جدول جديد - بحث يدوي"""
         try:
             print("=" * 60)
             print("📝 إنشاء جدول جديد:")
@@ -898,7 +913,7 @@ class ScheduleService:
             if not req.section_id:
                 raise ValidationException("معرف الشعبة مطلوب")
             
-            # التحقق من وجود الشعبة
+            # التحقق من وجود الشعبة - بحث يدوي
             section = await self.find_section_by_id(req.section_id)
             if not section:
                 raise ValidationException(f"الشعبة غير موجودة: {req.section_id}")
@@ -1017,7 +1032,6 @@ class ScheduleService:
             print(f"📝 الاسم الحالي: {schedule.name}")
             
             update_data = req.model_dump(exclude_unset=True)
-            # إزالة الحقول غير الموجودة في النموذج
             excluded_fields = ['grade_id', 'stage_id']
             for field in excluded_fields:
                 update_data.pop(field, None)
@@ -1060,7 +1074,6 @@ class ScheduleService:
             schedule.is_active = False
             schedule.updated_at = datetime.utcnow()
             
-            # حذف الحصص
             entries_result = await self.db.execute(
                 select(ScheduleEntry).where(ScheduleEntry.schedule_id == schedule_id)
             )
@@ -1118,7 +1131,6 @@ class ScheduleService:
                     raise ValidationException(f"المعلم غير موجود: {req.teacher_id}")
                 print(f"✅ تم العثور على المعلم: {teacher.first_name} {teacher.last_name}")
             
-            # التحقق من عدم وجود تعارض
             conflict = await self.find_entry_conflict(
                 schedule_id, req.day, req.period
             )
@@ -1174,7 +1186,6 @@ class ScheduleService:
             
             update_data = req.model_dump(exclude_unset=True)
             
-            # تحويل الحقول إلى الصيغة الصحيحة
             if 'day' in update_data:
                 update_data['day_of_week'] = update_data.pop('day')
             if 'period' in update_data:
@@ -1256,8 +1267,7 @@ class ScheduleService:
                         "id": str(s.id), 
                         "name": s.name, 
                         "is_active": s.is_active,
-                        "grade": s.grade.name if s.grade else None,
-                        "stage": s.grade.stage.name if s.grade and s.grade.stage else None
+                        "grade_id": str(s.grade_id) if s.grade_id else None
                     }
                     for s in sections
                 ],
