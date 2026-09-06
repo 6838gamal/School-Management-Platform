@@ -137,11 +137,20 @@ async def student_attendance_list(
             grade_id=grade_id
         )
         
+        # ✅ جلب جميع البيانات للقوائم المنسدلة (حتى بدون تصفية)
+        all_hierarchy = await service.get_full_hierarchy(user.school_id)
+        
+        # ✅ جلب all_stages و all_sections للـ JavaScript
+        all_stages = all_hierarchy.get("stages", [])
+        all_sections = all_hierarchy.get("sections", [])
+        
         print(f"📊 hierarchy keys: {hierarchy.keys()}")
         print(f"   years: {len(hierarchy.get('years', []))}")
         print(f"   stages: {len(hierarchy.get('stages', []))}")
         print(f"   grades: {len(hierarchy.get('grades', []))}")
         print(f"   sections: {len(hierarchy.get('sections', []))}")
+        print(f"   all_stages: {len(all_stages)}")
+        print(f"   all_sections: {len(all_sections)}")
         
         # جلب سجلات الحضور
         records = []
@@ -175,10 +184,15 @@ async def student_attendance_list(
                 "title": "حضور الطلاب",
                 "records": records,
                 "summary": summary,
+                # ✅ البيانات المصفاة
                 "years": hierarchy.get("years", []),
                 "stages": hierarchy.get("stages", []),
                 "grades": hierarchy.get("grades", []),
                 "sections": hierarchy.get("sections", []),
+                # ✅ جميع البيانات (للـ JavaScript)
+                "all_stages": all_stages,
+                "all_sections": all_sections,
+                # ✅ القيم المحددة
                 "selected_date": selected_date,
                 "selected_year": year_id,
                 "selected_stage": stage_id,
@@ -204,6 +218,8 @@ async def student_attendance_list(
                 "stages": [],
                 "grades": [],
                 "sections": [],
+                "all_stages": [],
+                "all_sections": [],
                 "selected_date": datetime.now().strftime("%Y-%m-%d"),
                 "selected_year": None,
                 "selected_stage": None,
@@ -259,15 +275,27 @@ async def create_student_attendance_page(
             grade_id=grade_id
         )
         
+        # ✅ جلب جميع البيانات للقوائم المنسدلة (حتى بدون تصفية)
+        all_hierarchy = await service.get_full_hierarchy(user.school_id)
+        
+        # ✅ جلب all_stages و all_sections للـ JavaScript
+        all_stages = all_hierarchy.get("stages", [])
+        all_sections = all_hierarchy.get("sections", [])
+        
         print(f"📊 hierarchy keys: {hierarchy.keys()}")
         print(f"   years: {len(hierarchy.get('years', []))}")
         print(f"   stages: {len(hierarchy.get('stages', []))}")
         print(f"   grades: {len(hierarchy.get('grades', []))}")
         print(f"   sections: {len(hierarchy.get('sections', []))}")
+        print(f"   all_stages: {len(all_stages)}")
+        print(f"   all_sections: {len(all_sections)}")
         
         # جلب الطلاب
         students = []
         section_name = None
+        grade_name = None
+        stage_name = None
+        year_name = None
         
         if section_id and section_id != "None":
             students = await service.get_students_with_details(
@@ -278,10 +306,13 @@ async def create_student_attendance_page(
                 include_attendance=True
             )
             
-            # جلب اسم الشعبة
+            # جلب تفاصيل الشعبة من hierarchy
             for section in hierarchy.get("sections", []):
                 if section.get("id") == section_id:
                     section_name = section.get("display_name") or section.get("name")
+                    grade_name = section.get("grade_name")
+                    stage_name = section.get("stage_name")
+                    year_name = section.get("year_name")
                     break
         
         print(f"📊 students count: {len(students)}")
@@ -291,12 +322,22 @@ async def create_student_attendance_page(
             {
                 **ctx,
                 "title": "تسجيل حضور الطلاب",
+                # ✅ البيانات المصفاة
                 "years": hierarchy.get("years", []),
                 "stages": hierarchy.get("stages", []),
                 "grades": hierarchy.get("grades", []),
                 "sections": hierarchy.get("sections", []),
+                # ✅ جميع البيانات (للـ JavaScript)
+                "all_stages": all_stages,
+                "all_sections": all_sections,
+                # ✅ الطلاب
                 "students": students,
+                # ✅ التفاصيل
                 "section_name": section_name,
+                "grade_name": grade_name,
+                "stage_name": stage_name,
+                "year_name": year_name,
+                # ✅ القيم المحددة
                 "selected_date": selected_date,
                 "selected_section": section_id,
                 "selected_year": year_id,
@@ -325,8 +366,13 @@ async def create_student_attendance_page(
                 "stages": [],
                 "grades": [],
                 "sections": [],
+                "all_stages": [],
+                "all_sections": [],
                 "students": [],
                 "section_name": None,
+                "grade_name": None,
+                "stage_name": None,
+                "year_name": None,
                 "selected_date": datetime.now().strftime("%Y-%m-%d"),
                 "selected_section": None,
                 "selected_year": None,
