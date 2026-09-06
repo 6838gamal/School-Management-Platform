@@ -59,8 +59,8 @@ async def attendance_page(
     summary = await service.student_summary(school_id, selected_date)
     
     # --- جلب الشعب من Academics Routes ---
-    section_service = SectionService(db)
-    sections = await section_service.get_all(school_id)
+    academic_service = AcademicService(db)
+    sections = await academic_service.sections.list_by_school(school_id)
     
     # --- جلب سجلات الحضور للتاريخ المحدد ---
     records = []
@@ -83,65 +83,132 @@ async def attendance_page(
 
 
 # ============================================================
-# 2️⃣ قائمة حضور الطلاب (مع تفاصيل كاملة)
+# 2️⃣ قائمة حضور الطلاب (مع دعم التصفية المتدرجة)
 # ============================================================
 
 @router.get("/students")
 async def student_attendance_list(
     request: Request,
     date: Optional[str] = Query(None, description="التاريخ (YYYY-MM-DD)"),
-    section_id: Optional[str] = Query(None, description="معرف المجموعة"),
+    year_id: Optional[str] = Query(None, description="معرف السنة الدراسية"),
+    stage_id: Optional[str] = Query(None, description="معرف المرحلة"),
+    grade_id: Optional[str] = Query(None, description="معرف الصف"),
+    section_id: Optional[str] = Query(None, description="معرف الشعبة"),
     period_id: Optional[str] = Query(None, description="معرف الحصة"),
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_current_user),
 ):
-    """عرض قائمة حضور الطلاب مع تفاصيل كاملة من Students و Academics."""
+    """عرض قائمة حضور الطلاب مع دعم التصفية المتدرجة."""
     today = datetime.now().strftime("%Y-%m-%d")
     selected_date = date or today
     school_id = current_user.school_id
     
-    # --- جلب ملخص الحضور من Attendance Service ---
+    # --- جلب الخدمات ---
     service = AttendanceService(db)
-    summary = await service.student_summary(school_id, selected_date)
+    academic_service = AcademicService(db)
     
-    # --- جلب سجلات الحضور للشعبة المحددة ---
+    # --- جلب جميع البيانات للقوائم المنسدلة ---
+    # 1. السنوات الدراسية
+    years = await academic_service.years.list_by_school(school_id)
+    
+    # 2. جميع المراحل (للحالة عندما لا يكون هناك سنة محددة)
+    all_stages = await academic_service.stages.list_by_school(school_id)
+    
+    # 3. جميع الصفوف
+    all_grades = await academic_service.grades.list_by_school(school_id)
+    
+    # 4. جميع الشعب
+    all_sections = await academic_service.sections.list_by_school(school_id)
+    
+    # --- التصفية المتدرجة ---
+    # تحديد المراحل حسب السنة المحددة
+    stages = []
+    if year_id:
+        stages = await academic_service.stages.list_by_school_and_year(school_id, year_id)
+    else:
+        stages = all_stages
+    
+    # تحديد الصفوف حسب السنة والمرحلة
+    grades = []
+    if year_id and stage_id:
+        grades = await academic_service.grades.list_by_school_and_stage(school_id, stage_id, year_id)
+    elif year_id:
+        grades = await academic_service.grades.list_by_school_and_year(school_id, year_id)
+    elif stage_id:
+        grades = await academic_service.grades.list_by_school_and_stage(school_id, stage_id)
+    else:
+        grades = all_grades
+    
+    # تحديد الشعب حسب الصف
+    sections = []
+    if grade_id:
+        sections = await academic_service.sections.list_by_grade(grade_id)
+    elif year_id and stage_id:
+        # جلب الشعب حسب السنة والمرحلة
+        sections = await academic_service.sections.list_by_school_year_stage(school_id, year_id, stage_id)
+    elif year_id:
+        sections = await academic_service.sections.list_by_school_and_year(school_id, year_id)
+    else:
+        sections = all_sections
+    
+    # --- جلب سجلات الحضور ---
     records = []
-    students_with_details = []
+    section_name = None
     
     if section_id:
-        # جلب سجلات الحضور
+        # جلب سجلات الشعبة المحددة
         records = await service.section_attendance(section_id, selected_date)
         
-        # --- جلب الطلاب مع تفاصيلهم من Students Routes ---
-        student_service = StudentService(db)
-        students = await student_service.get_students_with_details(
-            school_id=school_id,
-            section_id=section_id,
-            is_active=True,
-            include_attendance=True,
-            date=selected_date,
-            period_id=period_id,
-        )
-        students_with_details = students
+        # جلب اسم الشعبة
+        section = await academic_service.sections.get_by_id(section_id)
+        if section:
+            section_name = section.name
+    elif grade_id:
+        # جلب جميع الشعب في الصف المحدد
+        grade_sections = await academic_service.sections.list_by_grade(grade_id)
+        for sec in grade_sections:
+            sec_records = await service.section_attendance(sec.id, selected_date)
+            records.extend(sec_records)
+    elif stage_id:
+        # جلب جميع الصفوف في المرحلة ثم شعبها
+        stage_grades = await academic_service.grades.list_by_school_and_stage(school_id, stage_id)
+        for grade in stage_grades:
+            grade_sections = await academic_service.sections.list_by_grade(grade.id)
+            for sec in grade_sections:
+                sec_records = await service.section_attendance(sec.id, selected_date)
+                records.extend(sec_records)
+    elif year_id:
+        # جلب كل شيء حسب السنة
+        year_stages = await academic_service.stages.list_by_school_and_year(school_id, year_id)
+        for stage in year_stages:
+            stage_grades = await academic_service.grades.list_by_school_and_stage(school_id, stage.id)
+            for grade in stage_grades:
+                grade_sections = await academic_service.sections.list_by_grade(grade.id)
+                for sec in grade_sections:
+                    sec_records = await service.section_attendance(sec.id, selected_date)
+                    records.extend(sec_records)
     
-    # --- جلب الشعب من Academics Routes ---
-    section_service = SectionService(db)
-    sections = await section_service.get_all(school_id)
+    # --- جلب ملخص الحضور ---
+    summary = await service.student_summary(school_id, selected_date)
     
-    # --- جلب الحصص من Academics Routes ---
-    periods = await db.query(Period).filter(Period.is_active == True).all()
-    
+    # --- تجهيز السياق للقالب ---
     context = {
         "request": request,
         "records": records,
-        "students": students_with_details,
         "summary": summary,
-        "total": summary.get("total", 0) if summary else 0,
+        "years": years,
+        "stages": stages,
+        "grades": grades,
         "sections": sections,
-        "periods": periods,
+        "all_stages": all_stages,
+        "all_grades": all_grades,
+        "all_sections": all_sections,
         "selected_date": selected_date,
+        "selected_year": year_id,
+        "selected_stage": stage_id,
+        "selected_grade": grade_id,
         "selected_section": section_id,
-        "selected_period": period_id,
+        "section_name": section_name,
         "today": today,
         "can": lambda p: current_user.has_permission(p),
     }
@@ -150,33 +217,91 @@ async def student_attendance_list(
 
 
 # ============================================================
-# 3️⃣ نموذج إضافة حضور طلاب (مع تفاصيل كاملة)
+# 3️⃣ نموذج إضافة حضور طلاب (مع دعم التصفية المتدرجة)
 # ============================================================
 
 @router.get("/students/new")
 async def student_attendance_create_form(
     request: Request,
-    section_id: Optional[str] = Query(None),
-    period_id: Optional[str] = Query(None),
-    date: Optional[str] = Query(None),
+    section_id: Optional[str] = Query(None, description="معرف الشعبة"),
+    year_id: Optional[str] = Query(None, description="معرف السنة الدراسية"),
+    stage_id: Optional[str] = Query(None, description="معرف المرحلة"),
+    grade_id: Optional[str] = Query(None, description="معرف الصف"),
+    period_id: Optional[str] = Query(None, description="معرف الحصة"),
+    date: Optional[str] = Query(None, description="التاريخ"),
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(require_permission("attendance.create")),
 ):
-    """عرض نموذج إضافة حضور طلاب مع تفاصيل كاملة من Students و Academics."""
+    """عرض نموذج إضافة حضور طلاب مع دعم التصفية المتدرجة."""
     today = datetime.now().strftime("%Y-%m-%d")
     selected_date = date or today
     school_id = current_user.school_id
     
-    # --- جلب الشعب من Academics Routes ---
-    section_service = SectionService(db)
-    sections = await section_service.get_all(school_id)
+    # --- جلب الخدمات ---
+    academic_service = AcademicService(db)
     
-    # --- جلب الحصص من Academics Routes ---
-    periods = await db.query(Period).filter(Period.is_active == True).all()
+    # --- جلب جميع البيانات للقوائم المنسدلة ---
+    years = await academic_service.years.list_by_school(school_id)
     
-    # --- جلب الطلاب مع تفاصيلهم من Students Routes ---
+    # جميع المراحل (للحالة عندما لا يكون هناك سنة محددة)
+    all_stages = await academic_service.stages.list_by_school(school_id)
+    
+    # جميع الصفوف
+    all_grades = await academic_service.grades.list_by_school(school_id)
+    
+    # جميع الشعب
+    all_sections = await academic_service.sections.list_by_school(school_id)
+    
+    # --- التصفية المتدرجة ---
+    # تحديد المراحل حسب السنة المحددة
+    stages = []
+    if year_id:
+        stages = await academic_service.stages.list_by_school_and_year(school_id, year_id)
+    else:
+        stages = all_stages
+    
+    # تحديد الصفوف حسب السنة والمرحلة
+    grades = []
+    if year_id and stage_id:
+        grades = await academic_service.grades.list_by_school_and_stage(school_id, stage_id, year_id)
+    elif year_id:
+        grades = await academic_service.grades.list_by_school_and_year(school_id, year_id)
+    elif stage_id:
+        grades = await academic_service.grades.list_by_school_and_stage(school_id, stage_id)
+    else:
+        grades = all_grades
+    
+    # تحديد الشعب حسب الصف
+    sections = []
+    if grade_id:
+        sections = await academic_service.sections.list_by_grade(grade_id)
+    elif year_id and stage_id:
+        sections = await academic_service.sections.list_by_school_year_stage(school_id, year_id, stage_id)
+    elif year_id:
+        sections = await academic_service.sections.list_by_school_and_year(school_id, year_id)
+    else:
+        sections = all_sections
+    
+    # --- جلب الطلاب ---
     students = []
+    section_name = None
+    grade_name = None
+    stage_name = None
+    year_name = None
+    
     if section_id:
+        # جلب تفاصيل الشعبة
+        section = await academic_service.sections.get_by_id(section_id)
+        if section:
+            section_name = section.name
+            if section.grade:
+                grade_name = section.grade.name
+                if section.grade.stage:
+                    stage_name = section.grade.stage.name
+                if section.grade.year:
+                    year_name = section.grade.year.name
+        
+        # جلب الطلاب مع حالة الحضور
         student_service = StudentService(db)
         students = await student_service.get_students_with_details(
             school_id=school_id,
@@ -189,12 +314,24 @@ async def student_attendance_create_form(
     
     context = {
         "request": request,
+        "years": years,
+        "stages": stages,
+        "grades": grades,
         "sections": sections,
-        "periods": periods,
+        "all_stages": all_stages,
+        "all_grades": all_grades,
+        "all_sections": all_sections,
         "students": students,
+        "selected_year": year_id,
+        "selected_stage": stage_id,
+        "selected_grade": grade_id,
         "selected_section": section_id,
         "selected_period": period_id,
         "selected_date": selected_date,
+        "section_name": section_name,
+        "grade_name": grade_name,
+        "stage_name": stage_name,
+        "year_name": year_name,
         "today": today,
         "can": lambda p: current_user.has_permission(p),
     }
@@ -263,8 +400,8 @@ async def student_attendance_create(
                 raise ValidationException(f"الطالب {student.full_name} ليس في هذه الشعبة")
         
         # 5. التحقق من وجود الشعبة في Academics Routes
-        section_service = SectionService(db)
-        section = await section_service.get_by_id(section_id)
+        academic_service = AcademicService(db)
+        section = await academic_service.sections.get_by_id(section_id)
         if not section:
             raise ValidationException("الشعبة غير موجودة")
         
@@ -326,11 +463,18 @@ async def _render_attendance_form_with_error(
     school_id = current_user.school_id
     
     # جلب البيانات لعرض النموذج مرة أخرى
-    section_service = SectionService(db)
-    sections = await section_service.get_all(school_id)
+    academic_service = AcademicService(db)
     
-    periods = await db.query(Period).filter(Period.is_active == True).all()
+    years = await academic_service.years.list_by_school(school_id)
+    all_stages = await academic_service.stages.list_by_school(school_id)
+    all_grades = await academic_service.grades.list_by_school(school_id)
+    all_sections = await academic_service.sections.list_by_school(school_id)
     
+    # جلب تفاصيل الشعبة
+    section = await academic_service.sections.get_by_id(section_id)
+    section_name = section.name if section else None
+    
+    # جلب الطلاب
     student_service = StudentService(db)
     students = await student_service.get_students_with_details(
         school_id=school_id,
@@ -346,12 +490,18 @@ async def _render_attendance_form_with_error(
         {
             "request": request,
             "error": error_message,
-            "sections": sections,
-            "periods": periods,
+            "years": years,
+            "stages": all_stages,
+            "grades": all_grades,
+            "sections": all_sections,
+            "all_stages": all_stages,
+            "all_grades": all_grades,
+            "all_sections": all_sections,
             "students": students,
             "selected_date": date,
             "selected_section": section_id,
             "selected_period": period_id,
+            "section_name": section_name,
             "today": today,
             "can": lambda p: current_user.has_permission(p),
         },
@@ -390,8 +540,8 @@ async def student_attendance_quick(
         
         # --- التحقق من وجود الشعبة من Academics Routes ---
         if section_id:
-            section_service = SectionService(db)
-            section = await section_service.get_by_id(section_id)
+            academic_service = AcademicService(db)
+            section = await academic_service.sections.get_by_id(section_id)
             if not section:
                 return {"success": False, "message": "الشعبة غير موجودة"}
         
@@ -645,7 +795,10 @@ async def teacher_attendance_create(
 async def attendance_daily_report(
     request: Request,
     date: Optional[str] = Query(None),
-    section_id: Optional[str] = Query(None),
+    year_id: Optional[str] = Query(None, description="معرف السنة الدراسية"),
+    stage_id: Optional[str] = Query(None, description="معرف المرحلة"),
+    grade_id: Optional[str] = Query(None, description="معرف الصف"),
+    section_id: Optional[str] = Query(None, description="معرف الشعبة"),
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(require_permission("attendance.view_reports")),
 ):
@@ -655,6 +808,40 @@ async def attendance_daily_report(
     school_id = current_user.school_id
     
     service = AttendanceService(db)
+    academic_service = AcademicService(db)
+    
+    # --- جلب جميع البيانات للقوائم المنسدلة ---
+    years = await academic_service.years.list_by_school(school_id)
+    all_stages = await academic_service.stages.list_by_school(school_id)
+    all_grades = await academic_service.grades.list_by_school(school_id)
+    all_sections = await academic_service.sections.list_by_school(school_id)
+    
+    # --- التصفية المتدرجة ---
+    stages = []
+    if year_id:
+        stages = await academic_service.stages.list_by_school_and_year(school_id, year_id)
+    else:
+        stages = all_stages
+    
+    grades = []
+    if year_id and stage_id:
+        grades = await academic_service.grades.list_by_school_and_stage(school_id, stage_id, year_id)
+    elif year_id:
+        grades = await academic_service.grades.list_by_school_and_year(school_id, year_id)
+    elif stage_id:
+        grades = await academic_service.grades.list_by_school_and_stage(school_id, stage_id)
+    else:
+        grades = all_grades
+    
+    sections = []
+    if grade_id:
+        sections = await academic_service.sections.list_by_grade(grade_id)
+    elif year_id and stage_id:
+        sections = await academic_service.sections.list_by_school_year_stage(school_id, year_id, stage_id)
+    elif year_id:
+        sections = await academic_service.sections.list_by_school_and_year(school_id, year_id)
+    else:
+        sections = all_sections
     
     # --- جلب ملخص حضور الطلاب ---
     student_summary = await service.student_summary(school_id, selected_date)
@@ -662,11 +849,7 @@ async def attendance_daily_report(
     # --- جلب المعلمين الغائبين ---
     teacher_summary = await service.absent_teachers(school_id, selected_date)
     
-    # --- جلب الشعب من Academics Routes للفلتر ---
-    section_service = SectionService(db)
-    sections = await section_service.get_all(school_id)
-    
-    # --- جلب تفاصيل الطلاب مع الحضور إذا تم تحديد شعبة ---
+    # --- جلب تفاصيل الطلاب مع الحضور ---
     students_with_attendance = []
     if section_id:
         student_service = StudentService(db)
@@ -677,13 +860,34 @@ async def attendance_daily_report(
             include_attendance=True,
             date=selected_date,
         )
+    elif grade_id:
+        student_service = StudentService(db)
+        grade_sections = await academic_service.sections.list_by_grade(grade_id)
+        for sec in grade_sections:
+            sec_students = await student_service.get_students_with_details(
+                school_id=school_id,
+                section_id=sec.id,
+                is_active=True,
+                include_attendance=True,
+                date=selected_date,
+            )
+            students_with_attendance.extend(sec_students)
     
     context = {
         "request": request,
         "date": selected_date,
         "student_summary": student_summary,
         "teacher_summary": teacher_summary,
+        "years": years,
+        "stages": stages,
+        "grades": grades,
         "sections": sections,
+        "all_stages": all_stages,
+        "all_grades": all_grades,
+        "all_sections": all_sections,
+        "selected_year": year_id,
+        "selected_stage": stage_id,
+        "selected_grade": grade_id,
         "selected_section": section_id,
         "students": students_with_attendance,
         "today": today,
@@ -777,8 +981,8 @@ async def get_section_students_with_details(
     """الحصول على طلاب مجموعة معينة مع تفاصيلهم من Students و Academics (AJAX)."""
     
     # --- التحقق من وجود الشعبة من Academics Routes ---
-    section_service = SectionService(db)
-    section = await section_service.get_by_id(section_id)
+    academic_service = AcademicService(db)
+    section = await academic_service.sections.get_by_id(section_id)
     if not section:
         return {"success": False, "message": "الشعبة غير موجودة"}
     
@@ -821,8 +1025,8 @@ async def get_sections_with_details(
     """الحصول على جميع الشعب مع تفاصيلها من Academics Routes (AJAX)."""
     
     # --- جلب الشعب من Academics Routes ---
-    section_service = SectionService(db)
-    sections = await section_service.get_all(current_user.school_id)
+    academic_service = AcademicService(db)
+    sections = await academic_service.sections.list_by_school(current_user.school_id)
     
     # --- جلب تفاصيل إضافية لكل شعبة ---
     result = []
@@ -867,6 +1071,7 @@ async def attendance_stats(
     school_id = current_user.school_id
     
     service = AttendanceService(db)
+    academic_service = AcademicService(db)
     
     # --- إحصائيات الطلاب ---
     student_summary = await service.student_summary(school_id, selected_date)
@@ -883,8 +1088,7 @@ async def attendance_stats(
     total_teachers = await teacher_service.count_teachers(school_id, is_active=True)
     
     # --- جلب الشعب من Academics Routes ---
-    section_service = SectionService(db)
-    sections = await section_service.get_all(school_id)
+    sections = await academic_service.sections.list_by_school(school_id)
     
     # --- حساب نسبة الحضور لكل شعبة ---
     section_attendance = []
@@ -928,134 +1132,3 @@ async def attendance_stats(
         },
         "sections": section_attendance,
     }
-
-
-# ============================================================
-# 1️⃣5️⃣ إضافة دالة في StudentService (للتكامل)
-# ============================================================
-# ملاحظة: هذه الدوال يجب أن تُضاف في ملف student_service.py
-# ولكن تم تضمينها هنا للتوضيح
-
-"""
-# في app/services/student_service.py
-
-class StudentService:
-    # ... الكود الموجود ...
-    
-    async def get_students_with_details(
-        self,
-        school_id: str,
-        section_id: Optional[str] = None,
-        is_active: Optional[bool] = True,
-        include_attendance: bool = False,
-        date: Optional[str] = None,
-        period_id: Optional[str] = None,
-    ) -> List[Dict[str, Any]]:
-        '''جلب الطلاب مع تفاصيل إضافية من جداول أخرى.'''
-        query = self.db.query(Student).filter(
-            Student.school_id == school_id,
-            Student.is_active == is_active if is_active is not None else True
-        )
-        
-        if section_id:
-            query = query.filter(Student.section_id == section_id)
-        
-        students = await query.all()
-        
-        result = []
-        for student in students:
-            student_data = {
-                "id": student.id,
-                "student_number": student.student_number,
-                "full_name": student.full_name,
-                "first_name": student.first_name,
-                "last_name": student.last_name,
-                "gender": student.gender,
-                "birth_date": student.birth_date,
-                "guardian_name": student.guardian_name,
-                "guardian_phone": student.guardian_phone,
-                "guardian_email": student.guardian_email,
-                "address": student.address,
-                "is_active": student.is_active,
-                "section_id": student.section_id,
-                "year_id": student.year_id,
-                # --- من Academics Routes ---
-                "section_name": student.section.name if student.section else None,
-                "grade_name": student.section.grade.name if student.section and student.section.grade else None,
-                "stage_name": student.section.grade.stage.name if student.section and student.section.grade and student.section.grade.stage else None,
-                "academic_year": student.academic_year.name if student.academic_year else None,
-                # --- حالة الحضور ---
-                "attendance_status": None,
-                "attendance_id": None,
-                "has_attendance": False,
-                "attendance_note": None,
-            }
-            
-            if include_attendance and date:
-                from app.models.attendance import StudentAttendance
-                query_att = self.db.query(StudentAttendance).filter(
-                    StudentAttendance.student_id == student.id,
-                    StudentAttendance.date == date
-                )
-                if period_id:
-                    query_att = query_att.filter(StudentAttendance.period_id == period_id)
-                
-                attendance = await query_att.first()
-                
-                if attendance:
-                    student_data["attendance_status"] = attendance.status
-                    student_data["attendance_id"] = attendance.id
-                    student_data["has_attendance"] = True
-                    student_data["attendance_note"] = attendance.note
-            
-            result.append(student_data)
-        
-        return result
-    
-    async def get_student(self, student_id: str) -> Optional[Student]:
-        '''جلب طالب بواسطة المعرف.'''
-        return await self.db.get(Student, student_id)
-    
-    async def count_students(
-        self,
-        school_id: str,
-        section_id: Optional[str] = None,
-        is_active: Optional[bool] = True,
-    ) -> int:
-        '''حساب عدد الطلاب.'''
-        query = self.db.query(Student).filter(
-            Student.school_id == school_id,
-            Student.is_active == is_active if is_active is not None else True
-        )
-        if section_id:
-            query = query.filter(Student.section_id == section_id)
-        return await query.count()
-
-# في app/services/attendance_service.py
-
-class AttendanceService:
-    # ... الكود الموجود ...
-    
-    async def get_student_attendance_history(
-        self,
-        student_id: str,
-        date_from: Optional[str] = None,
-        date_to: Optional[str] = None,
-    ) -> List[StudentAttendance]:
-        '''جلب سجل حضور طالب.'''
-        query = self.db.query(StudentAttendance).filter(
-            StudentAttendance.student_id == student_id
-        )
-        
-        if date_from:
-            query = query.filter(StudentAttendance.date >= date_from)
-        if date_to:
-            query = query.filter(StudentAttendance.date <= date_to)
-        
-        query = query.order_by(StudentAttendance.date.desc())
-        return await query.all()
-"""
-
-# ============================================================
-# نهاية الملف
-# ============================================================
