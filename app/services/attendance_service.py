@@ -213,26 +213,17 @@ class AttendanceService:
                 year_name = None
                 
                 if section.grade_id:
-                    grade_result = await self.db.execute(
-                        select(Grade).where(Grade.id == section.grade_id)
-                    )
-                    grade = grade_result.scalar_one_or_none()
+                    grade = await self.get_grade_by_id(section.grade_id)
                     if grade:
                         grade_name = grade.name
                         
                         if grade.stage_id:
-                            stage_result = await self.db.execute(
-                                select(Stage).where(Stage.id == grade.stage_id)
-                            )
-                            stage = stage_result.scalar_one_or_none()
+                            stage = await self.get_stage_by_id(grade.stage_id)
                             if stage:
                                 stage_name = stage.name
                         
                         if grade.year_id:
-                            year_result = await self.db.execute(
-                                select(AcademicYear).where(AcademicYear.id == grade.year_id)
-                            )
-                            year = year_result.scalar_one_or_none()
+                            year = await self._get_academic_year_by_id(grade.year_id)
                             if year:
                                 year_name = year.name
                 
@@ -267,23 +258,12 @@ class AttendanceService:
             logger.info(f"🔍 Getting full hierarchy for school {school_id}")
             logger.info(f"   year_id: {year_id}, stage_id: {stage_id}, grade_id: {grade_id}")
             
-            # 1. جلب السنوات
             years = await self.get_academic_years(school_id)
-            logger.info(f"   📊 Years: {len(years)}")
-            
-            # 2. جلب المراحل (حسب السنة إذا كانت محددة)
             stages = await self.get_stages_by_year(school_id, year_id)
-            logger.info(f"   📊 Stages: {len(stages)}")
-            
-            # 3. جلب الصفوف (حسب المرحلة والسنة إذا كانت محددة)
             grades = await self.get_grades_by_stage(school_id, stage_id, year_id)
-            logger.info(f"   📊 Grades: {len(grades)}")
-            
-            # 4. جلب الشعب (حسب الصف إذا كان محددا)
             sections = await self.get_sections_by_grade(
                 school_id, grade_id, year_id, stage_id
             )
-            logger.info(f"   📊 Sections: {len(sections)}")
             
             result = {
                 "years": years,
@@ -302,7 +282,7 @@ class AttendanceService:
             return {"years": [], "stages": [], "grades": [], "sections": []}
 
     # ============================================================
-    # 2️⃣ دوال البحث اليدوي
+    # 2️⃣ دوال البحث اليدوي (مثل ScheduleService)
     # ============================================================
 
     async def _get_student_by_id(self, student_id: str) -> Optional[Student]:
@@ -349,31 +329,11 @@ class AttendanceService:
             logger.error(f"Error in _get_period_by_id: {str(e)}")
             return None
 
-    async def _get_grade_by_id(self, grade_id: str) -> Optional[Grade]:
-        """جلب صف بالمعرف - بحث يدوي"""
-        try:
-            result = await self.db.execute(
-                select(Grade).where(Grade.id == grade_id)
-            )
-            return result.scalar_one_or_none()
-        except Exception as e:
-            logger.error(f"Error in _get_grade_by_id: {str(e)}")
-            return None
-
-    async def _get_stage_by_id(self, stage_id: str) -> Optional[Stage]:
-        """جلب مرحلة بالمعرف - بحث يدوي"""
-        try:
-            result = await self.db.execute(
-                select(Stage).where(Stage.id == stage_id)
-            )
-            return result.scalar_one_or_none()
-        except Exception as e:
-            logger.error(f"Error in _get_stage_by_id: {str(e)}")
-            return None
-
     async def _get_academic_year_by_id(self, year_id: str) -> Optional[AcademicYear]:
         """جلب سنة دراسية بالمعرف - بحث يدوي"""
         try:
+            if not year_id:
+                return None
             result = await self.db.execute(
                 select(AcademicYear).where(AcademicYear.id == year_id)
             )
@@ -382,46 +342,107 @@ class AttendanceService:
             logger.error(f"Error in _get_academic_year_by_id: {str(e)}")
             return None
 
-    async def _get_section_details(self, section_id: str) -> Dict[str, Any]:
-        """جلب تفاصيل الشعبة - بحث يدوي"""
+    # ✅ الدوال المضافة حديثاً (مثل ScheduleService)
+    async def get_grade_by_id(self, grade_id: str) -> Optional[Grade]:
+        """جلب الصف بالمعرف - بحث يدوي"""
+        try:
+            if not grade_id:
+                return None
+            result = await self.db.execute(
+                select(Grade).where(Grade.id == grade_id)
+            )
+            return result.scalar_one_or_none()
+        except Exception as e:
+            logger.error(f"Error in get_grade_by_id: {str(e)}")
+            return None
+
+    async def get_stage_by_id(self, stage_id: str) -> Optional[Stage]:
+        """جلب المرحلة بالمعرف - بحث يدوي"""
+        try:
+            if not stage_id:
+                return None
+            result = await self.db.execute(
+                select(Stage).where(Stage.id == stage_id)
+            )
+            return result.scalar_one_or_none()
+        except Exception as e:
+            logger.error(f"Error in get_stage_by_id: {str(e)}")
+            return None
+
+    async def get_section_details(self, section_id: str) -> Dict[str, Any]:
+        """جلب تفاصيل الشعبة مع الصف والمرحلة والسنة - بحث يدوي"""
         try:
             if not section_id:
-                return {"name": None, "grade_name": None, "stage_name": None}
+                return {
+                    "name": None, 
+                    "grade_name": None, 
+                    "stage_name": None, 
+                    "grade_id": None, 
+                    "stage_id": None,
+                    "year_id": None,
+                    "year_name": None,
+                    "display_name": None
+                }
             
             section = await self._get_section_by_id(section_id)
             if not section:
-                return {"name": None, "grade_name": None, "stage_name": None}
+                return {
+                    "name": None, 
+                    "grade_name": None, 
+                    "stage_name": None, 
+                    "grade_id": None, 
+                    "stage_id": None,
+                    "year_id": None,
+                    "year_name": None,
+                    "display_name": None
+                }
             
+            grade = None
             grade_name = None
+            stage_id = None
             stage_name = None
+            year_id = None
+            year_name = None
             
             if section.grade_id:
-                grade = await self._get_grade_by_id(section.grade_id)
+                grade = await self.get_grade_by_id(section.grade_id)
                 if grade:
                     grade_name = grade.name
+                    year_id = grade.year_id
+                    
                     if grade.stage_id:
-                        stage = await self._get_stage_by_id(grade.stage_id)
+                        stage = await self.get_stage_by_id(grade.stage_id)
                         if stage:
+                            stage_id = stage.id
                             stage_name = stage.name
+                    
+                    if year_id:
+                        year = await self._get_academic_year_by_id(year_id)
+                        if year:
+                            year_name = year.name
             
             return {
                 "name": section.name,
                 "grade_name": grade_name,
                 "stage_name": stage_name,
+                "grade_id": str(section.grade_id) if section.grade_id else None,
+                "stage_id": str(stage_id) if stage_id else None,
+                "year_id": str(year_id) if year_id else None,
+                "year_name": year_name,
+                "display_name": f"{stage_name if stage_name else ''} - {grade_name if grade_name else ''} - {section.name}".strip(" - ")
             }
         except Exception as e:
-            logger.error(f"Error in _get_section_details: {str(e)}")
-            return {"name": None, "grade_name": None, "stage_name": None}
-
-    def _get_status_arabic(self, status: str) -> str:
-        """الحصول على اسم الحالة بالعربية"""
-        mapping = {
-            "present": "✅ حاضر",
-            "absent": "❌ غائب",
-            "late": "⏰ متأخر",
-            "excused": "📝 معذور",
-        }
-        return mapping.get(status, status)
+            logger.error(f"Error in get_section_details: {str(e)}")
+            return {
+                "name": None, 
+                "grade_name": None, 
+                "stage_name": None, 
+                "grade_id": None, 
+                "stage_id": None,
+                "year_id": None,
+                "year_name": None,
+                "display_name": None
+            }
 
     # ============================================================
     # 3️⃣ جلب الطلاب مع تفاصيلهم
@@ -452,7 +473,7 @@ class AttendanceService:
             
             students_data = []
             for student in students:
-                section_details = await self._get_section_details(student.section_id)
+                section_details = await self.get_section_details(student.section_id)
                 
                 student_dict = {
                     "id": str(student.id),
@@ -531,7 +552,7 @@ class AttendanceService:
                 student_name = student.full_name if student else "غير معروف"
                 student_number = student.student_number if student else ""
                 
-                section_details = await self._get_section_details(record.section_id)
+                section_details = await self.get_section_details(record.section_id)
                 
                 records_data.append({
                     "id": str(record.id),
@@ -641,7 +662,7 @@ class AttendanceService:
         result = []
         for r in records:
             student = await self._get_student_by_id(r.student_id)
-            section_details = await self._get_section_details(r.section_id)
+            section_details = await self.get_section_details(r.section_id)
             
             if student:
                 result.append({
@@ -719,7 +740,7 @@ class AttendanceService:
                 if period:
                     period_name = period.name
             
-            section_details = await self._get_section_details(r.section_id)
+            section_details = await self.get_section_details(r.section_id)
             
             result.append({
                 "id": r.id,
@@ -1025,7 +1046,7 @@ class AttendanceService:
             )
             student_count = student_count_result.scalar() or 0
             
-            section_details = await self._get_section_details(section.id)
+            section_details = await self.get_section_details(section.id)
             
             if student_count == 0:
                 result_list.append({
@@ -1100,7 +1121,7 @@ class AttendanceService:
         record = record_result.scalar_one_or_none()
         
         if not record:
-            section_details = await self._get_section_details(student.section_id)
+            section_details = await self.get_section_details(student.section_id)
             return {
                 "student_id": student.id,
                 "student_number": student.student_number,
@@ -1118,7 +1139,7 @@ class AttendanceService:
             if period:
                 period_name = period.name
         
-        section_details = await self._get_section_details(record.section_id)
+        section_details = await self.get_section_details(record.section_id)
         
         return {
             "student_id": student.id,
@@ -1137,6 +1158,20 @@ class AttendanceService:
             "recorded_by": record.recorded_by,
             "created_at": record.created_at,
         }
+
+    # ============================================================
+    # 1️⃣5️⃣ دوال مساعدة (Helper functions)
+    # ============================================================
+
+    def _get_status_arabic(self, status: str) -> str:
+        """الحصول على اسم الحالة بالعربية"""
+        mapping = {
+            "present": "✅ حاضر",
+            "absent": "❌ غائب",
+            "late": "⏰ متأخر",
+            "excused": "📝 معذور",
+        }
+        return mapping.get(status, status)
 
 
 # ============================================================
