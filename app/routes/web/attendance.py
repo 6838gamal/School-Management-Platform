@@ -119,7 +119,7 @@ async def student_attendance_list(
         selected_date = date or today
         
         print("=" * 50)
-        print("📊 صفحة حضور الطلاب")
+        print("📊 صفحة حضور الطلاب (قائمة)")
         print(f"   date: {selected_date}")
         print(f"   year_id: {year_id}")
         print(f"   stage_id: {stage_id}")
@@ -235,7 +235,7 @@ async def student_attendance_list(
 
 
 # ============================================================
-# 3️⃣ نموذج تسجيل حضور الطلاب (محدث)
+# 3️⃣ نموذج تسجيل حضور الطلاب (محدث مع طباعة البيانات)
 # ============================================================
 
 @router.get("/students/create")
@@ -256,14 +256,17 @@ async def create_student_attendance_page(
         today = datetime.now().strftime("%Y-%m-%d")
         selected_date = date or today
         
-        print("=" * 50)
-        print("📝 صفحة تسجيل حضور الطلاب")
+        print("=" * 60)
+        print("📝 صفحة تسجيل حضور الطلاب - CREATE")
+        print("=" * 60)
+        print(f"📌 المعاملات الواردة:")
         print(f"   section_id: {section_id}")
         print(f"   date: {selected_date}")
         print(f"   year_id: {year_id}")
         print(f"   stage_id: {stage_id}")
         print(f"   grade_id: {grade_id}")
-        print("=" * 50)
+        print(f"   period_id: {period_id}")
+        print("=" * 60)
         
         service = AttendanceService(db)
         
@@ -286,12 +289,25 @@ async def create_student_attendance_page(
         all_stages = all_hierarchy.get("stages", [])
         all_sections = all_hierarchy.get("sections", [])
         
-        print(f"📊 years: {len(years)}")
-        print(f"📊 stages: {len(stages)}")
-        print(f"📊 grades: {len(grades)}")
-        print(f"📊 sections: {len(sections)}")
-        print(f"📊 all_stages: {len(all_stages)}")
-        print(f"📊 all_sections: {len(all_sections)}")
+        print("=" * 60)
+        print("📊 البيانات المستخرجة من hierarchy:")
+        print(f"   ✅ years: {len(years)} - {[y.get('name') for y in years]}")
+        print(f"   ✅ stages: {len(stages)} - {[s.get('name') for s in stages]}")
+        print(f"   ✅ grades: {len(grades)} - {[g.get('name') for g in grades]}")
+        print(f"   ✅ sections: {len(sections)} - {[s.get('name') for s in sections]}")
+        print(f"   ✅ all_stages: {len(all_stages)}")
+        print(f"   ✅ all_sections: {len(all_sections)}")
+        print("=" * 60)
+        
+        # ✅ التحقق من البيانات قبل إرسالها للقالب
+        if not years:
+            print("⚠️ تحذير: لا توجد سنوات دراسية! تأكد من وجود بيانات في جدول academic_years")
+        if not stages:
+            print("⚠️ تحذير: لا توجد مراحل! تأكد من وجود بيانات في جدول stages")
+        if not grades:
+            print("⚠️ تحذير: لا توجد صفوف! تأكد من وجود بيانات في جدول grades")
+        if not sections:
+            print("⚠️ تحذير: لا توجد شعب! تأكد من وجود بيانات في جدول sections")
         
         # جلب الطلاب
         students = []
@@ -301,6 +317,7 @@ async def create_student_attendance_page(
         year_name = None
         
         if section_id and section_id != "None":
+            print(f"🔍 جلب الطلاب للشعبة: {section_id}")
             students = await service.get_students_with_details(
                 school_id=user.school_id,
                 section_id=section_id,
@@ -317,8 +334,23 @@ async def create_student_attendance_page(
                     stage_name = section.get("stage_name")
                     year_name = section.get("year_name")
                     break
+            
+            print(f"   ✅ تم جلب {len(students)} طالب")
+            print(f"   📚 اسم الشعبة: {section_name}")
+            print(f"   📚 الصف: {grade_name}")
+            print(f"   📚 المرحلة: {stage_name}")
+            print(f"   📚 السنة: {year_name}")
+        else:
+            print("⚠️ لم يتم تحديد شعبة بعد")
         
-        print(f"📊 students count: {len(students)}")
+        print("=" * 60)
+        print("📤 إرسال البيانات إلى القالب:")
+        print(f"   years: {len(years)}")
+        print(f"   stages: {len(stages)}")
+        print(f"   grades: {len(grades)}")
+        print(f"   sections: {len(sections)}")
+        print(f"   students: {len(students)}")
+        print("=" * 60)
         
         return templates.TemplateResponse(
             "attendance/students/create.html",
@@ -864,6 +896,14 @@ async def debug_hierarchy(
             stage_id=stage_id,
             grade_id=grade_id
         )
+        
+        print("=" * 60)
+        print("🔍 DEBUG HIERARCHY")
+        print(f"   years: {len(hierarchy.get('years', []))}")
+        print(f"   stages: {len(hierarchy.get('stages', []))}")
+        print(f"   grades: {len(hierarchy.get('grades', []))}")
+        print(f"   sections: {len(hierarchy.get('sections', []))}")
+        print("=" * 60)
         
         return JSONResponse({
             "success": True,
