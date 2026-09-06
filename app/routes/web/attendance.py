@@ -1,15 +1,15 @@
-"""Attendance web routes with full academic hierarchy support - Manual queries only."""
+"""Attendance web routes with full academic hierarchy - Like schedules module."""
 from fastapi import APIRouter, Depends, Request, HTTPException, status
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import JSONResponse, RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_, or_
+from sqlalchemy import select, func
 from typing import Optional, List, Dict, Any
 import uuid
 import traceback
 import json
 import re
-from datetime import datetime, date
+from datetime import datetime
 
 from app.core.database import get_db
 from app.core.dependencies import CurrentUser, require_any_permission, template_context
@@ -25,418 +25,15 @@ from app.schemas.attendance import (
     StudentAttendanceStatus,
     TeacherAttendanceCreate,
     TeacherAttendanceStatus,
-    AttendanceFilter,
-    AttendanceSummary,
 )
 
 # النماذج
 from app.models.attendance import StudentAttendance, TeacherAttendance
-from app.models.academics import Section, Subject, Grade, Stage, AcademicYear
 from app.models.students import Student
 from app.models.teachers import Teacher
-from app.models.users import User
 
 router = APIRouter(prefix="/attendance", tags=["attendance"])
 templates = Jinja2Templates(directory="app/templates")
-
-
-# ============================================================
-# دوال مساعدة للبحث اليدوي (بدون علاقات)
-# ============================================================
-
-async def get_grade_by_id(db: AsyncSession, grade_id: str) -> Optional[Grade]:
-    """جلب الصف بالمعرف - بحث يدوي"""
-    try:
-        if not grade_id:
-            return None
-        result = await db.execute(
-            select(Grade).where(Grade.id == grade_id)
-        )
-        return result.scalar_one_or_none()
-    except Exception as e:
-        print(f"⚠️ Error in get_grade_by_id: {str(e)}")
-        return None
-
-
-async def get_stage_by_id(db: AsyncSession, stage_id: str) -> Optional[Stage]:
-    """جلب المرحلة بالمعرف - بحث يدوي"""
-    try:
-        if not stage_id:
-            return None
-        result = await db.execute(
-            select(Stage).where(Stage.id == stage_id)
-        )
-        return result.scalar_one_or_none()
-    except Exception as e:
-        print(f"⚠️ Error in get_stage_by_id: {str(e)}")
-        return None
-
-
-async def get_academic_year_by_id(db: AsyncSession, year_id: str) -> Optional[AcademicYear]:
-    """جلب السنة الدراسية بالمعرف - بحث يدوي"""
-    try:
-        if not year_id:
-            return None
-        result = await db.execute(
-            select(AcademicYear).where(AcademicYear.id == year_id)
-        )
-        return result.scalar_one_or_none()
-    except Exception as e:
-        print(f"⚠️ Error in get_academic_year_by_id: {str(e)}")
-        return None
-
-
-async def get_sections_with_details(db: AsyncSession, school_id: str) -> List[Dict]:
-    """جلب الشعب مع تفاصيلها (الصف والمرحلة والسنة) - بحث يدوي"""
-    try:
-        # 1. جلب جميع الشعب
-        result = await db.execute(
-            select(Section)
-            .where(Section.school_id == school_id)
-            .where(Section.is_active == True)
-            .order_by(Section.grade_id, Section.name)
-        )
-        sections = result.scalars().all()
-        
-        sections_data = []
-        for section in sections:
-            # 2. جلب الصف يدوياً
-            grade = None
-            grade_name = "غير محدد"
-            stage_name = "غير محدد"
-            year_name = "غير محدد"
-            year_id = None
-            
-            if section.grade_id:
-                grade = await get_grade_by_id(db, section.grade_id)
-                if grade:
-                    grade_name = grade.name
-                    year_id = grade.year_id
-                    
-                    # 3. جلب المرحلة يدوياً
-                    if grade.stage_id:
-                        stage = await get_stage_by_id(db, grade.stage_id)
-                        if stage:
-                            stage_name = stage.name
-                    
-                    # 4. جلب السنة يدوياً
-                    if grade.year_id:
-                        year = await get_academic_year_by_id(db, grade.year_id)
-                        if year:
-                            year_name = year.name
-            
-            sections_data.append({
-                "id": str(section.id),
-                "name": section.name,
-                "grade_id": str(section.grade_id) if section.grade_id else None,
-                "grade_name": grade_name,
-                "stage_name": stage_name,
-                "year_id": str(year_id) if year_id else None,
-                "year_name": year_name,
-                "display_name": f"{stage_name} - {grade_name} - {section.name}",
-                "capacity": section.capacity,
-                "is_active": section.is_active
-            })
-        
-        return sections_data
-    except Exception as e:
-        print(f"⚠️ Error in get_sections_with_details: {str(e)}")
-        traceback.print_exc()
-        return []
-
-
-async def get_academic_years(db: AsyncSession, school_id: str) -> List[Dict]:
-    """جلب السنوات الدراسية - بحث يدوي"""
-    try:
-        result = await db.execute(
-            select(AcademicYear)
-            .where(AcademicYear.school_id == school_id)
-            .where(AcademicYear.is_active == True)
-            .order_by(AcademicYear.start_date.desc())
-        )
-        years = result.scalars().all()
-        
-        return [
-            {
-                "id": str(year.id),
-                "name": year.name,
-                "start_date": year.start_date,
-                "end_date": year.end_date,
-                "is_current": year.is_current,
-                "is_active": year.is_active
-            }
-            for year in years
-        ]
-    except Exception as e:
-        print(f"⚠️ Error in get_academic_years: {str(e)}")
-        return []
-
-
-async def get_stages(db: AsyncSession, school_id: str, year_id: Optional[str] = None) -> List[Dict]:
-    """جلب المراحل حسب السنة الدراسية - بحث يدوي"""
-    try:
-        stmt = select(Stage).where(Stage.school_id == school_id)
-        if year_id:
-            stmt = stmt.where(Stage.year_id == year_id)
-        stmt = stmt.order_by(Stage.order)
-        
-        result = await db.execute(stmt)
-        stages = result.scalars().all()
-        
-        return [
-            {
-                "id": str(stage.id),
-                "name": stage.name,
-                "name_en": stage.name_en,
-                "year_id": str(stage.year_id) if stage.year_id else None,
-                "order": stage.order,
-                "is_active": getattr(stage, 'is_active', True)
-            }
-            for stage in stages
-        ]
-    except Exception as e:
-        print(f"⚠️ Error in get_stages: {str(e)}")
-        return []
-
-
-async def get_grades(db: AsyncSession, school_id: str, stage_id: Optional[str] = None, year_id: Optional[str] = None) -> List[Dict]:
-    """جلب الصفوف حسب المرحلة والسنة - بحث يدوي"""
-    try:
-        stmt = select(Grade).where(
-            Grade.school_id == school_id,
-            Grade.is_active == True
-        )
-        if stage_id:
-            stmt = stmt.where(Grade.stage_id == stage_id)
-        if year_id:
-            stmt = stmt.where(Grade.year_id == year_id)
-        stmt = stmt.order_by(Grade.order)
-        
-        result = await db.execute(stmt)
-        grades = result.scalars().all()
-        
-        return [
-            {
-                "id": str(grade.id),
-                "name": grade.name,
-                "name_en": grade.name_en,
-                "stage_id": str(grade.stage_id) if grade.stage_id else None,
-                "year_id": str(grade.year_id) if grade.year_id else None,
-                "order": grade.order,
-                "is_active": grade.is_active
-            }
-            for grade in grades
-        ]
-    except Exception as e:
-        print(f"⚠️ Error in get_grades: {str(e)}")
-        return []
-
-
-async def get_students_with_attendance(
-    db: AsyncSession, 
-    school_id: str, 
-    section_id: Optional[str] = None,
-    date: Optional[str] = None,
-    period_id: Optional[str] = None
-) -> List[Dict]:
-    """جلب الطلاب مع حالة الحضور - بحث يدوي"""
-    try:
-        stmt = select(Student).where(
-            Student.school_id == school_id,
-            Student.is_active == True
-        )
-        if section_id:
-            stmt = stmt.where(Student.section_id == section_id)
-        stmt = stmt.order_by(Student.first_name, Student.last_name)
-        
-        result = await db.execute(stmt)
-        students = result.scalars().all()
-        
-        students_data = []
-        for student in students:
-            student_dict = {
-                "id": str(student.id),
-                "student_number": student.student_number,
-                "full_name": student.full_name,
-                "first_name": student.first_name,
-                "last_name": student.last_name,
-                "section_id": str(student.section_id) if student.section_id else None,
-                "grade_id": str(student.grade_id) if student.grade_id else None,
-                "stage_id": str(student.stage_id) if student.stage_id else None,
-                "year_id": str(student.year_id) if student.year_id else None,
-                "attendance_status": None,
-                "attendance_id": None,
-                "attendance_note": None,
-                "has_attendance": False,
-            }
-            
-            # جلب حالة الحضور إذا كان التاريخ محدداً
-            if date:
-                att_stmt = select(StudentAttendance).where(
-                    StudentAttendance.student_id == student.id,
-                    StudentAttendance.date == date
-                )
-                if period_id:
-                    att_stmt = att_stmt.where(StudentAttendance.period_id == period_id)
-                
-                att_result = await db.execute(att_stmt)
-                attendance = att_result.scalar_one_or_none()
-                
-                if attendance:
-                    student_dict["attendance_status"] = attendance.status
-                    student_dict["attendance_id"] = str(attendance.id)
-                    student_dict["attendance_note"] = attendance.note
-                    student_dict["has_attendance"] = True
-            
-            students_data.append(student_dict)
-        
-        return students_data
-    except Exception as e:
-        print(f"⚠️ Error in get_students_with_attendance: {str(e)}")
-        traceback.print_exc()
-        return []
-
-
-async def get_attendance_summary(
-    db: AsyncSession, 
-    school_id: str, 
-    date: str,
-    section_id: Optional[str] = None
-) -> Dict:
-    """جلب ملخص الحضور - بحث يدوي"""
-    try:
-        stmt = select(StudentAttendance).where(
-            StudentAttendance.school_id == school_id,
-            StudentAttendance.date == date
-        )
-        if section_id:
-            stmt = stmt.where(StudentAttendance.section_id == section_id)
-        
-        result = await db.execute(stmt)
-        records = result.scalars().all()
-        
-        total = len(records)
-        present = sum(1 for r in records if r.status == "present")
-        absent = sum(1 for r in records if r.status == "absent")
-        late = sum(1 for r in records if r.status == "late")
-        excused = sum(1 for r in records if r.status == "excused")
-        
-        # جلب إجمالي الطلاب في الشعبة
-        total_students = 0
-        if section_id:
-            student_stmt = select(func.count(Student.id)).where(
-                Student.school_id == school_id,
-                Student.section_id == section_id,
-                Student.is_active == True
-            )
-            total_students = await db.scalar(student_stmt) or 0
-        
-        return {
-            "total": total_students or total,
-            "present": present,
-            "absent": absent,
-            "late": late,
-            "excused": excused,
-            "rate": round((present / total_students * 100) if total_students > 0 else 0, 1)
-        }
-    except Exception as e:
-        print(f"⚠️ Error in get_attendance_summary: {str(e)}")
-        return {"total": 0, "present": 0, "absent": 0, "late": 0, "excused": 0, "rate": 0}
-
-
-async def get_attendance_records_with_details(
-    db: AsyncSession,
-    school_id: str,
-    date: str,
-    section_id: Optional[str] = None,
-    period_id: Optional[str] = None
-) -> List[Dict]:
-    """جلب سجلات الحضور مع تفاصيل الطالب - بحث يدوي"""
-    try:
-        stmt = select(StudentAttendance).where(
-            StudentAttendance.school_id == school_id,
-            StudentAttendance.date == date
-        )
-        if section_id:
-            stmt = stmt.where(StudentAttendance.section_id == section_id)
-        if period_id:
-            stmt = stmt.where(StudentAttendance.period_id == period_id)
-        
-        result = await db.execute(stmt)
-        records = result.scalars().all()
-        
-        records_data = []
-        for record in records:
-            # جلب الطالب يدوياً
-            student = None
-            student_name = "غير معروف"
-            student_number = ""
-            
-            if record.student_id:
-                student_result = await db.execute(
-                    select(Student).where(Student.id == record.student_id)
-                )
-                student = student_result.scalar_one_or_none()
-                if student:
-                    student_name = student.full_name
-                    student_number = student.student_number
-            
-            # جلب الشعبة يدوياً
-            section_name = None
-            if record.section_id:
-                section_result = await db.execute(
-                    select(Section).where(Section.id == record.section_id)
-                )
-                section = section_result.scalar_one_or_none()
-                if section:
-                    section_name = section.name
-            
-            # جلب الصف يدوياً
-            grade_name = None
-            if record.grade_id:
-                grade = await get_grade_by_id(db, record.grade_id)
-                if grade:
-                    grade_name = grade.name
-            
-            # جلب المرحلة يدوياً
-            stage_name = None
-            if record.stage_id:
-                stage = await get_stage_by_id(db, record.stage_id)
-                if stage:
-                    stage_name = stage.name
-            
-            # جلب السنة يدوياً
-            year_name = None
-            if record.year_id:
-                year = await get_academic_year_by_id(db, record.year_id)
-                if year:
-                    year_name = year.name
-            
-            records_data.append({
-                "id": str(record.id),
-                "student_id": str(record.student_id),
-                "student_name": student_name,
-                "student_number": student_number,
-                "section_id": str(record.section_id) if record.section_id else None,
-                "section_name": section_name,
-                "grade_id": str(record.grade_id) if record.grade_id else None,
-                "grade_name": grade_name,
-                "stage_id": str(record.stage_id) if record.stage_id else None,
-                "stage_name": stage_name,
-                "year_id": str(record.year_id) if record.year_id else None,
-                "year_name": year_name,
-                "date": record.date,
-                "status": record.status,
-                "status_arabic": StudentAttendanceStatus.get_arabic_name(record.status) if hasattr(StudentAttendanceStatus, 'get_arabic_name') else record.status,
-                "note": record.note,
-                "recorded_by": str(record.recorded_by) if record.recorded_by else None,
-            })
-        
-        return records_data
-    except Exception as e:
-        print(f"⚠️ Error in get_attendance_records_with_details: {str(e)}")
-        traceback.print_exc()
-        return []
 
 
 # ============================================================
@@ -452,19 +49,17 @@ async def attendance_page(
 ):
     """الصفحة الرئيسية للحضور"""
     try:
+        service = AttendanceService(db)
+        hierarchy = await service.get_full_hierarchy(user.school_id)
         today = datetime.now().strftime("%Y-%m-%d")
-        
-        # جلب البيانات - بحث يدوي
-        years = await get_academic_years(db, user.school_id)
-        sections = await get_sections_with_details(db, user.school_id)
         
         return templates.TemplateResponse(
             "attendance/index.html",
             {
                 **ctx,
                 "title": "الحضور والغياب",
-                "years": years,
-                "sections": sections,
+                "years": hierarchy.get("years", []),
+                "sections": hierarchy.get("sections", []),
                 "today": today,
                 "error": None
             }
@@ -503,7 +98,7 @@ async def student_attendance_list(
     section_id: Optional[str] = None,
     period_id: Optional[str] = None,
 ):
-    """عرض قائمة حضور الطلاب مع التصفية المتدرجة - بحث يدوي"""
+    """عرض قائمة حضور الطلاب مع التصفية المتدرجة - مثل الجداول"""
     try:
         today = datetime.now().strftime("%Y-%m-%d")
         selected_date = date or today
@@ -517,24 +112,40 @@ async def student_attendance_list(
         print(f"   section_id: {section_id}")
         print("=" * 50)
         
-        # جلب جميع البيانات للقوائم - بحث يدوي
-        years = await get_academic_years(db, user.school_id)
-        stages = await get_stages(db, user.school_id, year_id)
-        grades = await get_grades(db, user.school_id, stage_id, year_id)
-        sections = await get_sections_with_details(db, user.school_id)
+        service = AttendanceService(db)
+        
+        # ✅ جلب التسلسل الهرمي الكامل - مثل ScheduleService
+        hierarchy = await service.get_full_hierarchy(
+            school_id=user.school_id,
+            year_id=year_id,
+            stage_id=stage_id,
+            grade_id=grade_id
+        )
         
         # جلب سجلات الحضور
         records = []
         summary = {"total": 0, "present": 0, "absent": 0, "late": 0, "excused": 0, "rate": 0}
+        section_name = None
         
         if section_id:
-            # جلب سجلات الحضور مع التفاصيل - بحث يدوي
-            records = await get_attendance_records_with_details(
-                db, user.school_id, selected_date, section_id, period_id
+            # ✅ جلب سجلات الحضور مع التفاصيل
+            records = await service.get_attendance_records_with_details(
+                school_id=user.school_id,
+                date=selected_date,
+                section_id=section_id,
+                period_id=period_id
             )
             
             # جلب ملخص الحضور
-            summary = await get_attendance_summary(db, user.school_id, selected_date, section_id)
+            summary = await service.get_attendance_summary(
+                user.school_id, selected_date, section_id
+            )
+            
+            # جلب اسم الشعبة
+            for section in hierarchy.get("sections", []):
+                if section.get("id") == section_id:
+                    section_name = section.get("display_name") or section.get("name")
+                    break
         
         return templates.TemplateResponse(
             "attendance/students/list.html",
@@ -543,15 +154,16 @@ async def student_attendance_list(
                 "title": "حضور الطلاب",
                 "records": records,
                 "summary": summary,
-                "years": years,
-                "stages": stages,
-                "grades": grades,
-                "sections": sections,
+                "years": hierarchy.get("years", []),
+                "stages": hierarchy.get("stages", []),
+                "grades": hierarchy.get("grades", []),
+                "sections": hierarchy.get("sections", []),
                 "selected_date": selected_date,
                 "selected_year": year_id,
                 "selected_stage": stage_id,
                 "selected_grade": grade_id,
                 "selected_section": section_id,
+                "section_name": section_name,
                 "selected_period": period_id,
                 "today": today,
                 "error": None
@@ -576,6 +188,7 @@ async def student_attendance_list(
                 "selected_stage": None,
                 "selected_grade": None,
                 "selected_section": None,
+                "section_name": None,
                 "selected_period": None,
                 "today": datetime.now().strftime("%Y-%m-%d"),
                 "error": f"حدث خطأ: {str(e)}"
@@ -601,7 +214,7 @@ async def create_student_attendance_page(
     grade_id: Optional[str] = None,
     period_id: Optional[str] = None,
 ):
-    """صفحة تسجيل حضور الطلاب - بحث يدوي"""
+    """صفحة تسجيل حضور الطلاب مع التصفية المتدرجة"""
     try:
         today = datetime.now().strftime("%Y-%m-%d")
         selected_date = date or today
@@ -610,26 +223,37 @@ async def create_student_attendance_page(
         print("📝 صفحة تسجيل حضور الطلاب")
         print(f"   section_id: {section_id}")
         print(f"   date: {selected_date}")
+        print(f"   year_id: {year_id}")
+        print(f"   stage_id: {stage_id}")
+        print(f"   grade_id: {grade_id}")
         print("=" * 50)
         
-        # جلب جميع البيانات - بحث يدوي
-        years = await get_academic_years(db, user.school_id)
-        stages = await get_stages(db, user.school_id, year_id)
-        grades = await get_grades(db, user.school_id, stage_id, year_id)
-        sections = await get_sections_with_details(db, user.school_id)
+        service = AttendanceService(db)
+        
+        # ✅ جلب التسلسل الهرمي الكامل
+        hierarchy = await service.get_full_hierarchy(
+            school_id=user.school_id,
+            year_id=year_id,
+            stage_id=stage_id,
+            grade_id=grade_id
+        )
         
         # جلب الطلاب
         students = []
         section_name = None
         if section_id:
-            students = await get_students_with_attendance(
-                db, user.school_id, section_id, selected_date, period_id
+            students = await service.get_students_with_details(
+                school_id=user.school_id,
+                section_id=section_id,
+                date=selected_date,
+                period_id=period_id,
+                include_attendance=True
             )
             
             # جلب اسم الشعبة
-            for section in sections:
-                if section["id"] == section_id:
-                    section_name = section["display_name"]
+            for section in hierarchy.get("sections", []):
+                if section.get("id") == section_id:
+                    section_name = section.get("display_name") or section.get("name")
                     break
         
         return templates.TemplateResponse(
@@ -637,10 +261,10 @@ async def create_student_attendance_page(
             {
                 **ctx,
                 "title": "تسجيل حضور الطلاب",
-                "years": years,
-                "stages": stages,
-                "grades": grades,
-                "sections": sections,
+                "years": hierarchy.get("years", []),
+                "stages": hierarchy.get("stages", []),
+                "grades": hierarchy.get("grades", []),
+                "sections": hierarchy.get("sections", []),
                 "students": students,
                 "section_name": section_name,
                 "selected_date": selected_date,
@@ -697,7 +321,10 @@ async def create_student_attendance_api(
     user: CurrentUser = Depends(require_any_permission("attendance.create")),
     db: AsyncSession = Depends(get_db),
 ):
-    """تسجيل حضور الطلاب عبر API - يدعم JSON و FormData"""
+    """
+    تسجيل حضور الطلاب عبر API
+    يدعم كلاً من JSON و FormData
+    """
     try:
         content_type = request.headers.get("content-type", "")
         print(f"📥 Content-Type: {content_type}")
@@ -706,17 +333,20 @@ async def create_student_attendance_api(
         print(f"📦 Raw body length: {len(body)}")
         
         if "application/json" in content_type:
+            # معالجة JSON
             data = await request.json()
             date_val = data.get("date")
             section_id = data.get("section_id")
             period_id = data.get("period_id")
             records = data.get("records", [])
         else:
+            # معالجة FormData
             form_data = await request.form()
             date_val = form_data.get("date")
             section_id = form_data.get("section_id")
             period_id = form_data.get("period_id")
             
+            # استخراج السجلات
             records = []
             for key, value in form_data.items():
                 if key.startswith("status_"):
@@ -729,6 +359,7 @@ async def create_student_attendance_api(
                         "note": note
                     })
         
+        # التحقق من البيانات
         if not date_val:
             return JSONResponse({"detail": "التاريخ مطلوب"}, status_code=422)
         
@@ -738,8 +369,10 @@ async def create_student_attendance_api(
         if not records:
             return JSONResponse({"detail": "يجب تحديد طالب واحد على الأقل"}, status_code=422)
         
+        # إنشاء السجلات
         service = AttendanceService(db)
         
+        # إنشاء كل سجل على حدة
         saved_count = 0
         for record in records:
             try:
@@ -794,6 +427,7 @@ async def update_student_attendance_api(
     try:
         data = await request.json()
         
+        # جلب السجل
         result = await db.execute(
             select(StudentAttendance).where(StudentAttendance.id == attendance_id)
         )
@@ -802,6 +436,7 @@ async def update_student_attendance_api(
         if not attendance:
             return JSONResponse({"detail": "سجل الحضور غير موجود"}, status_code=404)
         
+        # تحديث البيانات
         if "status" in data:
             attendance.status = data["status"]
         if "note" in data:
@@ -874,7 +509,10 @@ async def get_attendance_stats(
         today = datetime.now().strftime("%Y-%m-%d")
         selected_date = date or today
         
-        summary = await get_attendance_summary(db, user.school_id, selected_date, section_id)
+        service = AttendanceService(db)
+        summary = await service.get_attendance_summary(
+            user.school_id, selected_date, section_id
+        )
         
         return JSONResponse({
             "success": True,
@@ -908,8 +546,12 @@ async def get_section_students_api(
         today = datetime.now().strftime("%Y-%m-%d")
         selected_date = date or today
         
-        students = await get_students_with_attendance(
-            db, user.school_id, section_id, selected_date
+        service = AttendanceService(db)
+        students = await service.get_students_with_details(
+            school_id=user.school_id,
+            section_id=section_id,
+            date=selected_date,
+            include_attendance=True
         )
         
         return JSONResponse({
@@ -939,7 +581,7 @@ async def teacher_attendance_page(
     ctx: dict = Depends(template_context),
     date: Optional[str] = None,
 ):
-    """صفحة حضور المعلمين - بحث يدوي"""
+    """صفحة حضور المعلمين"""
     try:
         today = datetime.now().strftime("%Y-%m-%d")
         selected_date = date or today
@@ -1008,8 +650,171 @@ async def teacher_attendance_page(
 
 
 # ============================================================
-# 🔟 مسارات التصحيح (Debug)
+# 🔟 صفحة تسجيل حضور معلم
 # ============================================================
+
+@router.get("/teachers/create")
+async def create_teacher_attendance_page(
+    request: Request,
+    user: CurrentUser = Depends(require_any_permission("attendance.create")),
+    db: AsyncSession = Depends(get_db),
+    ctx: dict = Depends(template_context),
+    date: Optional[str] = None,
+):
+    """صفحة تسجيل حضور معلمين"""
+    try:
+        today = datetime.now().strftime("%Y-%m-%d")
+        selected_date = date or today
+        
+        # جلب جميع المعلمين
+        teachers_result = await db.execute(
+            select(Teacher).where(
+                Teacher.school_id == user.school_id,
+                Teacher.is_active == True
+            ).order_by(Teacher.first_name, Teacher.last_name)
+        )
+        teachers = teachers_result.scalars().all()
+        
+        return templates.TemplateResponse(
+            "attendance/teachers/create.html",
+            {
+                **ctx,
+                "title": "تسجيل حضور المعلمين",
+                "teachers": teachers,
+                "selected_date": selected_date,
+                "today": today,
+                "statuses": [
+                    {"value": "present", "label": "✅ حاضر", "color": "green"},
+                    {"value": "absent", "label": "❌ غائب", "color": "red"},
+                    {"value": "late", "label": "⏰ متأخر", "color": "yellow"},
+                    {"value": "leave", "label": "📝 إجازة", "color": "blue"},
+                ],
+                "error": None
+            }
+        )
+    except Exception as e:
+        print(f"❌ Error in create_teacher_attendance_page: {str(e)}")
+        traceback.print_exc()
+        return templates.TemplateResponse(
+            "attendance/teachers/create.html",
+            {
+                **ctx,
+                "title": "تسجيل حضور المعلمين",
+                "teachers": [],
+                "selected_date": datetime.now().strftime("%Y-%m-%d"),
+                "today": datetime.now().strftime("%Y-%m-%d"),
+                "statuses": [],
+                "error": f"حدث خطأ: {str(e)}"
+            },
+            status_code=400
+        )
+
+
+# ============================================================
+# 1️⃣1️⃣ API: تسجيل حضور معلم
+# ============================================================
+
+@router.post("/api/v1/teachers")
+async def create_teacher_attendance_api(
+    request: Request,
+    user: CurrentUser = Depends(require_any_permission("attendance.create")),
+    db: AsyncSession = Depends(get_db),
+):
+    """تسجيل حضور معلم عبر API"""
+    try:
+        content_type = request.headers.get("content-type", "")
+        
+        if "application/json" in content_type:
+            data = await request.json()
+            teacher_id = data.get("teacher_id")
+            date_val = data.get("date")
+            status = data.get("status")
+            note = data.get("note", "")
+        else:
+            form_data = await request.form()
+            teacher_id = form_data.get("teacher_id")
+            date_val = form_data.get("date")
+            status = form_data.get("status")
+            note = form_data.get("note", "")
+        
+        if not teacher_id:
+            return JSONResponse({"detail": "معرف المعلم مطلوب"}, status_code=422)
+        
+        if not date_val:
+            return JSONResponse({"detail": "التاريخ مطلوب"}, status_code=422)
+        
+        if not status:
+            return JSONResponse({"detail": "الحالة مطلوبة"}, status_code=422)
+        
+        req = TeacherAttendanceCreate(
+            teacher_id=teacher_id,
+            date=date_val,
+            status=status,
+            note=note
+        )
+        
+        service = AttendanceService(db)
+        result = await service.record_teacher(
+            school_id=user.school_id,
+            user_id=user.id,
+            req=req
+        )
+        
+        await db.commit()
+        
+        return {
+            "success": True,
+            "message": "تم تسجيل حضور المعلم بنجاح",
+            "data": result
+        }
+        
+    except ValidationException as e:
+        await db.rollback()
+        return JSONResponse({"detail": str(e)}, status_code=422)
+    except Exception as e:
+        print(f"❌ Error creating teacher attendance: {str(e)}")
+        traceback.print_exc()
+        await db.rollback()
+        return JSONResponse({"detail": f"حدث خطأ: {str(e)}"}, status_code=500)
+
+
+# ============================================================
+# 1️⃣2️⃣ مسارات التصحيح (Debug)
+# ============================================================
+
+@router.get("/debug/hierarchy")
+async def debug_hierarchy(
+    request: Request,
+    user: CurrentUser = Depends(require_any_permission("attendance.view")),
+    db: AsyncSession = Depends(get_db),
+    year_id: Optional[str] = None,
+    stage_id: Optional[str] = None,
+    grade_id: Optional[str] = None,
+):
+    """عرض التسلسل الهرمي للتصحيح"""
+    try:
+        service = AttendanceService(db)
+        hierarchy = await service.get_full_hierarchy(
+            school_id=user.school_id,
+            year_id=year_id,
+            stage_id=stage_id,
+            grade_id=grade_id
+        )
+        
+        return JSONResponse({
+            "success": True,
+            "hierarchy": hierarchy,
+            "school_id": str(user.school_id)
+        })
+        
+    except Exception as e:
+        print(f"❌ Error in debug_hierarchy: {str(e)}")
+        traceback.print_exc()
+        return JSONResponse(
+            {"error": str(e), "traceback": traceback.format_exc()},
+            status_code=500
+        )
+
 
 @router.get("/debug/data")
 async def debug_attendance_data(
@@ -1017,16 +822,11 @@ async def debug_attendance_data(
     user: CurrentUser = Depends(require_any_permission("attendance.view")),
     db: AsyncSession = Depends(get_db),
 ):
-    """عرض بيانات الحضور للتصحيح - بحث يدوي"""
+    """عرض بيانات الحضور للتصحيح"""
     try:
+        service = AttendanceService(db)
+        hierarchy = await service.get_full_hierarchy(user.school_id)
         today = datetime.now().strftime("%Y-%m-%d")
-        
-        result = {
-            "years": await get_academic_years(db, user.school_id),
-            "stages": await get_stages(db, user.school_id),
-            "grades": await get_grades(db, user.school_id),
-            "sections": await get_sections_with_details(db, user.school_id),
-        }
         
         # جلب عدد سجلات الحضور
         count_result = await db.execute(
@@ -1034,7 +834,7 @@ async def debug_attendance_data(
                 StudentAttendance.school_id == user.school_id
             )
         )
-        result["attendance_count"] = count_result.scalar() or 0
+        attendance_count = count_result.scalar() or 0
         
         # جلب سجلات اليوم
         today_result = await db.execute(
@@ -1043,9 +843,18 @@ async def debug_attendance_data(
                 StudentAttendance.date == today
             )
         )
-        result["today_attendance"] = today_result.scalar() or 0
+        today_attendance = today_result.scalar() or 0
         
-        return JSONResponse(result)
+        return JSONResponse({
+            "years": hierarchy.get("years", []),
+            "stages": hierarchy.get("stages", []),
+            "grades": hierarchy.get("grades", []),
+            "sections": hierarchy.get("sections", []),
+            "attendance_count": attendance_count,
+            "today_attendance": today_attendance,
+            "today": today,
+            "school_id": str(user.school_id)
+        })
         
     except Exception as e:
         print(f"❌ Error in debug_attendance_data: {str(e)}")
@@ -1063,10 +872,13 @@ async def debug_students(
     db: AsyncSession = Depends(get_db),
     section_id: Optional[str] = None,
 ):
-    """عرض بيانات الطلاب للتصحيح - بحث يدوي"""
+    """عرض بيانات الطلاب للتصحيح"""
     try:
-        students = await get_students_with_attendance(
-            db, user.school_id, section_id
+        service = AttendanceService(db)
+        students = await service.get_students_with_details(
+            school_id=user.school_id,
+            section_id=section_id,
+            include_attendance=False
         )
         
         return JSONResponse({
@@ -1085,36 +897,36 @@ async def debug_students(
         )
 
 
-@router.get("/debug/hierarchy")
-async def debug_hierarchy(
+@router.get("/debug/check")
+async def debug_check(
     request: Request,
     user: CurrentUser = Depends(require_any_permission("attendance.view")),
     db: AsyncSession = Depends(get_db),
-    year_id: Optional[str] = None,
-    stage_id: Optional[str] = None,
-    grade_id: Optional[str] = None,
 ):
-    """عرض التسلسل الهرمي للتصحيح - بحث يدوي"""
+    """التحقق من البيانات المتاحة"""
     try:
-        years = await get_academic_years(db, user.school_id)
-        stages = await get_stages(db, user.school_id, year_id)
-        grades = await get_grades(db, user.school_id, stage_id, year_id)
-        sections = await get_sections_with_details(db, user.school_id)
+        service = AttendanceService(db)
+        hierarchy = await service.get_full_hierarchy(user.school_id)
+        
+        # جلب عدد سجلات الحضور
+        count_result = await db.execute(
+            select(func.count(StudentAttendance.id)).where(
+                StudentAttendance.school_id == user.school_id
+            )
+        )
         
         return JSONResponse({
             "success": True,
-            "years": years,
-            "stages": stages,
-            "grades": grades,
-            "sections": sections,
-            "school_id": str(user.school_id),
-            "selected_year": year_id,
-            "selected_stage": stage_id,
-            "selected_grade": grade_id,
+            "years_count": len(hierarchy.get("years", [])),
+            "stages_count": len(hierarchy.get("stages", [])),
+            "grades_count": len(hierarchy.get("grades", [])),
+            "sections_count": len(hierarchy.get("sections", [])),
+            "attendance_records_count": count_result.scalar() or 0,
+            "school_id": str(user.school_id)
         })
         
     except Exception as e:
-        print(f"❌ Error in debug_hierarchy: {str(e)}")
+        print(f"❌ Error in debug_check: {str(e)}")
         traceback.print_exc()
         return JSONResponse(
             {"error": str(e), "traceback": traceback.format_exc()},
