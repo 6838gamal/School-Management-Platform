@@ -235,7 +235,7 @@ async def student_attendance_list(
 
 
 # ============================================================
-# 3️⃣ نموذج تسجيل حضور الطلاب (محدث مع طباعة البيانات)
+# 3️⃣ نموذج تسجيل حضور الطلاب (محدث مع ضمان جلب البيانات)
 # ============================================================
 
 @router.get("/students/create")
@@ -268,38 +268,36 @@ async def create_student_attendance_page(
         print(f"   period_id: {period_id}")
         print("=" * 60)
         
+        # ✅ إنشاء خدمة الحضور
         service = AttendanceService(db)
         
-        # ✅ جلب التسلسل الهرمي الكامل (مع التصفية)
-        hierarchy = await service.get_full_hierarchy(
-            school_id=user.school_id,
-            year_id=year_id,
-            stage_id=stage_id,
-            grade_id=grade_id
-        )
+        # ✅ ✅ ✅ تنفيذ استعلام جلب البيانات (مهم!)
+        print("🔄 جاري تنفيذ استعلام جلب البيانات من قاعدة البيانات...")
         
-        # ✅ جلب جميع البيانات للقوائم المنسدلة (حتى بدون تصفية)
-        all_hierarchy = await service.get_full_hierarchy(user.school_id)
-        
-        # ✅ استخراج البيانات
-        years = hierarchy.get("years", [])
-        stages = hierarchy.get("stages", [])
-        grades = hierarchy.get("grades", [])
-        sections = hierarchy.get("sections", [])
-        all_stages = all_hierarchy.get("stages", [])
-        all_sections = all_hierarchy.get("sections", [])
-        
-        print("=" * 60)
-        print("📊 البيانات المستخرجة من hierarchy:")
+        # جلب السنوات الدراسية
+        years = await service.get_academic_years(user.school_id)
         print(f"   ✅ years: {len(years)} - {[y.get('name') for y in years]}")
+        
+        # جلب المراحل (حسب السنة إذا كانت محددة)
+        stages = await service.get_stages_by_year(user.school_id, year_id)
         print(f"   ✅ stages: {len(stages)} - {[s.get('name') for s in stages]}")
+        
+        # جلب الصفوف (حسب المرحلة والسنة إذا كانت محددة)
+        grades = await service.get_grades_by_stage(user.school_id, stage_id, year_id)
         print(f"   ✅ grades: {len(grades)} - {[g.get('name') for g in grades]}")
+        
+        # جلب الشعب (حسب الصف إذا كان محددا)
+        sections = await service.get_sections_by_grade(user.school_id, grade_id, year_id, stage_id)
         print(f"   ✅ sections: {len(sections)} - {[s.get('name') for s in sections]}")
+        
+        # ✅ جلب جميع البيانات للـ JavaScript (بدون تصفية)
+        all_stages = await service.get_stages_by_year(user.school_id)
+        all_sections = await service.get_sections_by_grade(user.school_id, include_all=True)
+        
         print(f"   ✅ all_stages: {len(all_stages)}")
         print(f"   ✅ all_sections: {len(all_sections)}")
-        print("=" * 60)
         
-        # ✅ التحقق من البيانات قبل إرسالها للقالب
+        # ✅ التحقق من البيانات
         if not years:
             print("⚠️ تحذير: لا توجد سنوات دراسية! تأكد من وجود بيانات في جدول academic_years")
         if not stages:
@@ -326,7 +324,7 @@ async def create_student_attendance_page(
                 include_attendance=True
             )
             
-            # جلب تفاصيل الشعبة من hierarchy
+            # جلب تفاصيل الشعبة من sections
             for section in sections:
                 if section.get("id") == section_id:
                     section_name = section.get("display_name") or section.get("name")
