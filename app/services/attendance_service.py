@@ -151,6 +151,7 @@ class AttendanceService:
             if grade_id:
                 stmt = stmt.where(Section.grade_id == grade_id)
             elif year_id and stage_id and not include_all:
+                # جلب الصفوف في السنة والمرحلة المحددة
                 grades_result = await self.db.execute(
                     select(Grade.id).where(
                         Grade.school_id == school_id,
@@ -196,6 +197,7 @@ class AttendanceService:
             result = await self.db.execute(stmt)
             sections = result.scalars().all()
             
+            # جلب تفاصيل إضافية لكل شعبة - بحث يدوي
             sections_data = []
             for section in sections:
                 grade_name = None
@@ -576,7 +578,7 @@ class AttendanceService:
             return {"total": 0, "present": 0, "absent": 0, "late": 0, "excused": 0, "rate": 0}
 
     # ============================================================
-    # ⚠️ 6️⃣ student_summary - مهم! هذه الدالة مستخدمة في الروتس
+    # 6️⃣ student_summary - مهم! هذه الدالة مستخدمة في الروتس
     # ============================================================
 
     async def student_summary(
