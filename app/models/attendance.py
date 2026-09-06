@@ -1,6 +1,6 @@
 """Attendance models for students and teachers."""
-from sqlalchemy import ForeignKey, String, UniqueConstraint, Enum
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy import String, UniqueConstraint
+from sqlalchemy.orm import Mapped, mapped_column
 import enum
 
 from app.core.database import Base
@@ -17,6 +17,39 @@ class StudentAttendanceStatus(str, enum.Enum):
     ABSENT = "absent"
     LATE = "late"
     EXCUSED = "excused"
+    
+    @classmethod
+    def get_arabic_name(cls, value: str) -> str:
+        """الحصول على الاسم العربي للحالة"""
+        mapping = {
+            cls.PRESENT: "حاضر",
+            cls.ABSENT: "غائب",
+            cls.LATE: "متأخر",
+            cls.EXCUSED: "معذور",
+        }
+        return mapping.get(value, value)
+    
+    @classmethod
+    def get_color(cls, value: str) -> str:
+        """الحصول على لون الحالة"""
+        mapping = {
+            cls.PRESENT: "success",
+            cls.ABSENT: "danger",
+            cls.LATE: "warning",
+            cls.EXCUSED: "info",
+        }
+        return mapping.get(value, "secondary")
+    
+    @classmethod
+    def get_badge_class(cls, value: str) -> str:
+        """الحصول على كلاس البادج للحالة"""
+        mapping = {
+            cls.PRESENT: "bg-green-100 text-green-700",
+            cls.ABSENT: "bg-red-100 text-red-700",
+            cls.LATE: "bg-yellow-100 text-yellow-700",
+            cls.EXCUSED: "bg-blue-100 text-blue-700",
+        }
+        return mapping.get(value, "bg-slate-100 text-slate-700")
 
 
 class TeacherAttendanceStatus(str, enum.Enum):
@@ -25,10 +58,32 @@ class TeacherAttendanceStatus(str, enum.Enum):
     ABSENT = "absent"
     LATE = "late"
     LEAVE = "leave"  # إجازة
+    
+    @classmethod
+    def get_arabic_name(cls, value: str) -> str:
+        """الحصول على الاسم العربي للحالة"""
+        mapping = {
+            cls.PRESENT: "حاضر",
+            cls.ABSENT: "غائب",
+            cls.LATE: "متأخر",
+            cls.LEAVE: "إجازة",
+        }
+        return mapping.get(value, value)
+    
+    @classmethod
+    def get_color(cls, value: str) -> str:
+        """الحصول على لون الحالة"""
+        mapping = {
+            cls.PRESENT: "success",
+            cls.ABSENT: "danger",
+            cls.LATE: "warning",
+            cls.LEAVE: "secondary",
+        }
+        return mapping.get(value, "secondary")
 
 
 # ============================================================
-#  نموذج حضور الطلاب (محدث)
+#  نموذج حضور الطلاب (بدون علاقات)
 # ============================================================
 
 class StudentAttendance(UUIDPkMixin, TimestampMixin, Base):
@@ -38,58 +93,100 @@ class StudentAttendance(UUIDPkMixin, TimestampMixin, Base):
         UniqueConstraint("student_id", "date", "period_id", name="uq_student_att_day_period"),
     )
 
-    # --- الحقول الأساسية ---
+    # --- الحقول الأساسية (بدون Foreign Keys) ---
     school_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("schools.id", ondelete="CASCADE"), index=True
+        String(36), index=True, nullable=False
     )
     student_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("students.id", ondelete="CASCADE"), index=True
+        String(36), index=True, nullable=False
     )
     
-    # --- الحقول الأكاديمية (مضافة حديثاً) ---
+    # --- الحقول الأكاديمية (بدون Foreign Keys) ---
     section_id: Mapped[str | None] = mapped_column(
-        String(36), ForeignKey("sections.id", ondelete="SET NULL"), index=True
+        String(36), index=True, nullable=True
     )
     grade_id: Mapped[str | None] = mapped_column(
-        String(36), ForeignKey("grades.id", ondelete="SET NULL"), index=True
+        String(36), index=True, nullable=True
     )
     stage_id: Mapped[str | None] = mapped_column(
-        String(36), ForeignKey("stages.id", ondelete="SET NULL"), index=True
+        String(36), index=True, nullable=True
     )
     year_id: Mapped[str | None] = mapped_column(
-        String(36), ForeignKey("academic_years.id", ondelete="SET NULL"), index=True
+        String(36), index=True, nullable=True
     )
     
-    # --- الحقول الزمنية ---
+    # --- الحقول الزمنية (بدون Foreign Keys) ---
     period_id: Mapped[str | None] = mapped_column(
-        String(36), ForeignKey("periods.id", ondelete="SET NULL"), index=True
+        String(36), index=True, nullable=True
     )
     schedule_entry_id: Mapped[str | None] = mapped_column(
-        String(36), ForeignKey("schedule_entries.id", ondelete="SET NULL"), index=True
+        String(36), index=True, nullable=True
     )
-    date: Mapped[str] = mapped_column(String(20), nullable=False, index=True)  # YYYY-MM-DD
+    date: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
     
     # --- الحالة والملاحظات ---
-    status: Mapped[str] = mapped_column(String(15), nullable=False)  # present/absent/late/excused
+    status: Mapped[str] = mapped_column(String(15), nullable=False)
     note: Mapped[str | None] = mapped_column(String(500))
     
-    # --- من سجل ---
+    # --- من سجل (بدون Foreign Keys) ---
     recorded_by: Mapped[str | None] = mapped_column(
-        String(36), ForeignKey("users.id", ondelete="SET NULL"), index=True
+        String(36), index=True, nullable=True
     )
     
-    # --- العلاقات (Relationships) ---
-    student = relationship("Student", back_populates="attendances")
-    section = relationship("Section", back_populates="attendances")
-    grade = relationship("Grade")
-    stage = relationship("Stage")
-    year = relationship("AcademicYear")
-    period = relationship("Period")
-    recorder = relationship("User", foreign_keys=[recorded_by])
+    # ❌ تم إزالة جميع العلاقات (relationships)
+    # ❌ student = relationship(...)
+    # ❌ section = relationship(...)
+    # ❌ grade = relationship(...)
+    # ❌ stage = relationship(...)
+    # ❌ year = relationship(...)
+    # ❌ period = relationship(...)
+    # ❌ recorder = relationship(...)
+    
+    # ============================================================
+    # دوال مساعدة للخصائص المحسوبة
+    # ============================================================
+    
+    @property
+    def status_arabic(self) -> str:
+        """الحصول على اسم الحالة بالعربية"""
+        return StudentAttendanceStatus.get_arabic_name(self.status)
+    
+    @property
+    def status_color(self) -> str:
+        """الحصول على لون الحالة"""
+        return StudentAttendanceStatus.get_color(self.status)
+    
+    @property
+    def status_badge(self) -> str:
+        """الحصول على كلاس البادج للحالة"""
+        return StudentAttendanceStatus.get_badge_class(self.status)
+    
+    @property
+    def is_present(self) -> bool:
+        """هل الطالب حاضر؟"""
+        return self.status == StudentAttendanceStatus.PRESENT
+    
+    @property
+    def is_absent(self) -> bool:
+        """هل الطالب غائب؟"""
+        return self.status == StudentAttendanceStatus.ABSENT
+    
+    @property
+    def is_late(self) -> bool:
+        """هل الطالب متأخر؟"""
+        return self.status == StudentAttendanceStatus.LATE
+    
+    @property
+    def is_excused(self) -> bool:
+        """هل الطالب معذور؟"""
+        return self.status == StudentAttendanceStatus.EXCUSED
+    
+    def __repr__(self) -> str:
+        return f"<StudentAttendance student={self.student_id} date={self.date} status={self.status}>"
 
 
 # ============================================================
-#  نموذج حضور المعلمين (محدث)
+#  نموذج حضور المعلمين (بدون علاقات)
 # ============================================================
 
 class TeacherAttendance(UUIDPkMixin, TimestampMixin, Base):
@@ -99,55 +196,92 @@ class TeacherAttendance(UUIDPkMixin, TimestampMixin, Base):
         UniqueConstraint("teacher_id", "date", name="uq_teacher_att_day"),
     )
 
-    # --- الحقول الأساسية ---
+    # --- الحقول الأساسية (بدون Foreign Keys) ---
     school_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("schools.id", ondelete="CASCADE"), index=True
+        String(36), index=True, nullable=False
     )
     teacher_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("teachers.id", ondelete="CASCADE"), index=True
+        String(36), index=True, nullable=False
     )
     
-    # --- الحقول الأكاديمية (مضافة حديثاً) ---
+    # --- الحقول الأكاديمية (بدون Foreign Keys) ---
     section_id: Mapped[str | None] = mapped_column(
-        String(36), ForeignKey("sections.id", ondelete="SET NULL"), index=True
+        String(36), index=True, nullable=True
     )
     grade_id: Mapped[str | None] = mapped_column(
-        String(36), ForeignKey("grades.id", ondelete="SET NULL"), index=True
+        String(36), index=True, nullable=True
     )
     stage_id: Mapped[str | None] = mapped_column(
-        String(36), ForeignKey("stages.id", ondelete="SET NULL"), index=True
+        String(36), index=True, nullable=True
     )
     year_id: Mapped[str | None] = mapped_column(
-        String(36), ForeignKey("academic_years.id", ondelete="SET NULL"), index=True
+        String(36), index=True, nullable=True
     )
     
-    # --- الحقول الزمنية ---
-    date: Mapped[str] = mapped_column(String(20), nullable=False, index=True)  # YYYY-MM-DD
+    # --- الحقول الزمنية (بدون Foreign Keys) ---
+    date: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
     period_id: Mapped[str | None] = mapped_column(
-        String(36), ForeignKey("periods.id", ondelete="SET NULL"), index=True
+        String(36), index=True, nullable=True
     )
     
     # --- الحالة والملاحظات ---
-    status: Mapped[str] = mapped_column(String(15), nullable=False)  # present/absent/late/leave
+    status: Mapped[str] = mapped_column(String(15), nullable=False)
     note: Mapped[str | None] = mapped_column(String(500))
     
-    # --- من سجل ---
+    # --- من سجل (بدون Foreign Keys) ---
     recorded_by: Mapped[str | None] = mapped_column(
-        String(36), ForeignKey("users.id", ondelete="SET NULL"), index=True
+        String(36), index=True, nullable=True
     )
     
-    # --- العلاقات (Relationships) ---
-    teacher = relationship("Teacher", back_populates="attendances")
-    section = relationship("Section")
-    grade = relationship("Grade")
-    stage = relationship("Stage")
-    year = relationship("AcademicYear")
-    period = relationship("Period")
-    recorder = relationship("User", foreign_keys=[recorded_by])
+    # ❌ تم إزالة جميع العلاقات (relationships)
+    # ❌ teacher = relationship(...)
+    # ❌ section = relationship(...)
+    # ❌ grade = relationship(...)
+    # ❌ stage = relationship(...)
+    # ❌ year = relationship(...)
+    # ❌ period = relationship(...)
+    # ❌ recorder = relationship(...)
+    
+    # ============================================================
+    # دوال مساعدة للخصائص المحسوبة
+    # ============================================================
+    
+    @property
+    def status_arabic(self) -> str:
+        """الحصول على اسم الحالة بالعربية"""
+        return TeacherAttendanceStatus.get_arabic_name(self.status)
+    
+    @property
+    def status_color(self) -> str:
+        """الحصول على لون الحالة"""
+        return TeacherAttendanceStatus.get_color(self.status)
+    
+    @property
+    def is_present(self) -> bool:
+        """هل المعلم حاضر؟"""
+        return self.status == TeacherAttendanceStatus.PRESENT
+    
+    @property
+    def is_absent(self) -> bool:
+        """هل المعلم غائب؟"""
+        return self.status == TeacherAttendanceStatus.ABSENT
+    
+    @property
+    def is_late(self) -> bool:
+        """هل المعلم متأخر؟"""
+        return self.status == TeacherAttendanceStatus.LATE
+    
+    @property
+    def is_on_leave(self) -> bool:
+        """هل المعلم في إجازة؟"""
+        return self.status == TeacherAttendanceStatus.LEAVE
+    
+    def __repr__(self) -> str:
+        return f"<TeacherAttendance teacher={self.teacher_id} date={self.date} status={self.status}>"
 
 
 # ============================================================
-#  نموذج إحصائيات الحضور (جدول إضافي للتجميع)
+#  نموذج إحصائيات الحضور (بدون علاقات)
 # ============================================================
 
 class AttendanceSummary(UUIDPkMixin, TimestampMixin, Base):
@@ -157,23 +291,24 @@ class AttendanceSummary(UUIDPkMixin, TimestampMixin, Base):
         UniqueConstraint("school_id", "date", "section_id", name="uq_att_summary_day_section"),
     )
 
+    # --- الحقول الأساسية (بدون Foreign Keys) ---
     school_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("schools.id", ondelete="CASCADE"), index=True
+        String(36), index=True, nullable=False
     )
     date: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
     
-    # --- التصنيفات ---
+    # --- التصنيفات (بدون Foreign Keys) ---
     section_id: Mapped[str | None] = mapped_column(
-        String(36), ForeignKey("sections.id", ondelete="CASCADE"), index=True
+        String(36), index=True, nullable=True
     )
     grade_id: Mapped[str | None] = mapped_column(
-        String(36), ForeignKey("grades.id", ondelete="CASCADE"), index=True
+        String(36), index=True, nullable=True
     )
     stage_id: Mapped[str | None] = mapped_column(
-        String(36), ForeignKey("stages.id", ondelete="CASCADE"), index=True
+        String(36), index=True, nullable=True
     )
     year_id: Mapped[str | None] = mapped_column(
-        String(36), ForeignKey("academic_years.id", ondelete="CASCADE"), index=True
+        String(36), index=True, nullable=True
     )
     
     # --- الطلاب ---
@@ -192,37 +327,63 @@ class AttendanceSummary(UUIDPkMixin, TimestampMixin, Base):
     leave_teachers: Mapped[int] = mapped_column(default=0)
     teacher_percentage: Mapped[float] = mapped_column(default=0.0)
     
-    # --- العلاقات ---
-    section = relationship("Section")
-    grade = relationship("Grade")
-    stage = relationship("Stage")
-    year = relationship("AcademicYear")
+    # ❌ تم إزالة جميع العلاقات (relationships)
+    # ❌ section = relationship(...)
+    # ❌ grade = relationship(...)
+    # ❌ stage = relationship(...)
+    # ❌ year = relationship(...)
+    
+    # ============================================================
+    # دوال مساعدة
+    # ============================================================
+    
+    @property
+    def present_percentage(self) -> float:
+        """نسبة الحضور للطلاب"""
+        return round((self.present_students / self.total_students * 100) if self.total_students > 0 else 0, 1)
+    
+    @property
+    def absent_percentage(self) -> float:
+        """نسبة الغياب للطلاب"""
+        return round((self.absent_students / self.total_students * 100) if self.total_students > 0 else 0, 1)
+    
+    @property
+    def teacher_present_percentage(self) -> float:
+        """نسبة الحضور للمعلمين"""
+        return round((self.present_teachers / self.total_teachers * 100) if self.total_teachers > 0 else 0, 1)
+    
+    def __repr__(self) -> str:
+        return f"<AttendanceSummary date={self.date} section={self.section_id}>"
 
 
 # ============================================================
-#  نموذج سجل التغييرات (Audit Log)
+#  نموذج سجل التغييرات (بدون علاقات)
 # ============================================================
 
 class AttendanceAuditLog(UUIDPkMixin, TimestampMixin, Base):
     """سجل تغييرات الحضور (للتدقيق)"""
     __tablename__ = "attendance_audit_logs"
     
+    # --- الحقول الأساسية (بدون Foreign Keys) ---
     school_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("schools.id", ondelete="CASCADE"), index=True
+        String(36), index=True, nullable=False
     )
-    attendance_type: Mapped[str] = mapped_column(String(20), nullable=False)  # student / teacher
+    attendance_type: Mapped[str] = mapped_column(String(20), nullable=False)
     attendance_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
-    action: Mapped[str] = mapped_column(String(20), nullable=False)  # create / update / delete
-    old_data: Mapped[str | None] = mapped_column(String(1000))  # JSON
-    new_data: Mapped[str | None] = mapped_column(String(1000))  # JSON
+    action: Mapped[str] = mapped_column(String(20), nullable=False)
+    old_data: Mapped[str | None] = mapped_column(String(1000))
+    new_data: Mapped[str | None] = mapped_column(String(1000))
     changed_by: Mapped[str | None] = mapped_column(
-        String(36), ForeignKey("users.id", ondelete="SET NULL"), index=True
+        String(36), index=True, nullable=True
     )
     ip_address: Mapped[str | None] = mapped_column(String(45))
     user_agent: Mapped[str | None] = mapped_column(String(255))
     
-    # العلاقات
-    user = relationship("User", foreign_keys=[changed_by])
+    # ❌ تم إزالة جميع العلاقات (relationships)
+    # ❌ user = relationship(...)
+    
+    def __repr__(self) -> str:
+        return f"<AttendanceAuditLog type={self.attendance_type} action={self.action}>"
 
 
 # ============================================================
