@@ -25,7 +25,7 @@ from app.schemas.schedules import (
     ScheduleEntryCreate, ScheduleEntryUpdate
 )
 
-# النماذج (للوصول المباشر عند الحاجة)
+# النماذج
 from app.models.schedules import Schedule, ScheduleEntry
 from app.models.academics import Section, Subject, Grade, Stage, AcademicYear
 from app.models.teachers import Teacher
@@ -35,60 +35,141 @@ templates = Jinja2Templates(directory="app/templates")
 
 
 # ============================================================
-# دوال مساعدة مبسطة (تستخدم ScheduleService)
+# دوال مساعدة لجلب البيانات مع التفاصيل الكاملة
 # ============================================================
 
-async def get_hierarchy_data(
+async def get_teachers_with_details(db: AsyncSession, school_id: str) -> List[Dict]:
+    """جلب المعلمين مع تفاصيلهم الكاملة والمواد التي يدرسونها"""
+    try:
+        result = await db.execute(
+            select(Teacher)
+            .where(Teacher.school_id == school_id)
+            .where(Teacher.is_active == True)
+            .order_by(Teacher.first_name, Teacher.last_name)
+        )
+        teachers = result.scalars().all()
+        
+        if not teachers:
+            return []
+        
+        teachers_data = []
+        for teacher in teachers:
+            # جلب المواد التي يدرسها المعلم
+            subject_ids = []
+            subject_names = []
+            
+            # محاولة جلب المواد من علاقة teacher_subjects
+            try:
+                from app.models.teacher_subject import TeacherSubject
+                subject_result = await db.execute(
+                    select(Subject)
+                    .join(TeacherSubject, TeacherSubject.subject_id == Subject.id)
+                    .where(TeacherSubject.teacher_id == teacher.id)
+                    .where(Subject.is_active == True)
+                )
+                subjects = subject_result.scalars().all()
+                subject_ids = [str(s.id) for s in subjects]
+                subject_names = [s.name for s in subjects]
+            except Exception:
+                # إذا لم يكن هناك جدول وسيط، نستخدم التخصص
+                if teacher.specialization:
+                    subject_result = await db.execute(
+                        select(Subject)
+                        .where(Subject.name == teacher.specialization)
+                        .where(Subject.school_id == school_id)
+                    )
+                    subject = subject_result.scalar_one_or_none()
+                    if subject:
+                        subject_ids = [str(subject.id)]
+                        subject_names = [subject.name]
+            
+            teachers_data.append({
+                "id": str(teacher.id),
+                "full_name": f"{teacher.first_name} {teacher.last_name}".strip() or teacher.full_name,
+                "first_name": teacher.first_name,
+                "last_name": teacher.last_name,
+                "employee_number": teacher.employee_number,
+                "email": teacher.email,
+                "phone": getattr(teacher, 'phone', None),
+                "specialization": teacher.specialization,
+                "subject_ids": subject_ids,
+                "subject_names": subject_names,
+                "subject_id": subject_ids[0] if subject_ids else None,
+                "is_active": teacher.is_active,
+                "display_name": f"{teacher.first_name} {teacher.last_name}".strip() or teacher.full_name,
+            })
+        
+        return teachers_data
+    except Exception as e:
+        print(f"⚠️ Error in get_teachers_with_details: {str(e)}")
+        traceback.print_exc()
+        return []
+
+
+async def get_subjects_with_details(db: AsyncSession, school_id: str) -> List[Dict]:
+    """جلب المواد مع تفاصيلها"""
+    try:
+        result = await db.execute(
+            select(Subject)
+            .where(Subject.school_id == school_id)
+            .where(Subject.is_active == True)
+            .order_by(Subject.name)
+        )
+        subjects = result.scalars().all()
+        
+        return [
+            {
+                "id": str(subject.id),
+                "name": subject.name,
+                "name_en": subject.name_en,
+                "code": subject.code,
+                "color": subject.color,
+                "is_active": subject.is_active,
+                "display_name": f"{subject.name} ({subject.code})" if subject.code else subject.name
+            }
+            for subject in subjects
+        ]
+    except Exception as e:
+        print(f"⚠️ Error in get_subjects_with_details: {str(e)}")
+        return []
+
+
+async def get_hierarchy_with_details(
     db: AsyncSession,
     school_id: str,
     year_id: Optional[str] = None,
     stage_id: Optional[str] = None,
     grade_id: Optional[str] = None
 ) -> Dict[str, Any]:
-    """
-    جلب التسلسل الهرمي للبيانات باستخدام ScheduleService
-    """
+    """جلب التسلسل الهرمي مع التفاصيل الكاملة"""
     try:
         service = ScheduleService(db)
-        hierarchy = await service.get_full_hierarchy(
-            school_id=school_id,
-            year_id=year_id,
-            stage_id=stage_id,
-            grade_id=grade_id
-        )
-        return hierarchy
-    except Exception as e:
-        print(f"⚠️ Error in get_hierarchy_data: {str(e)}")
-        traceback.print_exc()
+        
+        # جلب السنوات
+        years = await service.get_academic_years(school_id)
+        
+        # جلب المراحل (حسب السنة)
+        stages = await service.get_stages_by_year(school_id, year_id)
+        
+        # جلب الصفوف (حسب المرحلة والسنة)
+        grades = await service.get_grades_by_stage(school_id, stage_id, year_id)
+        
+        # جلب الشعب (حسب الصف)
+        sections = await service.get_sections_by_grade(school_id, grade_id, year_id, stage_id)
+        
         return {
-            "years": [],
-            "stages": [],
-            "grades": [],
-            "sections": [],
+            "years": years,
+            "stages": stages,
+            "grades": grades,
+            "sections": sections,
             "selected_year": year_id,
             "selected_stage": stage_id,
-            "selected_grade": grade_id
+            "selected_grade": grade_id,
         }
-
-
-async def get_all_teachers(db: AsyncSession, school_id: str) -> List[Dict]:
-    """جلب المعلمين باستخدام ScheduleService"""
-    try:
-        service = ScheduleService(db)
-        return await service.get_all_teachers(school_id)
     except Exception as e:
-        print(f"⚠️ Error in get_all_teachers: {str(e)}")
-        return []
-
-
-async def get_all_subjects(db: AsyncSession, school_id: str) -> List[Dict]:
-    """جلب المواد باستخدام ScheduleService"""
-    try:
-        service = ScheduleService(db)
-        return await service.get_all_subjects(school_id)
-    except Exception as e:
-        print(f"⚠️ Error in get_all_subjects: {str(e)}")
-        return []
+        print(f"⚠️ Error in get_hierarchy_with_details: {str(e)}")
+        traceback.print_exc()
+        return {"years": [], "stages": [], "grades": [], "sections": []}
 
 
 # ============================================================
@@ -189,7 +270,7 @@ async def create_schedule_page(
     grade_id: Optional[str] = None,
     section_id: Optional[str] = None,
 ):
-    """صفحة إنشاء جدول جديد مع التصفية المتدرجة"""
+    """صفحة إنشاء جدول جديد مع التصفية المتدرجة وعرض المعلمين"""
     try:
         print("=" * 50)
         print("📄 صفحة إنشاء جدول جديد")
@@ -201,18 +282,16 @@ async def create_schedule_page(
         print(f"   section_id: {section_id}")
         print("=" * 50)
         
-        # ✅ جلب التسلسل الهرمي باستخدام ScheduleService
-        service = ScheduleService(db)
-        hierarchy = await service.get_full_hierarchy(
-            school_id=user.school_id,
-            year_id=year_id,
-            stage_id=stage_id,
-            grade_id=grade_id
+        # ✅ جلب التسلسل الهرمي
+        hierarchy = await get_hierarchy_with_details(
+            db, user.school_id, year_id, stage_id, grade_id
         )
         
-        # جلب المواد والمعلمين
-        subjects = await service.get_all_subjects(user.school_id)
-        teachers = await service.get_all_teachers(user.school_id)
+        # ✅ جلب المواد مع التفاصيل
+        subjects = await get_subjects_with_details(db, user.school_id)
+        
+        # ✅ جلب المعلمين مع التفاصيل والمواد المرتبطة
+        teachers = await get_teachers_with_details(db, user.school_id)
         
         print(f"✅ تم جلب {len(hierarchy.get('years', []))} عام دراسي")
         print(f"✅ تم جلب {len(hierarchy.get('stages', []))} مرحلة")
@@ -221,9 +300,16 @@ async def create_schedule_page(
         print(f"✅ تم جلب {len(subjects)} مادة")
         print(f"✅ تم جلب {len(teachers)} معلم")
         
-        # تحويل البيانات إلى JSON للاستخدام في JavaScript
+        # ✅ تحويل البيانات إلى JSON
         teachers_json = json.dumps(teachers, ensure_ascii=False)
         subjects_json = json.dumps(subjects, ensure_ascii=False)
+        
+        # ✅ طباعة عينة من المعلمين للتصحيح
+        if teachers:
+            print(f"📝 عينة من المعلمين:")
+            for t in teachers[:3]:
+                print(f"   - {t.get('full_name')} (ID: {t.get('id')})")
+                print(f"     المواد: {t.get('subject_names', [])}")
         
         return templates.TemplateResponse(
             "schedules/create.html",
@@ -279,13 +365,63 @@ async def view_schedule_page(
     db: AsyncSession = Depends(get_db),
     ctx: dict = Depends(template_context),
 ):
-    """صفحة عرض الجدول"""
+    """صفحة عرض الجدول مع الفصول والشعب"""
     try:
         service = ScheduleService(db)
         schedule = await service.get_schedule_with_entries(schedule_id)
         
         if not schedule:
             raise HTTPException(status_code=404, detail="الجدول غير موجود")
+        
+        # ✅ جلب تفاصيل الشعبة والصف والمرحلة
+        section_details = await service.get_section_details(schedule.get("section_id"))
+        
+        # ✅ جلب السنة الدراسية
+        year_name = await service.get_academic_year_name(schedule.get("year_id"))
+        
+        # ✅ جلب تفاصيل الحصص
+        entries_data = []
+        for entry in schedule.get("entries", []):
+            # جلب المادة
+            subject_name = None
+            if entry.get("subject_id"):
+                subject_result = await db.execute(
+                    select(Subject).where(Subject.id == entry["subject_id"])
+                )
+                subject = subject_result.scalar_one_or_none()
+                if subject:
+                    subject_name = subject.name
+            
+            # جلب المعلم
+            teacher_name = None
+            if entry.get("teacher_id"):
+                teacher_result = await db.execute(
+                    select(Teacher).where(Teacher.id == entry["teacher_id"])
+                )
+                teacher = teacher_result.scalar_one_or_none()
+                if teacher:
+                    teacher_name = f"{teacher.first_name} {teacher.last_name}".strip() or teacher.full_name
+            
+            entries_data.append({
+                **entry,
+                "subject_name": subject_name,
+                "teacher_name": teacher_name,
+            })
+        
+        schedule["entries"] = entries_data
+        
+        # ✅ إضافة تفاصيل الفصول والشعب
+        schedule["section_name"] = section_details.get("name")
+        schedule["grade_name"] = section_details.get("grade_name")
+        schedule["stage_name"] = section_details.get("stage_name")
+        schedule["year_name"] = year_name
+        
+        print(f"📊 عرض الجدول: {schedule.get('name')}")
+        print(f"   المرحلة: {section_details.get('stage_name')}")
+        print(f"   الصف: {section_details.get('grade_name')}")
+        print(f"   الشعبة: {section_details.get('name')}")
+        print(f"   السنة: {year_name}")
+        print(f"   عدد الحصص: {len(entries_data)}")
         
         return templates.TemplateResponse(
             "schedules/view.html",
@@ -325,9 +461,9 @@ async def edit_schedule_page(
             raise HTTPException(status_code=404, detail="الجدول غير موجود")
         
         # جلب البيانات المطلوبة
-        hierarchy = await service.get_full_hierarchy(user.school_id)
-        subjects = await service.get_all_subjects(user.school_id)
-        teachers = await service.get_all_teachers(user.school_id)
+        hierarchy = await get_hierarchy_with_details(db, user.school_id)
+        subjects = await get_subjects_with_details(db, user.school_id)
+        teachers = await get_teachers_with_details(db, user.school_id)
         
         # تحويل البيانات إلى JSON
         teachers_json = json.dumps(teachers, ensure_ascii=False)
@@ -384,12 +520,10 @@ async def create_schedule_api(
         print(f"📦 Raw body length: {len(body)}")
         
         if "application/json" in content_type:
-            # معالجة JSON
             data = await request.json()
             print(f"📦 JSON data received")
             schedule_data = ScheduleCreate(**data)
         else:
-            # معالجة FormData
             form_data = await request.form()
             print(f"📦 FormData keys: {list(form_data.keys())}")
             
@@ -679,12 +813,8 @@ async def debug_hierarchy(
 ):
     """عرض التسلسل الهرمي للتصحيح"""
     try:
-        service = ScheduleService(db)
-        hierarchy = await service.get_full_hierarchy(
-            school_id=user.school_id,
-            year_id=year_id,
-            stage_id=stage_id,
-            grade_id=grade_id
+        hierarchy = await get_hierarchy_with_details(
+            db, user.school_id, year_id, stage_id, grade_id
         )
         
         return JSONResponse({
@@ -702,41 +832,6 @@ async def debug_hierarchy(
         )
 
 
-@router.get("/debug/data")
-async def debug_schedule_data(
-    request: Request,
-    user: CurrentUser = Depends(require_any_permission("schedules.view")),
-    db: AsyncSession = Depends(get_db),
-):
-    """عرض بيانات الجداول للتصحيح"""
-    try:
-        service = ScheduleService(db)
-        hierarchy = await service.get_full_hierarchy(user.school_id)
-        subjects = await service.get_all_subjects(user.school_id)
-        teachers = await service.get_all_teachers(user.school_id)
-        schedules = await service.list_schedules(user.school_id)
-        
-        return JSONResponse({
-            "years": hierarchy.get("years", []),
-            "stages": hierarchy.get("stages", []),
-            "grades": hierarchy.get("grades", []),
-            "sections": hierarchy.get("sections", []),
-            "subjects": subjects,
-            "teachers": teachers,
-            "schedules": schedules or [],
-            "schedules_count": len(schedules) if schedules else 0,
-            "school_id": str(user.school_id)
-        })
-        
-    except Exception as e:
-        print(f"❌ Error in debug_schedule_data: {str(e)}")
-        traceback.print_exc()
-        return JSONResponse(
-            {"error": str(e), "traceback": traceback.format_exc()},
-            status_code=500
-        )
-
-
 @router.get("/debug/teachers")
 async def debug_teachers(
     request: Request,
@@ -745,8 +840,7 @@ async def debug_teachers(
 ):
     """عرض بيانات المعلمين للتصحيح"""
     try:
-        service = ScheduleService(db)
-        teachers = await service.get_all_teachers(user.school_id)
+        teachers = await get_teachers_with_details(db, user.school_id)
         
         return JSONResponse({
             "total": len(teachers),
@@ -771,8 +865,7 @@ async def debug_subjects(
 ):
     """عرض بيانات المواد للتصحيح"""
     try:
-        service = ScheduleService(db)
-        subjects = await service.get_all_subjects(user.school_id)
+        subjects = await get_subjects_with_details(db, user.school_id)
         
         return JSONResponse({
             "total": len(subjects),
