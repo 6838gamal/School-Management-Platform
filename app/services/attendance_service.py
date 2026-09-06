@@ -48,6 +48,8 @@ class AttendanceService:
             )
             years = result.scalars().all()
             
+            logger.info(f"✅ Found {len(years)} academic years for school {school_id}")
+            
             return [
                 {
                     "id": str(year.id),
@@ -80,6 +82,8 @@ class AttendanceService:
             
             result = await self.db.execute(stmt)
             stages = result.scalars().all()
+            
+            logger.info(f"✅ Found {len(stages)} stages for school {school_id} with year_id={year_id}")
             
             return [
                 {
@@ -116,6 +120,8 @@ class AttendanceService:
             
             result = await self.db.execute(stmt)
             grades = result.scalars().all()
+            
+            logger.info(f"✅ Found {len(grades)} grades for school {school_id} with stage_id={stage_id}")
             
             return [
                 {
@@ -197,6 +203,8 @@ class AttendanceService:
             result = await self.db.execute(stmt)
             sections = result.scalars().all()
             
+            logger.info(f"✅ Found {len(sections)} sections for school {school_id} with grade_id={grade_id}")
+            
             # جلب تفاصيل إضافية لكل شعبة - بحث يدوي
             sections_data = []
             for section in sections:
@@ -256,14 +264,28 @@ class AttendanceService:
     ) -> Dict[str, Any]:
         """جلب التسلسل الهرمي الكامل - مثل ScheduleService"""
         try:
+            logger.info(f"🔍 Getting full hierarchy for school {school_id}")
+            logger.info(f"   year_id: {year_id}, stage_id: {stage_id}, grade_id: {grade_id}")
+            
+            # 1. جلب السنوات
             years = await self.get_academic_years(school_id)
+            logger.info(f"   📊 Years: {len(years)}")
+            
+            # 2. جلب المراحل (حسب السنة إذا كانت محددة)
             stages = await self.get_stages_by_year(school_id, year_id)
+            logger.info(f"   📊 Stages: {len(stages)}")
+            
+            # 3. جلب الصفوف (حسب المرحلة والسنة إذا كانت محددة)
             grades = await self.get_grades_by_stage(school_id, stage_id, year_id)
+            logger.info(f"   📊 Grades: {len(grades)}")
+            
+            # 4. جلب الشعب (حسب الصف إذا كان محددا)
             sections = await self.get_sections_by_grade(
                 school_id, grade_id, year_id, stage_id
             )
+            logger.info(f"   📊 Sections: {len(sections)}")
             
-            return {
+            result = {
                 "years": years,
                 "stages": stages,
                 "grades": grades,
@@ -272,6 +294,9 @@ class AttendanceService:
                 "selected_stage": stage_id,
                 "selected_grade": grade_id,
             }
+            
+            logger.info(f"✅ Hierarchy complete: years={len(years)}, stages={len(stages)}, grades={len(grades)}, sections={len(sections)}")
+            return result
         except Exception as e:
             logger.error(f"Error in get_full_hierarchy: {str(e)}")
             return {"years": [], "stages": [], "grades": [], "sections": []}
@@ -423,6 +448,8 @@ class AttendanceService:
             result = await self.db.execute(stmt)
             students = result.scalars().all()
             
+            logger.info(f"✅ Found {len(students)} students for school {school_id} with section_id={section_id}")
+            
             students_data = []
             for student in students:
                 section_details = await self._get_section_details(student.section_id)
@@ -495,6 +522,8 @@ class AttendanceService:
             
             result = await self.db.execute(stmt)
             records = result.scalars().all()
+            
+            logger.info(f"✅ Found {len(records)} attendance records for school {school_id} date={date}")
             
             records_data = []
             for record in records:
