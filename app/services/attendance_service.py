@@ -151,7 +151,6 @@ class AttendanceService:
             if grade_id:
                 stmt = stmt.where(Section.grade_id == grade_id)
             elif year_id and stage_id and not include_all:
-                # جلب الصفوف في السنة والمرحلة المحددة
                 grades_result = await self.db.execute(
                     select(Grade.id).where(
                         Grade.school_id == school_id,
@@ -197,7 +196,6 @@ class AttendanceService:
             result = await self.db.execute(stmt)
             sections = result.scalars().all()
             
-            # جلب تفاصيل إضافية لكل شعبة - بحث يدوي
             sections_data = []
             for section in sections:
                 grade_name = None
@@ -399,7 +397,7 @@ class AttendanceService:
         return mapping.get(status, status)
 
     # ============================================================
-    # 3️⃣ جلب الطلاب مع تفاصيلهم - مثل ScheduleService
+    # 3️⃣ جلب الطلاب مع تفاصيلهم
     # ============================================================
 
     async def get_students_with_details(
@@ -410,9 +408,7 @@ class AttendanceService:
         period_id: Optional[str] = None,
         include_attendance: bool = True
     ) -> List[Dict[str, Any]]:
-        """
-        جلب الطلاب مع تفاصيلهم وحالة الحضور - مثل ScheduleService
-        """
+        """جلب الطلاب مع تفاصيلهم وحالة الحضور"""
         try:
             stmt = select(Student).where(
                 Student.school_id == school_id,
@@ -427,7 +423,6 @@ class AttendanceService:
             
             students_data = []
             for student in students:
-                # جلب تفاصيل الشعبة
                 section_details = await self._get_section_details(student.section_id)
                 
                 student_dict = {
@@ -449,7 +444,6 @@ class AttendanceService:
                     "has_attendance": False,
                 }
                 
-                # جلب حالة الحضور
                 if include_attendance and date:
                     att_stmt = select(StudentAttendance).where(
                         StudentAttendance.student_id == student.id,
@@ -476,7 +470,7 @@ class AttendanceService:
             return []
 
     # ============================================================
-    # 4️⃣ جلب سجلات الحضور مع التفاصيل - مثل ScheduleService
+    # 4️⃣ جلب سجلات الحضور مع التفاصيل
     # ============================================================
 
     async def get_attendance_records_with_details(
@@ -486,9 +480,7 @@ class AttendanceService:
         section_id: Optional[str] = None,
         period_id: Optional[str] = None
     ) -> List[Dict[str, Any]]:
-        """
-        جلب سجلات الحضور مع تفاصيل الطالب - مثل ScheduleService
-        """
+        """جلب سجلات الحضور مع تفاصيل الطالب"""
         try:
             stmt = select(StudentAttendance).where(
                 StudentAttendance.school_id == school_id,
@@ -504,12 +496,10 @@ class AttendanceService:
             
             records_data = []
             for record in records:
-                # جلب الطالب
                 student = await self._get_student_by_id(record.student_id)
                 student_name = student.full_name if student else "غير معروف"
                 student_number = student.student_number if student else ""
                 
-                # جلب تفاصيل الشعبة
                 section_details = await self._get_section_details(record.section_id)
                 
                 records_data.append({
@@ -564,7 +554,6 @@ class AttendanceService:
             late = sum(1 for r in records if r.status == "late")
             excused = sum(1 for r in records if r.status == "excused")
             
-            # جلب إجمالي الطلاب في الشعبة
             total_students = 0
             if section_id:
                 student_stmt = select(func.count(Student.id)).where(
@@ -587,7 +576,136 @@ class AttendanceService:
             return {"total": 0, "present": 0, "absent": 0, "late": 0, "excused": 0, "rate": 0}
 
     # ============================================================
-    # 6️⃣ تسجيل حضور طالب
+    # ⚠️ 6️⃣ student_summary - مهم! هذه الدالة مستخدمة في الروتس
+    # ============================================================
+
+    async def student_summary(
+        self, 
+        school_id: str, 
+        date: str,
+        section_id: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        جلب ملخص حضور الطلاب - هذه الدالة مستخدمة في الروتس
+        وهي نفسها get_attendance_summary ولكن باسم مختلف
+        """
+        return await self.get_attendance_summary(school_id, date, section_id)
+
+    # ============================================================
+    # 7️⃣ جلب حضور شعبة مع تفاصيل الطلاب
+    # ============================================================
+
+    async def section_attendance(
+        self, 
+        section_id: str, 
+        date: str,
+        period_id: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """جلب حضور شعبة مع تفاصيل الطلاب"""
+        records = await self.student_att.list_by_section_date(section_id, date)
+        
+        if period_id:
+            records = [r for r in records if r.period_id == period_id]
+        
+        result = []
+        for r in records:
+            student = await self._get_student_by_id(r.student_id)
+            section_details = await self._get_section_details(r.section_id)
+            
+            if student:
+                result.append({
+                    "id": str(r.id),
+                    "student_id": r.student_id,
+                    "student_number": student.student_number,
+                    "student_name": student.full_name,
+                    "status": r.status,
+                    "status_arabic": self._get_status_arabic(r.status),
+                    "note": r.note,
+                    "date": r.date,
+                    "section_id": r.section_id,
+                    "section_name": section_details.get("name"),
+                    "grade_name": section_details.get("grade_name"),
+                    "stage_name": section_details.get("stage_name"),
+                    "period_id": r.period_id,
+                    "recorded_by": r.recorded_by,
+                    "created_at": r.created_at,
+                })
+            else:
+                result.append({
+                    "id": str(r.id),
+                    "student_id": r.student_id,
+                    "student_name": "غير معروف",
+                    "student_number": "",
+                    "status": r.status,
+                    "status_arabic": self._get_status_arabic(r.status),
+                    "note": r.note,
+                    "date": r.date,
+                    "section_id": r.section_id,
+                    "section_name": section_details.get("name"),
+                    "grade_name": section_details.get("grade_name"),
+                    "stage_name": section_details.get("stage_name"),
+                    "period_id": r.period_id,
+                    "recorded_by": r.recorded_by,
+                    "created_at": r.created_at,
+                })
+        
+        return result
+
+    # ============================================================
+    # 8️⃣ جلب سجل حضور طالب تاريخي
+    # ============================================================
+
+    async def get_student_attendance_history(
+        self,
+        student_id: str,
+        date_from: Optional[str] = None,
+        date_to: Optional[str] = None,
+        limit: int = 100,
+    ) -> List[Dict[str, Any]]:
+        """جلب سجل حضور طالب تاريخي"""
+        student = await self._get_student_by_id(student_id)
+        if not student:
+            raise NotFoundException(f"الطالب {student_id} غير موجود")
+        
+        stmt = select(StudentAttendance).where(
+            StudentAttendance.student_id == student_id
+        )
+        
+        if date_from:
+            stmt = stmt.where(StudentAttendance.date >= date_from)
+        if date_to:
+            stmt = stmt.where(StudentAttendance.date <= date_to)
+        
+        stmt = stmt.order_by(StudentAttendance.date.desc()).limit(limit)
+        records = await self.db.execute(stmt)
+        records = list(records.scalars().all())
+        
+        result = []
+        for r in records:
+            period_name = None
+            if r.period_id:
+                period = await self._get_period_by_id(r.period_id)
+                if period:
+                    period_name = period.name
+            
+            section_details = await self._get_section_details(r.section_id)
+            
+            result.append({
+                "id": r.id,
+                "date": r.date,
+                "status": r.status,
+                "status_arabic": self._get_status_arabic(r.status),
+                "note": r.note,
+                "period_name": period_name,
+                "section_name": section_details.get("name"),
+                "recorded_at": r.created_at,
+                "recorded_by": r.recorded_by,
+            })
+        
+        return result
+
+    # ============================================================
+    # 9️⃣ تسجيل حضور طالب
     # ============================================================
 
     async def record_student(
@@ -599,7 +717,6 @@ class AttendanceService:
         """تسجيل حضور طالب مع التحقق"""
         logger.info(f"Recording student attendance: student_id={req.student_id}, date={req.date}")
         
-        # التحقق من وجود الطالب
         student = await self._get_student_by_id(req.student_id)
         if not student:
             raise NotFoundException(f"الطالب {req.student_id} غير موجود")
@@ -610,19 +727,16 @@ class AttendanceService:
         if not student.is_active:
             raise ValidationException(f"الطالب {student.full_name} غير نشط")
         
-        # التحقق من وجود الشعبة
         if req.section_id:
             section = await self._get_section_by_id(req.section_id)
             if not section:
                 raise NotFoundException(f"الشعبة {req.section_id} غير موجودة")
         
-        # التحقق من وجود الحصة
         if req.period_id:
             period = await self._get_period_by_id(req.period_id)
             if not period:
                 raise NotFoundException(f"الحصة {req.period_id} غير موجودة")
         
-        # التحقق من وجود سجل سابق
         existing = await self.student_att.get_by_student_date(
             req.student_id, 
             req.date, 
@@ -644,7 +758,6 @@ class AttendanceService:
                 "status": req.status,
             }
         
-        # إنشاء سجل جديد
         record = await self.student_att.create(
             school_id=school_id,
             student_id=req.student_id,
@@ -667,7 +780,7 @@ class AttendanceService:
         }
 
     # ============================================================
-    # 7️⃣ تسجيل حضور طلاب دفعة
+    # 🔟 تسجيل حضور طلاب دفعة
     # ============================================================
 
     async def batch_record(
@@ -679,7 +792,6 @@ class AttendanceService:
         """تسجيل حضور طلاب دفعة واحدة"""
         logger.info(f"Batch recording attendance: section_id={req.section_id}, date={req.date}")
         
-        # التحقق من وجود الشعبة
         if req.section_id:
             section = await self._get_section_by_id(req.section_id)
             if not section:
@@ -760,7 +872,7 @@ class AttendanceService:
         }
 
     # ============================================================
-    # 8️⃣ تسجيل حضور معلم
+    # 1️⃣1️⃣ تسجيل حضور معلم
     # ============================================================
 
     async def record_teacher(
@@ -772,7 +884,6 @@ class AttendanceService:
         """تسجيل حضور معلم مع التحقق"""
         logger.info(f"Recording teacher attendance: teacher_id={req.teacher_id}, date={req.date}")
         
-        # التحقق من وجود المعلم
         teacher = await self._get_teacher_by_id(req.teacher_id)
         if not teacher:
             raise NotFoundException(f"المعلم {req.teacher_id} غير موجود")
@@ -783,7 +894,6 @@ class AttendanceService:
         if not teacher.is_active:
             raise ValidationException(f"المعلم {teacher.full_name} غير نشط")
         
-        # التحقق من وجود سجل سابق
         existing = await self.teacher_att.get_by_teacher_date(req.teacher_id, req.date)
         
         if existing:
@@ -801,7 +911,6 @@ class AttendanceService:
                 "status": req.status,
             }
         
-        # إنشاء سجل جديد
         record = await self.teacher_att.create(
             school_id=school_id,
             teacher_id=req.teacher_id,
@@ -821,7 +930,7 @@ class AttendanceService:
         }
 
     # ============================================================
-    # 9️⃣ جلب المعلمين الغائبين
+    # 1️⃣2️⃣ جلب المعلمين الغائبين
     # ============================================================
 
     async def absent_teachers(
@@ -858,7 +967,7 @@ class AttendanceService:
         return result
 
     # ============================================================
-    # 🔟 جلب إحصائيات الحضور للشعب
+    # 1️⃣3️⃣ جلب إحصائيات الحضور للشعب
     # ============================================================
 
     async def section_attendance_stats(
@@ -877,7 +986,6 @@ class AttendanceService:
         
         result_list = []
         for section in sections:
-            # جلب عدد الطلاب
             student_count_result = await self.db.execute(
                 select(func.count()).select_from(Student).where(
                     Student.section_id == section.id,
@@ -886,7 +994,6 @@ class AttendanceService:
             )
             student_count = student_count_result.scalar() or 0
             
-            # جلب تفاصيل الشعبة
             section_details = await self._get_section_details(section.id)
             
             if student_count == 0:
@@ -904,7 +1011,6 @@ class AttendanceService:
                 })
                 continue
             
-            # جلب سجلات الحضور
             records_result = await self.db.execute(
                 select(StudentAttendance).where(
                     StudentAttendance.section_id == section.id,
@@ -936,7 +1042,7 @@ class AttendanceService:
         return result_list
 
     # ============================================================
-    # 1️⃣1️⃣ جلب تفاصيل حضور طالب
+    # 1️⃣4️⃣ جلب تفاصيل حضور طالب
     # ============================================================
 
     async def get_student_attendance_details(
@@ -975,7 +1081,6 @@ class AttendanceService:
                 "stage_name": section_details.get("stage_name"),
             }
         
-        # جلب تفاصيل الحصة
         period_name = None
         if record.period_id:
             period = await self._get_period_by_id(record.period_id)
@@ -1001,119 +1106,6 @@ class AttendanceService:
             "recorded_by": record.recorded_by,
             "created_at": record.created_at,
         }
-
-    # ============================================================
-    # 1️⃣2️⃣ جلب سجل حضور طالب (تاريخي)
-    # ============================================================
-
-    async def get_student_attendance_history(
-        self,
-        student_id: str,
-        date_from: Optional[str] = None,
-        date_to: Optional[str] = None,
-        limit: int = 100,
-    ) -> List[Dict[str, Any]]:
-        """جلب سجل حضور طالب تاريخي"""
-        student = await self._get_student_by_id(student_id)
-        if not student:
-            raise NotFoundException(f"الطالب {student_id} غير موجود")
-        
-        stmt = select(StudentAttendance).where(
-            StudentAttendance.student_id == student_id
-        )
-        
-        if date_from:
-            stmt = stmt.where(StudentAttendance.date >= date_from)
-        if date_to:
-            stmt = stmt.where(StudentAttendance.date <= date_to)
-        
-        stmt = stmt.order_by(StudentAttendance.date.desc()).limit(limit)
-        records = await self.db.execute(stmt)
-        records = list(records.scalars().all())
-        
-        result = []
-        for r in records:
-            period_name = None
-            if r.period_id:
-                period = await self._get_period_by_id(r.period_id)
-                if period:
-                    period_name = period.name
-            
-            section_details = await self._get_section_details(r.section_id)
-            
-            result.append({
-                "id": r.id,
-                "date": r.date,
-                "status": r.status,
-                "status_arabic": self._get_status_arabic(r.status),
-                "note": r.note,
-                "period_name": period_name,
-                "section_name": section_details.get("name"),
-                "recorded_at": r.created_at,
-                "recorded_by": r.recorded_by,
-            })
-        
-        return result
-
-    # ============================================================
-    # 1️⃣3️⃣ جلب حضور شعبة
-    # ============================================================
-
-    async def section_attendance(
-        self, 
-        section_id: str, 
-        date: str,
-        period_id: Optional[str] = None,
-    ) -> List[Dict[str, Any]]:
-        """جلب حضور شعبة مع تفاصيل الطلاب"""
-        records = await self.student_att.list_by_section_date(section_id, date)
-        
-        if period_id:
-            records = [r for r in records if r.period_id == period_id]
-        
-        result = []
-        for r in records:
-            student = await self._get_student_by_id(r.student_id)
-            section_details = await self._get_section_details(r.section_id)
-            
-            if student:
-                result.append({
-                    "id": str(r.id),
-                    "student_id": r.student_id,
-                    "student_number": student.student_number,
-                    "student_name": student.full_name,
-                    "status": r.status,
-                    "status_arabic": self._get_status_arabic(r.status),
-                    "note": r.note,
-                    "date": r.date,
-                    "section_id": r.section_id,
-                    "section_name": section_details.get("name"),
-                    "grade_name": section_details.get("grade_name"),
-                    "stage_name": section_details.get("stage_name"),
-                    "period_id": r.period_id,
-                    "recorded_by": r.recorded_by,
-                    "created_at": r.created_at,
-                })
-            else:
-                result.append({
-                    "id": str(r.id),
-                    "student_id": r.student_id,
-                    "student_name": "غير معروف",
-                    "student_number": "",
-                    "status": r.status,
-                    "status_arabic": self._get_status_arabic(r.status),
-                    "note": r.note,
-                    "date": r.date,
-                    "section_id": r.section_id,
-                    "section_name": section_details.get("name"),
-                    "grade_name": section_details.get("grade_name"),
-                    "stage_name": section_details.get("stage_name"),
-                    "period_id": r.period_id,
-                    "recorded_by": r.recorded_by,
-                    "created_at": r.created_at,
-                })
-        
-        return result
 
 
 # ============================================================
