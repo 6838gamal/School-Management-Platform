@@ -7,7 +7,7 @@
             <h1 class="text-2xl font-bold text-slate-800 dark:text-white">تسجيل حضور الطلاب</h1>
             <p class="text-slate-400 text-sm mt-1">تسجيل حضور الطلاب ليوم {{ selected_date }}</p>
         </div>
-        <a href="/attendance/students?date={{ selected_date }}" 
+        <a href="/attendance/students?date={{ selected_date }}&amp;year_id={{ selected_year }}&amp;stage_id={{ selected_stage }}&amp;grade_id={{ selected_grade }}&amp;section_id={{ selected_section }}" 
            class="bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
             ← العودة
         </a>
@@ -21,7 +21,8 @@
 
     <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-6">
         <form method="POST" action="/attendance/students" id="attendanceForm">
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+            <!-- الفلتر المتدرج -->
+            <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
                 <div>
                     <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                         التاريخ <span class="text-red-500">*</span>
@@ -33,23 +34,102 @@
                            required
                            class="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
                 </div>
+                
                 <div>
                     <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                        المجموعة <span class="text-red-500">*</span>
+                        السنة الدراسية
+                    </label>
+                    <select name="year_id" 
+                            id="yearSelect"
+                            class="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
+                        <option value="">اختر السنة</option>
+                        {% for year in years %}
+                        <option value="{{ year.id }}" {% if year.id == selected_year %}selected{% endif %}>
+                            {{ year.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                        المرحلة
+                    </label>
+                    <select name="stage_id" 
+                            id="stageSelect"
+                            class="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
+                        <option value="">اختر المرحلة</option>
+                        {% for stage in stages %}
+                        <option value="{{ stage.id }}" {% if stage.id == selected_stage %}selected{% endif %}>
+                            {{ stage.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                        الصف
+                    </label>
+                    <select name="grade_id" 
+                            id="gradeSelect"
+                            class="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
+                        <option value="">اختر الصف</option>
+                        {% for grade in grades %}
+                        <option value="{{ grade.id }}" {% if grade.id == selected_grade %}selected{% endif %}>
+                            {{ grade.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                        الشعبة <span class="text-red-500">*</span>
                     </label>
                     <select name="section_id" 
                             id="sectionSelect"
                             required
                             class="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
-                        <option value="">اختر المجموعة</option>
+                        <option value="">اختر الشعبة</option>
                         {% for section in sections %}
                         <option value="{{ section.id }}" {% if section.id == selected_section %}selected{% endif %}>
                             {{ section.name }}
+                            {% if section.grade_name %} - {{ section.grade_name }}{% endif %}
                         </option>
                         {% endfor %}
                     </select>
                 </div>
             </div>
+
+            <!-- معلومات المجموعة المختارة -->
+            {% if selected_section %}
+            <div class="bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-800 rounded-lg p-3 mb-4">
+                <div class="flex flex-wrap items-center gap-4 text-sm">
+                    <span class="font-medium text-primary-800 dark:text-primary-300">
+                        📚 {{ section_name|default('') }}
+                    </span>
+                    {% if grade_name %}
+                    <span class="text-primary-600 dark:text-primary-400">
+                        الصف: {{ grade_name }}
+                    </span>
+                    {% endif %}
+                    {% if stage_name %}
+                    <span class="text-primary-600 dark:text-primary-400">
+                        المرحلة: {{ stage_name }}
+                    </span>
+                    {% endif %}
+                    {% if year_name %}
+                    <span class="text-primary-600 dark:text-primary-400">
+                        السنة: {{ year_name }}
+                    </span>
+                    {% endif %}
+                    <span class="text-primary-600 dark:text-primary-400">
+                        عدد الطلاب: {{ students|length }}
+                    </span>
+                </div>
+            </div>
+            {% endif %}
 
             <!-- جدول الطلاب -->
             <div class="overflow-x-auto">
@@ -57,6 +137,7 @@
                     <thead class="bg-slate-50 dark:bg-slate-700/50 text-slate-500 dark:text-slate-300">
                         <tr>
                             <th class="text-right p-3 font-medium">#</th>
+                            <th class="text-right p-3 font-medium">رقم الطالب</th>
                             <th class="text-right p-3 font-medium">اسم الطالب</th>
                             <th class="text-center p-3 font-medium">✅ حاضر</th>
                             <th class="text-center p-3 font-medium">❌ غائب</th>
@@ -70,6 +151,9 @@
                         {% for student in students %}
                         <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">
                             <td class="p-3 text-slate-400 text-xs">{{ loop.index }}</td>
+                            <td class="p-3 text-slate-600 dark:text-slate-400 text-xs">
+                                {{ student.student_number or '—' }}
+                            </td>
                             <td class="p-3 font-medium text-slate-800 dark:text-white">
                                 {{ student.full_name }}
                                 <input type="hidden" name="student_id" value="{{ student.id }}">
@@ -77,43 +161,47 @@
                             <td class="p-3 text-center">
                                 <input type="radio" 
                                        name="status_{{ student.id }}" 
-                                       value="present" 
-                                       checked
+                                       value="present"
+                                       {% if student.attendance_status == 'present' %}checked{% endif %}
                                        class="w-4 h-4 text-primary-600 focus:ring-primary-500">
                             </td>
                             <td class="p-3 text-center">
                                 <input type="radio" 
                                        name="status_{{ student.id }}" 
                                        value="absent"
+                                       {% if student.attendance_status == 'absent' %}checked{% endif %}
                                        class="w-4 h-4 text-red-600 focus:ring-red-500">
                             </td>
                             <td class="p-3 text-center">
                                 <input type="radio" 
                                        name="status_{{ student.id }}" 
                                        value="late"
+                                       {% if student.attendance_status == 'late' %}checked{% endif %}
                                        class="w-4 h-4 text-yellow-600 focus:ring-yellow-500">
                             </td>
                             <td class="p-3 text-center">
                                 <input type="radio" 
                                        name="status_{{ student.id }}" 
                                        value="excused"
+                                       {% if student.attendance_status == 'excused' %}checked{% endif %}
                                        class="w-4 h-4 text-blue-600 focus:ring-blue-500">
                             </td>
                             <td class="p-3">
                                 <input type="text" 
                                        name="note_{{ student.id }}" 
                                        placeholder="ملاحظة"
+                                       value="{{ student.attendance_note or '' }}"
                                        class="w-full px-2 py-1 rounded border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm outline-none focus:ring-2 focus:ring-primary-500">
                             </td>
                         </tr>
                         {% endfor %}
                         {% else %}
                         <tr>
-                            <td colspan="7" class="p-8 text-center text-slate-400">
+                            <td colspan="8" class="p-8 text-center text-slate-400">
                                 {% if selected_section %}
-                                لا يوجد طلاب في هذه المجموعة
+                                لا يوجد طلاب في هذه الشعبة
                                 {% else %}
-                                الرجاء اختيار مجموعة لعرض الطلاب
+                                الرجاء اختيار الشعبة لعرض الطلاب
                                 {% endif %}
                             </td>
                         </tr>
@@ -124,16 +212,29 @@
 
             <input type="hidden" name="records" id="recordsInput">
 
-            <div class="flex gap-3 pt-6">
+            <div class="flex flex-wrap gap-3 pt-6">
                 <button type="submit" 
                         id="submitBtn"
-                        class="bg-primary-600 hover:bg-primary-700 text-white px-6 py-2.5 rounded-lg text-sm font-semibold transition-colors">
+                        {% if not students %}disabled{% endif %}
+                        class="bg-primary-600 hover:bg-primary-700 text-white px-6 py-2.5 rounded-lg text-sm font-semibold transition-colors {% if not students %}opacity-50 cursor-not-allowed{% endif %}">
                     💾 حفظ الحضور
                 </button>
-                <a href="/attendance/students?date={{ selected_date }}" 
+                <a href="/attendance/students?date={{ selected_date }}&amp;year_id={{ selected_year }}&amp;stage_id={{ selected_stage }}&amp;grade_id={{ selected_grade }}&amp;section_id={{ selected_section }}" 
                    class="bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 px-6 py-2.5 rounded-lg text-sm font-medium transition-colors">
                     إلغاء
                 </a>
+                {% if selected_section %}
+                <button type="button" 
+                        id="selectAllPresent"
+                        class="bg-green-100 hover:bg-green-200 dark:bg-green-900/30 dark:hover:bg-green-900/50 text-green-700 dark:text-green-300 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors">
+                    ✅ تحديد الكل حاضر
+                </button>
+                <button type="button" 
+                        id="clearAll"
+                        class="bg-red-100 hover:bg-red-200 dark:bg-red-900/30 dark:hover:bg-red-900/50 text-red-700 dark:text-red-300 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors">
+                    🗑️ إلغاء التحديد
+                </button>
+                {% endif %}
             </div>
         </form>
     </div>
@@ -142,62 +243,266 @@
     <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
         <h4 class="font-semibold text-blue-800 dark:text-blue-300 mb-2">💡 تعليمات</h4>
         <ul class="text-sm text-blue-700 dark:text-blue-400 space-y-1">
-            <li>• اختر المجموعة ثم التاريخ لتسجيل الحضور</li>
+            <li>• اختر السنة → المرحلة → الصف → الشعبة لتحديد المجموعة</li>
             <li>• اختر حالة كل طالب من الخيارات المتاحة</li>
             <li>• يمكنك إضافة ملاحظة لكل طالب (اختياري)</li>
+            <li>• استخدم زر "تحديد الكل حاضر" لتسجيل جميع الطلاب كحاضرين بسرعة</li>
             <li>• بعد الحفظ، سيتم توجيهك إلى قائمة الحضور</li>
         </ul>
     </div>
 </div>
 
+<!-- JavaScript للتصفية المتدرجة والإجراءات السريعة -->
 <script>
-document.getElementById('attendanceForm').addEventListener('submit', function(e) {
-    e.preventDefault();
+document.addEventListener('DOMContentLoaded', function() {
+    // ============================================================
+    // 1. التصفية المتدرجة
+    // ============================================================
     
-    const form = this;
-    const formData = new FormData(form);
-    const students = [];
+    const yearSelect = document.getElementById('yearSelect');
+    const stageSelect = document.getElementById('stageSelect');
+    const gradeSelect = document.getElementById('gradeSelect');
+    const sectionSelect = document.getElementById('sectionSelect');
+    const dateInput = document.getElementById('attendanceDate');
     
-    // جمع بيانات الطلاب
-    const studentIds = document.querySelectorAll('input[name="student_id"]');
-    studentIds.forEach(function(input) {
-        const studentId = input.value;
-        const status = document.querySelector(`input[name="status_${studentId}"]:checked`);
-        const note = document.querySelector(`input[name="note_${studentId}"]`);
+    // دالة لجلب المراحل حسب السنة
+    async function loadStages(yearId, selectedStageId = null) {
+        if (!yearId) {
+            stageSelect.innerHTML = '<option value="">اختر المرحلة</option>';
+            {% for stage in all_stages %}
+            stageSelect.innerHTML += `<option value="{{ stage.id }}">{{ stage.name }}</option>`;
+            {% endfor %}
+            return;
+        }
         
-        if (status) {
-            students.push({
-                student_id: studentId,
-                status: status.value,
-                note: note ? note.value : ''
-            });
+        try {
+            const response = await fetch(`/academics/api/stages/by-year/${yearId}`);
+            const data = await response.json();
+            
+            if (data.success) {
+                stageSelect.innerHTML = '<option value="">اختر المرحلة</option>';
+                data.data.forEach(stage => {
+                    const option = document.createElement('option');
+                    option.value = stage.id;
+                    option.textContent = stage.name;
+                    if (selectedStageId && stage.id === selectedStageId) {
+                        option.selected = true;
+                    }
+                    stageSelect.appendChild(option);
+                });
+            }
+        } catch (error) {
+            console.error('Error loading stages:', error);
+        }
+    }
+    
+    // دالة لجلب الصفوف حسب السنة والمرحلة
+    async function loadGrades(yearId, stageId, selectedGradeId = null) {
+        let url = '/academics/api/grades/by-year/' + yearId;
+        if (stageId) {
+            url += '?stage_id=' + stageId;
+        }
+        
+        try {
+            const response = await fetch(url);
+            const data = await response.json();
+            
+            if (data.success) {
+                gradeSelect.innerHTML = '<option value="">اختر الصف</option>';
+                data.data.forEach(grade => {
+                    const option = document.createElement('option');
+                    option.value = grade.id;
+                    option.textContent = grade.name;
+                    if (selectedGradeId && grade.id === selectedGradeId) {
+                        option.selected = true;
+                    }
+                    gradeSelect.appendChild(option);
+                });
+            }
+        } catch (error) {
+            console.error('Error loading grades:', error);
+        }
+    }
+    
+    // دالة لجلب الشعب حسب الصف
+    async function loadSections(gradeId, selectedSectionId = null) {
+        if (!gradeId) {
+            sectionSelect.innerHTML = '<option value="">اختر الشعبة</option>';
+            {% for section in all_sections %}
+            sectionSelect.innerHTML += `<option value="{{ section.id }}">{{ section.name }}</option>`;
+            {% endfor %}
+            return;
+        }
+        
+        try {
+            const response = await fetch(`/academics/api/sections/by-grade/${gradeId}`);
+            const data = await response.json();
+            
+            if (data.success) {
+                sectionSelect.innerHTML = '<option value="">اختر الشعبة</option>';
+                data.data.forEach(section => {
+                    const option = document.createElement('option');
+                    option.value = section.id;
+                    option.textContent = section.name;
+                    if (selectedSectionId && section.id === selectedSectionId) {
+                        option.selected = true;
+                    }
+                    sectionSelect.appendChild(option);
+                });
+            }
+        } catch (error) {
+            console.error('Error loading sections:', error);
+        }
+    }
+    
+    // حدث تغيير السنة
+    yearSelect.addEventListener('change', function() {
+        const yearId = this.value;
+        const currentStageId = stageSelect.value;
+        const currentGradeId = gradeSelect.value;
+        const currentSectionId = sectionSelect.value;
+        const date = dateInput.value;
+        
+        loadStages(yearId, currentStageId);
+        
+        // إعادة تعيين الصفوف والشعب
+        if (!yearId) {
+            gradeSelect.innerHTML = '<option value="">اختر الصف</option>';
+            sectionSelect.innerHTML = '<option value="">اختر الشعبة</option>';
         }
     });
     
-    // تحديث الحقل المخفي
-    document.getElementById('recordsInput').value = JSON.stringify(students);
+    // حدث تغيير المرحلة
+    stageSelect.addEventListener('change', function() {
+        const yearId = yearSelect.value;
+        const stageId = this.value;
+        const currentGradeId = gradeSelect.value;
+        const date = dateInput.value;
+        
+        if (yearId) {
+            loadGrades(yearId, stageId, currentGradeId);
+        }
+    });
     
-    // إرسال النموذج
-    form.submit();
-});
-
-// تحميل الطلاب عند تغيير المجموعة
-document.getElementById('sectionSelect').addEventListener('change', function() {
-    const sectionId = this.value;
-    const date = document.getElementById('attendanceDate').value;
+    // حدث تغيير الصف
+    gradeSelect.addEventListener('change', function() {
+        const gradeId = this.value;
+        const currentSectionId = sectionSelect.value;
+        loadSections(gradeId, currentSectionId);
+    });
     
-    if (sectionId) {
-        window.location.href = `/attendance/students/new?section_id=${sectionId}&date=${date}`;
+    // حدث تغيير الشعبة - إعادة تحميل الصفحة لعرض الطلاب
+    sectionSelect.addEventListener('change', function() {
+        const sectionId = this.value;
+        const date = dateInput.value;
+        const yearId = yearSelect.value;
+        const stageId = stageSelect.value;
+        const gradeId = gradeSelect.value;
+        
+        if (sectionId) {
+            window.location.href = `/attendance/students/new?section_id=${sectionId}&date=${date}&year_id=${yearId}&stage_id=${stageId}&grade_id=${gradeId}`;
+        }
+    });
+    
+    // تحديث التاريخ عند التغيير
+    dateInput.addEventListener('change', function() {
+        const date = this.value;
+        const sectionId = sectionSelect.value;
+        const yearId = yearSelect.value;
+        const stageId = stageSelect.value;
+        const gradeId = gradeSelect.value;
+        
+        if (sectionId) {
+            window.location.href = `/attendance/students/new?section_id=${sectionId}&date=${date}&year_id=${yearId}&stage_id=${stageId}&grade_id=${gradeId}`;
+        }
+    });
+    
+    // ============================================================
+    // 2. إجراءات سريعة
+    // ============================================================
+    
+    // تحديد الكل كحاضر
+    const selectAllPresent = document.getElementById('selectAllPresent');
+    if (selectAllPresent) {
+        selectAllPresent.addEventListener('click', function() {
+            const radioButtons = document.querySelectorAll('input[type="radio"][value="present"]');
+            radioButtons.forEach(function(radio) {
+                radio.checked = true;
+            });
+        });
     }
-});
-
-// تحديث التاريخ عند التغيير
-document.getElementById('attendanceDate').addEventListener('change', function() {
-    const date = this.value;
-    const sectionId = document.getElementById('sectionSelect').value;
     
-    if (sectionId) {
-        window.location.href = `/attendance/students/new?section_id=${sectionId}&date=${date}`;
+    // إلغاء التحديد
+    const clearAll = document.getElementById('clearAll');
+    if (clearAll) {
+        clearAll.addEventListener('click', function() {
+            const radioButtons = document.querySelectorAll('input[type="radio"]');
+            radioButtons.forEach(function(radio) {
+                radio.checked = false;
+            });
+        });
+    }
+    
+    // ============================================================
+    // 3. إرسال النموذج
+    // ============================================================
+    
+    document.getElementById('attendanceForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const form = this;
+        const formData = new FormData(form);
+        const students = [];
+        
+        // جمع بيانات الطلاب
+        const studentIds = document.querySelectorAll('input[name="student_id"]');
+        let hasSelected = false;
+        
+        studentIds.forEach(function(input) {
+            const studentId = input.value;
+            const status = document.querySelector(`input[name="status_${studentId}"]:checked`);
+            const note = document.querySelector(`input[name="note_${studentId}"]`);
+            
+            if (status) {
+                hasSelected = true;
+                students.push({
+                    student_id: studentId,
+                    status: status.value,
+                    note: note ? note.value : ''
+                });
+            }
+        });
+        
+        // التحقق من اختيار حالة لكل طالب
+        if (!hasSelected) {
+            alert('يرجى اختيار حالة لكل طالب قبل الحفظ');
+            return;
+        }
+        
+        // تحديث الحقل المخفي
+        document.getElementById('recordsInput').value = JSON.stringify(students);
+        
+        // إرسال النموذج
+        form.submit();
+    });
+    
+    // ============================================================
+    // 4. تهيئة القوائم عند تحميل الصفحة
+    // ============================================================
+    
+    const initialYear = yearSelect.value;
+    const initialStage = stageSelect.value;
+    const initialGrade = gradeSelect.value;
+    const initialSection = sectionSelect.value;
+    
+    if (initialYear) {
+        loadStages(initialYear, initialStage);
+        if (initialStage) {
+            loadGrades(initialYear, initialStage, initialGrade);
+            if (initialGrade) {
+                loadSections(initialGrade, initialSection);
+            }
+        }
     }
 });
 </script>
