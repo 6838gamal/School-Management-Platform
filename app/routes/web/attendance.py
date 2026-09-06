@@ -1,10 +1,9 @@
-"""Attendance web routes with full academic hierarchy support."""
+"""Attendance web routes with full academic hierarchy support - Manual queries only."""
 from fastapi import APIRouter, Depends, Request, HTTPException, status
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import JSONResponse, RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, or_
-from sqlalchemy.orm import selectinload
 from typing import Optional, List, Dict, Any
 import uuid
 import traceback
@@ -42,38 +41,104 @@ templates = Jinja2Templates(directory="app/templates")
 
 
 # ============================================================
-# دوال مساعدة لجلب البيانات (مثل schedules)
+# دوال مساعدة للبحث اليدوي (بدون علاقات)
 # ============================================================
 
-async def get_sections_with_details(db: AsyncSession, school_id: str) -> List[Dict]:
-    """جلب الشعب مع تفاصيلها (الصف والمرحلة والسنة)"""
+async def get_grade_by_id(db: AsyncSession, grade_id: str) -> Optional[Grade]:
+    """جلب الصف بالمعرف - بحث يدوي"""
     try:
+        if not grade_id:
+            return None
+        result = await db.execute(
+            select(Grade).where(Grade.id == grade_id)
+        )
+        return result.scalar_one_or_none()
+    except Exception as e:
+        print(f"⚠️ Error in get_grade_by_id: {str(e)}")
+        return None
+
+
+async def get_stage_by_id(db: AsyncSession, stage_id: str) -> Optional[Stage]:
+    """جلب المرحلة بالمعرف - بحث يدوي"""
+    try:
+        if not stage_id:
+            return None
+        result = await db.execute(
+            select(Stage).where(Stage.id == stage_id)
+        )
+        return result.scalar_one_or_none()
+    except Exception as e:
+        print(f"⚠️ Error in get_stage_by_id: {str(e)}")
+        return None
+
+
+async def get_academic_year_by_id(db: AsyncSession, year_id: str) -> Optional[AcademicYear]:
+    """جلب السنة الدراسية بالمعرف - بحث يدوي"""
+    try:
+        if not year_id:
+            return None
+        result = await db.execute(
+            select(AcademicYear).where(AcademicYear.id == year_id)
+        )
+        return result.scalar_one_or_none()
+    except Exception as e:
+        print(f"⚠️ Error in get_academic_year_by_id: {str(e)}")
+        return None
+
+
+async def get_sections_with_details(db: AsyncSession, school_id: str) -> List[Dict]:
+    """جلب الشعب مع تفاصيلها (الصف والمرحلة والسنة) - بحث يدوي"""
+    try:
+        # 1. جلب جميع الشعب
         result = await db.execute(
             select(Section)
-            .options(
-                selectinload(Section.grade).selectinload(Grade.stage)
-            )
             .where(Section.school_id == school_id)
             .where(Section.is_active == True)
             .order_by(Section.grade_id, Section.name)
         )
         sections = result.scalars().all()
         
-        return [
-            {
+        sections_data = []
+        for section in sections:
+            # 2. جلب الصف يدوياً
+            grade = None
+            grade_name = "غير محدد"
+            stage_name = "غير محدد"
+            year_name = "غير محدد"
+            year_id = None
+            
+            if section.grade_id:
+                grade = await get_grade_by_id(db, section.grade_id)
+                if grade:
+                    grade_name = grade.name
+                    year_id = grade.year_id
+                    
+                    # 3. جلب المرحلة يدوياً
+                    if grade.stage_id:
+                        stage = await get_stage_by_id(db, grade.stage_id)
+                        if stage:
+                            stage_name = stage.name
+                    
+                    # 4. جلب السنة يدوياً
+                    if grade.year_id:
+                        year = await get_academic_year_by_id(db, grade.year_id)
+                        if year:
+                            year_name = year.name
+            
+            sections_data.append({
                 "id": str(section.id),
                 "name": section.name,
                 "grade_id": str(section.grade_id) if section.grade_id else None,
-                "grade_name": section.grade.name if section.grade else "غير محدد",
-                "stage_name": section.grade.stage.name if section.grade and section.grade.stage else "غير محدد",
-                "year_id": str(section.grade.year_id) if section.grade and section.grade.year_id else None,
-                "year_name": section.grade.year.name if section.grade and section.grade.year else "غير محدد",
-                "display_name": f"{section.grade.stage.name if section.grade and section.grade.stage else ''} - {section.grade.name if section.grade else ''} - {section.name}",
+                "grade_name": grade_name,
+                "stage_name": stage_name,
+                "year_id": str(year_id) if year_id else None,
+                "year_name": year_name,
+                "display_name": f"{stage_name} - {grade_name} - {section.name}",
                 "capacity": section.capacity,
                 "is_active": section.is_active
-            }
-            for section in sections
-        ]
+            })
+        
+        return sections_data
     except Exception as e:
         print(f"⚠️ Error in get_sections_with_details: {str(e)}")
         traceback.print_exc()
@@ -81,7 +146,7 @@ async def get_sections_with_details(db: AsyncSession, school_id: str) -> List[Di
 
 
 async def get_academic_years(db: AsyncSession, school_id: str) -> List[Dict]:
-    """جلب السنوات الدراسية"""
+    """جلب السنوات الدراسية - بحث يدوي"""
     try:
         result = await db.execute(
             select(AcademicYear)
@@ -108,7 +173,7 @@ async def get_academic_years(db: AsyncSession, school_id: str) -> List[Dict]:
 
 
 async def get_stages(db: AsyncSession, school_id: str, year_id: Optional[str] = None) -> List[Dict]:
-    """جلب المراحل حسب السنة الدراسية"""
+    """جلب المراحل حسب السنة الدراسية - بحث يدوي"""
     try:
         stmt = select(Stage).where(Stage.school_id == school_id)
         if year_id:
@@ -135,7 +200,7 @@ async def get_stages(db: AsyncSession, school_id: str, year_id: Optional[str] = 
 
 
 async def get_grades(db: AsyncSession, school_id: str, stage_id: Optional[str] = None, year_id: Optional[str] = None) -> List[Dict]:
-    """جلب الصفوف حسب المرحلة والسنة"""
+    """جلب الصفوف حسب المرحلة والسنة - بحث يدوي"""
     try:
         stmt = select(Grade).where(
             Grade.school_id == school_id,
@@ -174,7 +239,7 @@ async def get_students_with_attendance(
     date: Optional[str] = None,
     period_id: Optional[str] = None
 ) -> List[Dict]:
-    """جلب الطلاب مع حالة الحضور"""
+    """جلب الطلاب مع حالة الحضور - بحث يدوي"""
     try:
         stmt = select(Student).where(
             Student.school_id == school_id,
@@ -238,7 +303,7 @@ async def get_attendance_summary(
     date: str,
     section_id: Optional[str] = None
 ) -> Dict:
-    """جلب ملخص الحضور"""
+    """جلب ملخص الحضور - بحث يدوي"""
     try:
         stmt = select(StudentAttendance).where(
             StudentAttendance.school_id == school_id,
@@ -251,10 +316,10 @@ async def get_attendance_summary(
         records = result.scalars().all()
         
         total = len(records)
-        present = sum(1 for r in records if r.status == StudentAttendanceStatus.PRESENT)
-        absent = sum(1 for r in records if r.status == StudentAttendanceStatus.ABSENT)
-        late = sum(1 for r in records if r.status == StudentAttendanceStatus.LATE)
-        excused = sum(1 for r in records if r.status == StudentAttendanceStatus.EXCUSED)
+        present = sum(1 for r in records if r.status == "present")
+        absent = sum(1 for r in records if r.status == "absent")
+        late = sum(1 for r in records if r.status == "late")
+        excused = sum(1 for r in records if r.status == "excused")
         
         # جلب إجمالي الطلاب في الشعبة
         total_students = 0
@@ -279,6 +344,101 @@ async def get_attendance_summary(
         return {"total": 0, "present": 0, "absent": 0, "late": 0, "excused": 0, "rate": 0}
 
 
+async def get_attendance_records_with_details(
+    db: AsyncSession,
+    school_id: str,
+    date: str,
+    section_id: Optional[str] = None,
+    period_id: Optional[str] = None
+) -> List[Dict]:
+    """جلب سجلات الحضور مع تفاصيل الطالب - بحث يدوي"""
+    try:
+        stmt = select(StudentAttendance).where(
+            StudentAttendance.school_id == school_id,
+            StudentAttendance.date == date
+        )
+        if section_id:
+            stmt = stmt.where(StudentAttendance.section_id == section_id)
+        if period_id:
+            stmt = stmt.where(StudentAttendance.period_id == period_id)
+        
+        result = await db.execute(stmt)
+        records = result.scalars().all()
+        
+        records_data = []
+        for record in records:
+            # جلب الطالب يدوياً
+            student = None
+            student_name = "غير معروف"
+            student_number = ""
+            
+            if record.student_id:
+                student_result = await db.execute(
+                    select(Student).where(Student.id == record.student_id)
+                )
+                student = student_result.scalar_one_or_none()
+                if student:
+                    student_name = student.full_name
+                    student_number = student.student_number
+            
+            # جلب الشعبة يدوياً
+            section_name = None
+            if record.section_id:
+                section_result = await db.execute(
+                    select(Section).where(Section.id == record.section_id)
+                )
+                section = section_result.scalar_one_or_none()
+                if section:
+                    section_name = section.name
+            
+            # جلب الصف يدوياً
+            grade_name = None
+            if record.grade_id:
+                grade = await get_grade_by_id(db, record.grade_id)
+                if grade:
+                    grade_name = grade.name
+            
+            # جلب المرحلة يدوياً
+            stage_name = None
+            if record.stage_id:
+                stage = await get_stage_by_id(db, record.stage_id)
+                if stage:
+                    stage_name = stage.name
+            
+            # جلب السنة يدوياً
+            year_name = None
+            if record.year_id:
+                year = await get_academic_year_by_id(db, record.year_id)
+                if year:
+                    year_name = year.name
+            
+            records_data.append({
+                "id": str(record.id),
+                "student_id": str(record.student_id),
+                "student_name": student_name,
+                "student_number": student_number,
+                "section_id": str(record.section_id) if record.section_id else None,
+                "section_name": section_name,
+                "grade_id": str(record.grade_id) if record.grade_id else None,
+                "grade_name": grade_name,
+                "stage_id": str(record.stage_id) if record.stage_id else None,
+                "stage_name": stage_name,
+                "year_id": str(record.year_id) if record.year_id else None,
+                "year_name": year_name,
+                "date": record.date,
+                "status": record.status,
+                "status_arabic": StudentAttendanceStatus.get_arabic_name(record.status) if hasattr(StudentAttendanceStatus, 'get_arabic_name') else record.status,
+                "note": record.note,
+                "recorded_by": str(record.recorded_by) if record.recorded_by else None,
+            })
+        
+        return records_data
+    except Exception as e:
+        print(f"⚠️ Error in get_attendance_records_with_details: {str(e)}")
+        traceback.print_exc()
+        return []
+
+
 # ============================================================
 # 1️⃣ الصفحة الرئيسية للحضور
 # ============================================================
@@ -294,7 +454,7 @@ async def attendance_page(
     try:
         today = datetime.now().strftime("%Y-%m-%d")
         
-        # جلب البيانات
+        # جلب البيانات - بحث يدوي
         years = await get_academic_years(db, user.school_id)
         sections = await get_sections_with_details(db, user.school_id)
         
@@ -343,7 +503,7 @@ async def student_attendance_list(
     section_id: Optional[str] = None,
     period_id: Optional[str] = None,
 ):
-    """عرض قائمة حضور الطلاب مع التصفية المتدرجة"""
+    """عرض قائمة حضور الطلاب مع التصفية المتدرجة - بحث يدوي"""
     try:
         today = datetime.now().strftime("%Y-%m-%d")
         selected_date = date or today
@@ -357,7 +517,7 @@ async def student_attendance_list(
         print(f"   section_id: {section_id}")
         print("=" * 50)
         
-        # جلب جميع البيانات للقوائم
+        # جلب جميع البيانات للقوائم - بحث يدوي
         years = await get_academic_years(db, user.school_id)
         stages = await get_stages(db, user.school_id, year_id)
         grades = await get_grades(db, user.school_id, stage_id, year_id)
@@ -368,33 +528,13 @@ async def student_attendance_list(
         summary = {"total": 0, "present": 0, "absent": 0, "late": 0, "excused": 0, "rate": 0}
         
         if section_id:
-            # جلب سجلات الشعبة المحددة
-            stmt = select(StudentAttendance).where(
-                StudentAttendance.school_id == user.school_id,
-                StudentAttendance.date == selected_date,
-                StudentAttendance.section_id == section_id
+            # جلب سجلات الحضور مع التفاصيل - بحث يدوي
+            records = await get_attendance_records_with_details(
+                db, user.school_id, selected_date, section_id, period_id
             )
-            if period_id:
-                stmt = stmt.where(StudentAttendance.period_id == period_id)
-            
-            result = await db.execute(stmt)
-            records = result.scalars().all()
             
             # جلب ملخص الحضور
             summary = await get_attendance_summary(db, user.school_id, selected_date, section_id)
-            
-            # جلب أسماء الطلاب
-            for record in records:
-                student_result = await db.execute(
-                    select(Student).where(Student.id == record.student_id)
-                )
-                student = student_result.scalar_one_or_none()
-                if student:
-                    record.student_name = student.full_name
-                    record.student_number = student.student_number
-                else:
-                    record.student_name = "غير معروف"
-                    record.student_number = ""
         
         return templates.TemplateResponse(
             "attendance/students/list.html",
@@ -461,7 +601,7 @@ async def create_student_attendance_page(
     grade_id: Optional[str] = None,
     period_id: Optional[str] = None,
 ):
-    """صفحة تسجيل حضور الطلاب"""
+    """صفحة تسجيل حضور الطلاب - بحث يدوي"""
     try:
         today = datetime.now().strftime("%Y-%m-%d")
         selected_date = date or today
@@ -472,7 +612,7 @@ async def create_student_attendance_page(
         print(f"   date: {selected_date}")
         print("=" * 50)
         
-        # جلب جميع البيانات
+        # جلب جميع البيانات - بحث يدوي
         years = await get_academic_years(db, user.school_id)
         stages = await get_stages(db, user.school_id, year_id)
         grades = await get_grades(db, user.school_id, stage_id, year_id)
@@ -557,10 +697,7 @@ async def create_student_attendance_api(
     user: CurrentUser = Depends(require_any_permission("attendance.create")),
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    تسجيل حضور الطلاب عبر API
-    يدعم كلاً من JSON و FormData
-    """
+    """تسجيل حضور الطلاب عبر API - يدعم JSON و FormData"""
     try:
         content_type = request.headers.get("content-type", "")
         print(f"📥 Content-Type: {content_type}")
@@ -569,20 +706,17 @@ async def create_student_attendance_api(
         print(f"📦 Raw body length: {len(body)}")
         
         if "application/json" in content_type:
-            # معالجة JSON
             data = await request.json()
             date_val = data.get("date")
             section_id = data.get("section_id")
             period_id = data.get("period_id")
             records = data.get("records", [])
         else:
-            # معالجة FormData
             form_data = await request.form()
             date_val = form_data.get("date")
             section_id = form_data.get("section_id")
             period_id = form_data.get("period_id")
             
-            # استخراج السجلات
             records = []
             for key, value in form_data.items():
                 if key.startswith("status_"):
@@ -595,7 +729,6 @@ async def create_student_attendance_api(
                         "note": note
                     })
         
-        # التحقق من البيانات
         if not date_val:
             return JSONResponse({"detail": "التاريخ مطلوب"}, status_code=422)
         
@@ -605,10 +738,8 @@ async def create_student_attendance_api(
         if not records:
             return JSONResponse({"detail": "يجب تحديد طالب واحد على الأقل"}, status_code=422)
         
-        # إنشاء السجلات
         service = AttendanceService(db)
         
-        # إنشاء كل سجل على حدة
         saved_count = 0
         for record in records:
             try:
@@ -663,7 +794,6 @@ async def update_student_attendance_api(
     try:
         data = await request.json()
         
-        # جلب السجل
         result = await db.execute(
             select(StudentAttendance).where(StudentAttendance.id == attendance_id)
         )
@@ -672,7 +802,6 @@ async def update_student_attendance_api(
         if not attendance:
             return JSONResponse({"detail": "سجل الحضور غير موجود"}, status_code=404)
         
-        # تحديث البيانات
         if "status" in data:
             attendance.status = data["status"]
         if "note" in data:
@@ -810,7 +939,7 @@ async def teacher_attendance_page(
     ctx: dict = Depends(template_context),
     date: Optional[str] = None,
 ):
-    """صفحة حضور المعلمين"""
+    """صفحة حضور المعلمين - بحث يدوي"""
     try:
         today = datetime.now().strftime("%Y-%m-%d")
         selected_date = date or today
@@ -888,7 +1017,7 @@ async def debug_attendance_data(
     user: CurrentUser = Depends(require_any_permission("attendance.view")),
     db: AsyncSession = Depends(get_db),
 ):
-    """عرض بيانات الحضور للتصحيح"""
+    """عرض بيانات الحضور للتصحيح - بحث يدوي"""
     try:
         today = datetime.now().strftime("%Y-%m-%d")
         
@@ -934,7 +1063,7 @@ async def debug_students(
     db: AsyncSession = Depends(get_db),
     section_id: Optional[str] = None,
 ):
-    """عرض بيانات الطلاب للتصحيح"""
+    """عرض بيانات الطلاب للتصحيح - بحث يدوي"""
     try:
         students = await get_students_with_attendance(
             db, user.school_id, section_id
@@ -949,6 +1078,43 @@ async def debug_students(
         
     except Exception as e:
         print(f"❌ Error in debug_students: {str(e)}")
+        traceback.print_exc()
+        return JSONResponse(
+            {"error": str(e), "traceback": traceback.format_exc()},
+            status_code=500
+        )
+
+
+@router.get("/debug/hierarchy")
+async def debug_hierarchy(
+    request: Request,
+    user: CurrentUser = Depends(require_any_permission("attendance.view")),
+    db: AsyncSession = Depends(get_db),
+    year_id: Optional[str] = None,
+    stage_id: Optional[str] = None,
+    grade_id: Optional[str] = None,
+):
+    """عرض التسلسل الهرمي للتصحيح - بحث يدوي"""
+    try:
+        years = await get_academic_years(db, user.school_id)
+        stages = await get_stages(db, user.school_id, year_id)
+        grades = await get_grades(db, user.school_id, stage_id, year_id)
+        sections = await get_sections_with_details(db, user.school_id)
+        
+        return JSONResponse({
+            "success": True,
+            "years": years,
+            "stages": stages,
+            "grades": grades,
+            "sections": sections,
+            "school_id": str(user.school_id),
+            "selected_year": year_id,
+            "selected_stage": stage_id,
+            "selected_grade": grade_id,
+        })
+        
+    except Exception as e:
+        print(f"❌ Error in debug_hierarchy: {str(e)}")
         traceback.print_exc()
         return JSONResponse(
             {"error": str(e), "traceback": traceback.format_exc()},
