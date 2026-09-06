@@ -39,15 +39,18 @@ class Student(UUIDPkMixin, TimestampMixin, Base):
     section_id: Mapped[str | None] = mapped_column(
         String(36), index=True, nullable=True, comment="معرف الشعبة"
     )
+    stage_id: Mapped[str | None] = mapped_column(
+        String(36), index=True, nullable=True, comment="معرف المرحلة"
+    )
     
     # ============================================================
-    # ✅ إضافة حقل حالة الحضور (مهم للفلترة)
+    # ✅ حقل حالة الحضور (للتحديث السريع)
     # ============================================================
     attendance_status: Mapped[str | None] = mapped_column(
         String(20), 
         nullable=True, 
-        default="present",
-        comment="حالة الحضور: present, absent, late, permitted, excused"
+        default=None,
+        comment="حالة الحضور: present, absent, late, excused"
     )
     
     attendance_updated_at: Mapped[datetime | None] = mapped_column(
@@ -145,29 +148,72 @@ class Student(UUIDPkMixin, TimestampMixin, Base):
             (today.month, today.day) < (self.birth_date.month, self.birth_date.day)
         )
     
+    # ============================================================
+    # ✅ دوال مساعدة لحالة الحضور
+    # ============================================================
+    
     @property
     def attendance_label(self) -> str:
         """الحصول على تسمية حالة الحضور بالعربية"""
         labels = {
-            'present': 'حاضر',
-            'absent': 'غائب',
-            'late': 'متأخر',
-            'permitted': 'مستأذن',
-            'excused': 'معذور'
+            'present': '✅ حاضر',
+            'absent': '❌ غائب',
+            'late': '⏰ متأخر',
+            'excused': '📝 معذور'
         }
-        return labels.get(self.attendance_status, 'غير محدد')
+        return labels.get(self.attendance_status, '—')
+    
+    @property
+    def attendance_badge_class(self) -> str:
+        """الحصول على كلاس البادج لحالة الحضور"""
+        classes = {
+            'present': 'bg-green-100 text-green-700',
+            'absent': 'bg-red-100 text-red-700',
+            'late': 'bg-yellow-100 text-yellow-700',
+            'excused': 'bg-blue-100 text-blue-700'
+        }
+        return classes.get(self.attendance_status, 'bg-slate-100 text-slate-700')
     
     @property
     def attendance_color(self) -> str:
-        """الحصول على لون حالة الحضور"""
+        """الحصول على لون حالة الحضور (للاستخدام في CSS)"""
         colors = {
             'present': 'emerald',
             'absent': 'red',
             'late': 'amber',
-            'permitted': 'blue',
-            'excused': 'purple'
+            'excused': 'blue'
         }
         return colors.get(self.attendance_status, 'gray')
+    
+    @property
+    def has_attendance(self) -> bool:
+        """هل تم تسجيل حضور للطالب اليوم؟"""
+        return self.attendance_status is not None
+    
+    # ============================================================
+    # دوال لتحديث حالة الحضور (للاستخدام في الخدمات)
+    # ============================================================
+    
+    def update_attendance(self, status: str, note: str = None):
+        """
+        تحديث حالة حضور الطالب.
+        
+        Args:
+            status: present, absent, late, excused
+            note: ملاحظة اختيارية
+        """
+        valid_statuses = ['present', 'absent', 'late', 'excused']
+        if status not in valid_statuses:
+            raise ValueError(f"الحالة غير صالحة. القيم المسموحة: {', '.join(valid_statuses)}")
+        
+        self.attendance_status = status
+        self.attendance_updated_at = datetime.now()
+        # يمكن إضافة ملاحظة إذا كان هناك حقل للملاحظات
+    
+    def clear_attendance(self):
+        """مسح حالة الحضور"""
+        self.attendance_status = None
+        self.attendance_updated_at = None
     
     def __repr__(self) -> str:
         return f"<Student {self.full_name} ({self.student_number})>"
@@ -196,6 +242,9 @@ class StudentEnrollment(UUIDPkMixin, TimestampMixin, Base):
         String(36), index=True, nullable=True
     )
     grade_id: Mapped[str | None] = mapped_column(
+        String(36), index=True, nullable=True
+    )
+    stage_id: Mapped[str | None] = mapped_column(
         String(36), index=True, nullable=True
     )
     
