@@ -361,7 +361,6 @@ class ScheduleService:
             result = await self.db.execute(stmt)
             grades = result.scalars().all()
             
-            # جلب أسماء المراحل
             return [
                 {
                     "id": str(grade.id),
@@ -643,6 +642,7 @@ class ScheduleService:
                     "last_name": t.last_name,
                     "employee_number": t.employee_number,
                     "email": t.email,
+                    "phone": getattr(t, 'phone', None),
                     "specialization": t.specialization,
                     "is_active": t.is_active
                 }
