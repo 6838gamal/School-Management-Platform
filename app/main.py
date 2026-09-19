@@ -3,19 +3,26 @@ Application entry point.
 
 Assembles the FastAPI app, mounts static files, configures Jinja2,
 registers all web and API routers, and wires exception handlers.
+
+الترتيب عند بدء التشغيل:
+1. إنشاء الجداول مباشرةً من الـ models (create_all) — حل احتياطي مضمون.
+2. تشغيل ترحيلات Alembic (للترقيات المستقبلية).
+3. إضافة الأعمدة المفقودة (ensure_database_schema).
+4. تهيئة البيانات الأساسية (المستخدمين والصلاحيات).
 """
 import logging
 import subprocess
 import sys
 import os
 
+# ============================================================
 # إعداد logging
+# ============================================================
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 
-# تعيين مستوى logging لخدمة المصادقة
 logger = logging.getLogger("app.services.auth_service")
 logger.setLevel(logging.INFO)
 
@@ -36,7 +43,33 @@ from app.models.users import User, Role, Permission, UserRole, RolePermission
 from app.models.schools import School
 from app.core.permissions import PERMISSIONS, ROLE_PERMISSIONS, ROLE_LABELS
 
-# ============= استيراد API routes =============
+# ============================================================
+# استيراد جميع النماذج لتسجيلها في Base.metadata
+# (ضروري لعمل Base.metadata.create_all)
+# ============================================================
+try:
+    import app.models  # noqa: F401 — يستورد كل النماذج من app/models/__init__.py
+except Exception as _e:
+    print(f"⚠️ تعذّر استيراد app.models كحزمة: {_e}")
+    # استيراد احتياطي مباشر لأهم النماذج
+    try:
+        from app.models.students import Student  # noqa: F401
+        from app.models.teachers import Teacher  # noqa: F401
+        from app.models.sections import Section  # noqa: F401
+        from app.models.schedules import Schedule  # noqa: F401
+        from app.models.academics import AcademicYear, Subject, Grade  # noqa: F401
+        from app.models.activities import Activity, ActivityParticipant  # noqa: F401
+        from app.models.attendance import StudentAttendance, TeacherAttendance  # noqa: F401
+        from app.models.homework import Homework, HomeworkSubmission  # noqa: F401
+        from app.models.behavior import BehaviorRecord, BehaviorCategory  # noqa: F401
+        from app.models.notifications import Notification, NotificationRecipient  # noqa: F401
+        from app.models.reports import ReportLink, AuditLog  # noqa: F401
+    except Exception as _e2:
+        print(f"⚠️ تعذّر الاستيراد الاحتياطي للنماذج: {_e2}")
+
+# ============================================================
+# استيراد API routes
+# ============================================================
 from app.routes.api.v1.auth import router as api_auth_router
 from app.routes.api.v1.modules import (
     academics_router as api_academics,
@@ -52,7 +85,9 @@ from app.routes.api.v1.modules import (
 from app.routes.api.v1.students import router as api_students_router
 from app.routes.api.v1.teachers import router as api_teachers_router
 
-# ============= استيراد Web routes =============
+# ============================================================
+# استيراد Web routes
+# ============================================================
 from app.routes.web.academics import router as web_academics
 from app.routes.web.auth import router as web_auth
 from app.routes.web.dashboard import router as web_dashboard
@@ -76,39 +111,28 @@ from app.routes.web.grades import router as grades_router
 
 from app.routes.api import router as api_router
 
-# ============= إنشاء مثيل templates =============
+# ============================================================
+# إنشاء مثيل templates
+# ============================================================
 templates = Jinja2Templates(directory="app/templates")
 
 
-# ============= دالة can للقوالب =============
+# ============================================================
+# دالة can للقوالب
+# ============================================================
 def can(permission: str, request: Request = None) -> bool:
-    """
-    التحقق من أن المستخدم لديه صلاحية معينة (للاستخدام في القوالب)
-    
-    ملاحظة: هذه الدالة تستخدم في القوالب، لذلك يجب أن تقبل permission كمعامل أول
-    """
-    # إذا لم يتم تمرير request، حاول الحصول عليه من السياق
+    """التحقق من أن المستخدم لديه صلاحية معينة (للاستخدام في القوالب)"""
     if request is None:
-        # في القوالب، يتم تمرير request كجزء من السياق
-        # ولكن الدالة تستدعى بـ can('permission') فقط
-        # لذلك نستخدم طريقة مختلفة للتحقق
         return False
-    
     if not hasattr(request, 'state'):
         return False
-    
-    # التحقق من وجود المستخدم في request.state
     if not hasattr(request.state, 'user') or request.state.user is None:
         return False
-    
-    # التحقق من الصلاحيات
     if hasattr(request.state, 'permissions'):
         return permission in request.state.permissions
-    
     return False
 
 
-# تسجيل دالة can في Jinja2 (بدون request)
 templates.env.globals['can'] = lambda permission: can(permission)
 
 
@@ -116,50 +140,73 @@ templates.env.globals['can'] = lambda permission: can(permission)
 # دوال تهيئة قاعدة البيانات
 # ============================================================
 
+async def create_tables_if_not_exist():
+    """
+    ✅ الحل الاحتياطي المضمون: إنشاء كل الجداول مباشرةً من الـ models.
+    
+    هذا يضمن وجود جميع الجداول (users, schools, students, sections,
+    schedules, ...) حتى لو فشل Alembic لأي سبب.
+    """
+    print("🔨 جاري إنشاء الجداول إن لم تكن موجودة (create_all)...")
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        print(f"✅ تم التأكد من وجود {len(Base.metadata.tables)} جدول")
+        # عرض أسماء الجداول للتشخيص
+        table_names = sorted(Base.metadata.tables.keys())
+        print(f"   📋 الجداول المسجلة: {', '.join(table_names)}")
+        return True
+    except Exception as e:
+        print(f"❌ فشل إنشاء الجداول: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+
+
 async def run_migrations():
     """
-    تشغيل ترحيلات Alembic تلقائياً عند بدء التطبيق
-    
-    هذه الدالة تقوم بتشغيل جميع الترحيلات المعلقة لتحديث هيكل قاعدة البيانات
-    إلى أحدث إصدار. يتم تشغيلها مرة واحدة عند بدء التطبيق.
+    تشغيل ترحيلات Alembic تلقائياً عند بدء التطبيق.
+    ملاحظة: هذه خطوة إضافية للترقيات المستقبلية.
     """
     print("🔄 جاري تشغيل ترحيلات قاعدة البيانات...")
-    
-    # حفظ URL الأصلي
+
     original_db_url = os.environ.get("DATABASE_URL")
-    
+
     try:
-        # الحصول على DATABASE_URL من متغيرات البيئة أو الإعدادات
         db_url = original_db_url
         if not db_url:
             db_url = settings.DATABASE_URL
-        
+
         # تحويل URL من asyncpg إلى psycopg2 لـ Alembic
-        # Alembic لا يدعم asyncpg، لذلك نحتاج إلى استخدام psycopg2
         sync_url = db_url.replace("postgresql+asyncpg://", "postgresql://")
-        
-        # طباعة معلومات للتتبع (مع إخفاء كلمة المرور)
+
         if '@' in sync_url:
             parts = sync_url.split('@')
             if len(parts) > 1:
                 print(f"📊 استخدام قاعدة البيانات (لـ Alembic): {parts[1]}")
-        
-        # تعيين DATABASE_URL في متغيرات البيئة ليستخدمها alembic.ini
+
         os.environ["DATABASE_URL"] = sync_url
-        
-        # الحصول على مسار المشروع
+
         project_dir = os.getcwd()
         alembic_ini_path = os.path.join(project_dir, "alembic.ini")
-        
-        # التحقق من وجود ملف alembic.ini
+
         if not os.path.exists(alembic_ini_path):
             print("⚠️ ملف alembic.ini غير موجود. تخطي تشغيل الترحيلات.")
-            # استعادة URL الأصلي
             if original_db_url:
                 os.environ["DATABASE_URL"] = original_db_url
             return False
-        
-        # تشغيل alembic upgrade head باستخدام subprocess
+
+        # التحقق من وجود مجلد versions
+        versions_dir = os.path.join(project_dir, "alembic", "versions")
+        if os.path.isdir(versions_dir):
+            files = [f for f in os.listdir(versions_dir) if f.endswith(".py")]
+            print(f"📂 عدد ملفات الترحيل: {len(files)}")
+            if not files:
+                print("ℹ️ لا توجد ملفات ترحيل — تخطي Alembic والاعتماد على create_all")
+                if original_db_url:
+                    os.environ["DATABASE_URL"] = original_db_url
+                return False
+
         result = subprocess.run(
             [sys.executable, "-m", "alembic", "upgrade", "head"],
             capture_output=True,
@@ -167,24 +214,23 @@ async def run_migrations():
             cwd=project_dir,
             env=os.environ.copy()
         )
-        
-        # استعادة URL الأصلي
+
         if original_db_url:
             os.environ["DATABASE_URL"] = original_db_url
-        
+
+        # ✅ اطبع المخرجات دائماً للتشخيص
+        print(f"🔍 Alembic returncode: {result.returncode}")
+        if result.stdout:
+            print(f"🔍 Alembic stdout:\n{result.stdout}")
+        if result.stderr:
+            print(f"🔍 Alembic stderr:\n{result.stderr}")
+
         if result.returncode == 0:
             print("✅ تم تشغيل الترحيلات بنجاح")
-            if result.stdout:
-                lines = result.stdout.strip().split('\n')
-                for line in lines[-5:]:  # عرض آخر 5 أسطر فقط
-                    if line.strip():
-                        print(f"   {line}")
             return True
         else:
-            # قد يكون الخطأ بسبب عدم وجود ترحيلات جديدة
             error_msg = result.stderr.strip() if result.stderr else "خطأ غير معروف"
-            
-            # أخطاء شائعة غير حرجة
+
             if "No such revision" in error_msg:
                 print("ℹ️ قاعدة البيانات محدثة بالفعل (لا توجد ترحيلات جديدة)")
                 return True
@@ -196,42 +242,37 @@ async def run_migrations():
                 return True
             else:
                 print(f"⚠️ فشل تشغيل الترحيلات: {error_msg}")
-                # لا نوقف التطبيق، نكمل بـ ensure_database_schema
                 return False
-            
+
     except subprocess.CalledProcessError as e:
-        print(f"⚠️ خطأ في تشغيل الترحيلات (قد تكون الترحيلات مطبقة بالفعل): {e.stderr if e.stderr else str(e)}")
-        # استعادة URL الأصلي
+        print(f"⚠️ خطأ في تشغيل الترحيلات: {e.stderr if e.stderr else str(e)}")
         if original_db_url:
             os.environ["DATABASE_URL"] = original_db_url
         return False
     except Exception as e:
         print(f"⚠️ خطأ غير متوقع في تشغيل الترحيلات: {str(e)}")
-        # استعادة URL الأصلي
+        import traceback
+        traceback.print_exc()
         if original_db_url:
             os.environ["DATABASE_URL"] = original_db_url
-        # نكمل التطبيق ولا نوقفه
         return False
 
 
 async def ensure_user_exists(db, email: str, password: str, full_name: str, school_id: int, role_name: str):
     """التأكد من وجود المستخدم، وإنشائه إذا لم يكن موجوداً"""
     from app.services.auth_service import AuthService
-    from app.core.security import hash_password
-    
+
     service = AuthService(db)
-    
-    # التحقق من وجود المستخدم
+
     stmt = select(User).where(User.email == email)
     result = await db.execute(stmt)
     user = result.scalar_one_or_none()
-    
+
     if user:
         print(f"ℹ️ المستخدم موجود بالفعل: {email}")
         await service.ensure_user_has_role(user.id, role_name, school_id)
         return user
-    
-    # إنشاء المستخدم الجديد
+
     user = User(
         email=email,
         password_hash=hash_password(password),
@@ -241,25 +282,23 @@ async def ensure_user_exists(db, email: str, password: str, full_name: str, scho
     )
     db.add(user)
     await db.flush()
-    
+
     await service.ensure_user_has_role(user.id, role_name, school_id)
-    
+
     print(f"✅ تم إنشاء المستخدم: {email} (الدور: {role_name})")
     return user
 
 
 async def ensure_database_schema():
     """
-    التأكد من وجود جميع الأعمدة المطلوبة في قاعدة البيانات
-    
-    هذه الدالة تضيف الأعمدة المفقودة في الجداول الموجودة
-    لتجنب أخطاء SQLAlchemy عند تشغيل التطبيق.
+    التأكد من وجود جميع الأعمدة المطلوبة في قاعدة البيانات.
+    هذه الدالة تضيف الأعمدة المفقودة في الجداول الموجودة.
     """
     print("🔧 جاري التحقق من هيكل قاعدة البيانات...")
-    
+
     async for db in get_db():
         try:
-            # 1. التحقق من وجود عمود academic_year_id في جدول schedules
+            # 1. عمود academic_year_id في schedules
             await db.execute(text("""
                 DO $$
                 BEGIN
@@ -269,14 +308,12 @@ async def ensure_database_schema():
                     ) THEN
                         ALTER TABLE schedules ADD COLUMN academic_year_id VARCHAR(36);
                         CREATE INDEX IF NOT EXISTS ix_schedules_academic_year_id ON schedules (academic_year_id);
-                        RAISE NOTICE '✅ تم إضافة العمود academic_year_id إلى جدول schedules';
-                    ELSE
-                        RAISE NOTICE 'ℹ️ العمود academic_year_id موجود بالفعل في جدول schedules';
+                        RAISE NOTICE '✅ تم إضافة academic_year_id إلى schedules';
                     END IF;
                 END $$;
             """))
-            
-            # 2. التحقق من وجود عمود section_id في جدول students
+
+            # 2. عمود section_id في students
             await db.execute(text("""
                 DO $$
                 BEGIN
@@ -286,14 +323,12 @@ async def ensure_database_schema():
                     ) THEN
                         ALTER TABLE students ADD COLUMN section_id VARCHAR(36) NULL;
                         CREATE INDEX IF NOT EXISTS ix_students_section_id ON students (section_id);
-                        RAISE NOTICE '✅ تم إضافة العمود section_id إلى جدول students';
-                    ELSE
-                        RAISE NOTICE 'ℹ️ العمود section_id موجود بالفعل في جدول students';
+                        RAISE NOTICE '✅ تم إضافة section_id إلى students';
                     END IF;
                 END $$;
             """))
-            
-            # 3. إضافة المفتاح الخارجي للـ section_id
+
+            # 3. المفتاح الخارجي لـ section_id
             await db.execute(text("""
                 DO $$
                 BEGIN
@@ -307,14 +342,12 @@ async def ensure_database_schema():
                         FOREIGN KEY (section_id) 
                         REFERENCES sections(id) 
                         ON DELETE SET NULL;
-                        RAISE NOTICE '✅ تم إضافة المفتاح الخارجي fk_students_section_id_sections';
-                    ELSE
-                        RAISE NOTICE 'ℹ️ المفتاح الخارجي fk_students_section_id_sections موجود بالفعل';
+                        RAISE NOTICE '✅ تم إضافة fk_students_section_id_sections';
                     END IF;
                 END $$;
             """))
-            
-            # 4. التحقق من وجود عمود school_id في جدول students
+
+            # 4. عمود school_id في students
             await db.execute(text("""
                 DO $$
                 BEGIN
@@ -324,14 +357,12 @@ async def ensure_database_schema():
                     ) THEN
                         ALTER TABLE students ADD COLUMN school_id VARCHAR(36) NULL;
                         CREATE INDEX IF NOT EXISTS ix_students_school_id ON students (school_id);
-                        RAISE NOTICE '✅ تم إضافة العمود school_id إلى جدول students';
-                    ELSE
-                        RAISE NOTICE 'ℹ️ العمود school_id موجود بالفعل في جدول students';
+                        RAISE NOTICE '✅ تم إضافة school_id إلى students';
                     END IF;
                 END $$;
             """))
-            
-            # 5. التحقق من وجود عمود is_active في جدول students
+
+            # 5. عمود is_active في students
             await db.execute(text("""
                 DO $$
                 BEGIN
@@ -340,14 +371,12 @@ async def ensure_database_schema():
                         WHERE table_name = 'students' AND column_name = 'is_active'
                     ) THEN
                         ALTER TABLE students ADD COLUMN is_active BOOLEAN DEFAULT TRUE;
-                        RAISE NOTICE '✅ تم إضافة العمود is_active إلى جدول students';
-                    ELSE
-                        RAISE NOTICE 'ℹ️ العمود is_active موجود بالفعل في جدول students';
+                        RAISE NOTICE '✅ تم إضافة is_active إلى students';
                     END IF;
                 END $$;
             """))
-            
-            # 6. التحقق من وجود عمود code في جدول students
+
+            # 6. عمود code في students
             await db.execute(text("""
                 DO $$
                 BEGIN
@@ -357,14 +386,12 @@ async def ensure_database_schema():
                     ) THEN
                         ALTER TABLE students ADD COLUMN code VARCHAR(50) NULL;
                         CREATE INDEX IF NOT EXISTS ix_students_code ON students (code);
-                        RAISE NOTICE '✅ تم إضافة العمود code إلى جدول students';
-                    ELSE
-                        RAISE NOTICE 'ℹ️ العمود code موجود بالفعل في جدول students';
+                        RAISE NOTICE '✅ تم إضافة code إلى students';
                     END IF;
                 END $$;
             """))
-            
-            # 7. التحقق من وجود عمود parent_phone في جدول students
+
+            # 7. عمود parent_phone في students
             await db.execute(text("""
                 DO $$
                 BEGIN
@@ -373,14 +400,12 @@ async def ensure_database_schema():
                         WHERE table_name = 'students' AND column_name = 'parent_phone'
                     ) THEN
                         ALTER TABLE students ADD COLUMN parent_phone VARCHAR(20) NULL;
-                        RAISE NOTICE '✅ تم إضافة العمود parent_phone إلى جدول students';
-                    ELSE
-                        RAISE NOTICE 'ℹ️ العمود parent_phone موجود بالفعل في جدول students';
+                        RAISE NOTICE '✅ تم إضافة parent_phone إلى students';
                     END IF;
                 END $$;
             """))
-            
-            # 8. التحقق من وجود عمود address في جدول students
+
+            # 8. عمود address في students
             await db.execute(text("""
                 DO $$
                 BEGIN
@@ -389,60 +414,47 @@ async def ensure_database_schema():
                         WHERE table_name = 'students' AND column_name = 'address'
                     ) THEN
                         ALTER TABLE students ADD COLUMN address TEXT NULL;
-                        RAISE NOTICE '✅ تم إضافة العمود address إلى جدول students';
-                    ELSE
-                        RAISE NOTICE 'ℹ️ العمود address موجود بالفعل في جدول students';
+                        RAISE NOTICE '✅ تم إضافة address إلى students';
                     END IF;
                 END $$;
             """))
-            
+
             await db.commit()
             print("✅ تم التحقق من هيكل قاعدة البيانات بنجاح")
             break
         except Exception as e:
             print(f"⚠️ خطأ في التحقق من هيكل قاعدة البيانات: {str(e)}")
+            import traceback
+            traceback.print_exc()
             await db.rollback()
             break
 
 
 async def ensure_role_permissions_updated(school_id: str):
-    """
-    التأكد من أن جميع الأدوار لديها الصلاحيات المطلوبة
-    هذه الدالة تضمن إضافة الصلاحيات الجديدة للأدوار الموجودة
-    """
-    from app.core.permissions import ROLE_PERMISSIONS
-    from app.models.users import Role, Permission, RolePermission
-    from sqlalchemy import select
-    
+    """التأكد من أن جميع الأدوار لديها الصلاحيات المطلوبة"""
     print("🔄 جاري تحديث صلاحيات الأدوار...")
-    
+
     async for db in get_db():
         try:
-            # 1. جلب جميع الصلاحيات الموجودة
             stmt = select(Permission)
             result = await db.execute(stmt)
             all_perms = {p.key: p for p in result.scalars().all()}
             print(f"📊 عدد الصلاحيات الكلي: {len(all_perms)}")
-            
-            # 2. جلب جميع الأدوار للمدرسة
+
             stmt = select(Role).where(Role.school_id == school_id)
             result = await db.execute(stmt)
             roles = result.scalars().all()
             print(f"📊 عدد الأدوار: {len(roles)}")
-            
+
             updated_count = 0
-            
-            # 3. لكل دور، تأكد من وجود جميع الصلاحيات المطلوبة
+
             for role in roles:
-                # جلب الصلاحيات الحالية للدور
                 stmt = select(RolePermission).where(RolePermission.role_id == role.id)
                 result = await db.execute(stmt)
                 existing_perms = {rp.permission_id for rp in result.scalars().all()}
-                
-                # جلب الصلاحيات المطلوبة للدور من ROLE_PERMISSIONS
+
                 required_perm_keys = ROLE_PERMISSIONS.get(role.key, [])
-                
-                # إضافة الصلاحيات المفقودة
+
                 for perm_key in required_perm_keys:
                     if perm_key in all_perms:
                         perm = all_perms[perm_key]
@@ -453,30 +465,29 @@ async def ensure_role_permissions_updated(school_id: str):
                             )
                             db.add(role_perm)
                             updated_count += 1
-                            print(f"   ✅ إضافة صلاحية '{perm_key}' للدور '{role.key}'")
                     else:
-                        print(f"   ⚠️ صلاحية '{perm_key}' غير موجودة في قاعدة البيانات")
-                
+                        print(f"   ⚠️ صلاحية '{perm_key}' غير موجودة")
+
                 await db.flush()
-            
+
             await db.commit()
-            print(f"✅ تم تحديث صلاحيات الأدوار: تم إضافة {updated_count} صلاحية جديدة")
-            
+            print(f"✅ تم تحديث صلاحيات الأدوار: تم إضافة {updated_count} صلاحية")
         except Exception as e:
             print(f"❌ خطأ في تحديث صلاحيات الأدوار: {str(e)}")
+            import traceback
+            traceback.print_exc()
             await db.rollback()
         break
 
 
 async def display_database_schema():
     """استعراض كافة الجداول والأعمدة والبيانات في قاعدة البيانات"""
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("📊 استعراض هيكل قاعدة البيانات والبيانات")
-    print("="*80)
-    
+    print("=" * 80)
+
     async for db in get_db():
         try:
-            # الحصول على جميع الجداول في قاعدة البيانات
             stmt = text("""
                 SELECT table_name 
                 FROM information_schema.tables 
@@ -486,15 +497,14 @@ async def display_database_schema():
             """)
             result = await db.execute(stmt)
             tables = [row[0] for row in result.fetchall()]
-            
+
             print(f"\n📋 عدد الجداول: {len(tables)}")
             print("-" * 80)
-            
+
             for table_name in tables:
                 print(f"\n📌 جدول: {table_name}")
                 print("-" * 40)
-                
-                # الحصول على أعمدة الجدول
+
                 stmt = text(f"""
                     SELECT 
                         column_name,
@@ -508,40 +518,32 @@ async def display_database_schema():
                 """)
                 result = await db.execute(stmt)
                 columns = result.fetchall()
-                
+
                 print(f"   🏷️ الأعمدة ({len(columns)}):")
                 for col in columns:
                     col_name, data_type, is_nullable, default = col
                     nullable = "NULL" if is_nullable == "YES" else "NOT NULL"
                     default_info = f" DEFAULT {default}" if default else ""
                     print(f"      • {col_name}: {data_type} [{nullable}]{default_info}")
-                
-                # الحصول على عدد السجلات في الجدول
+
                 try:
                     stmt = text(f"SELECT COUNT(*) FROM {table_name}")
                     result = await db.execute(stmt)
                     count = result.scalar()
                     print(f"   📊 عدد السجلات: {count}")
-                    
-                    # إذا كان عدد السجلات صغيراً (أقل من 20)، عرضها
+
                     if count > 0 and count <= 20:
                         print(f"   📝 البيانات:")
-                        # الحصول على أول 5 أعمدة فقط للعرض
-                        stmt = text(f"""
-                            SELECT * FROM {table_name} LIMIT 5
-                        """)
+                        stmt = text(f"SELECT * FROM {table_name} LIMIT 5")
                         result = await db.execute(stmt)
                         rows = result.fetchall()
-                        
-                        # عرض البيانات بشكل جميل
+
                         if rows:
-                            # الحصول على أسماء الأعمدة
-                            col_names = [col[0] for col in columns[:5]]  # أول 5 أعمدة فقط
+                            col_names = [col[0] for col in columns[:5]]
                             print("      " + " | ".join(col_names))
                             print("      " + "-" * (len(" | ".join(col_names))))
-                            
+
                             for row in rows[:5]:
-                                # عرض أول 5 قيم فقط
                                 values = []
                                 for i, val in enumerate(row[:5]):
                                     if val is None:
@@ -551,19 +553,18 @@ async def display_database_schema():
                                     else:
                                         values.append(str(val))
                                 print("      " + " | ".join(values))
-                            
+
                             if count > 5:
                                 print(f"      ... وعرض {count - 5} سجلات أخرى")
                     elif count > 20:
-                        print(f"   ℹ️ عرض البيانات مخفي (يوجد {count} سجل، عدد كبير جداً)")
-                        
+                        print(f"   ℹ️ عرض البيانات مخفي (يوجد {count} سجل)")
                 except Exception as e:
                     print(f"   ⚠️ لا يمكن قراءة البيانات: {str(e)}")
-            
-            print("\n" + "="*80)
+
+            print("\n" + "=" * 80)
             print("✅ اكتمل استعراض قاعدة البيانات")
-            print("="*80 + "\n")
-            
+            print("=" * 80 + "\n")
+
         except Exception as e:
             print(f"❌ خطأ في استعراض قاعدة البيانات: {str(e)}")
             await db.rollback()
@@ -573,18 +574,18 @@ async def display_database_schema():
 async def init_database():
     """تهيئة قاعدة البيانات وإنشاء المستخدمين الأوليين."""
     from app.services.auth_service import AuthService
-    
+
     print("🌱 جاري تهيئة قاعدة البيانات...")
-    
+
     async for db in get_db():
         try:
             service = AuthService(db)
-            
+
             # 1. التحقق من وجود مدرسة
             stmt = select(School).where(School.code == "SCHOOL001")
             result = await db.execute(stmt)
             school = result.scalar_one_or_none()
-            
+
             if not school:
                 school = School(
                     name="مدرسة النموذج",
@@ -595,18 +596,18 @@ async def init_database():
                 db.add(school)
                 await db.flush()
                 print("✅ تم إنشاء المدرسة")
-            
-            # 2. التأكد من وجود جميع الصلاحيات (إضافة المفقودة فقط)
+
+            # 2. التأكد من وجود جميع الصلاحيات
             await service.ensure_permissions_exist(school.id)
-            
+
             # 3. تهيئة الصلاحيات والأدوار الأساسية
             await service.ensure_system_roles_and_permissions(school.id)
             await db.commit()
             print("✅ تم تهيئة الصلاحيات والأدوار الأساسية")
-            
-            # 4. تحديث صلاحيات الأدوار الموجودة (إضافة الصلاحيات الجديدة)
+
+            # 4. تحديث صلاحيات الأدوار
             await ensure_role_permissions_updated(school.id)
-            
+
             # 5. إنشاء المستخدمين التجريبيين
             demo_users = [
                 {"email": "admin@school.edu", "password": "admin123", "full_name": "أحمد المدير", "role": "director"},
@@ -614,7 +615,7 @@ async def init_database():
                 {"email": "activities@school.edu", "password": "activities123", "full_name": "سارة الأنشطة", "role": "activities_manager"},
                 {"email": "teacher@school.edu", "password": "teacher123", "full_name": "محمد المعلم", "role": "teacher"}
             ]
-            
+
             for user_data in demo_users:
                 await ensure_user_exists(
                     db,
@@ -624,25 +625,24 @@ async def init_database():
                     school_id=school.id,
                     role_name=user_data["role"]
                 )
-            
+
             await db.commit()
-            
-            # عرض الملخص
+
             stmt = select(User)
             result = await db.execute(stmt)
             users_count = len(result.scalars().all())
-            
+
             stmt = select(Role).where(Role.school_id == school.id)
             result = await db.execute(stmt)
             roles_count = len(result.scalars().all())
-            
+
             stmt = select(Permission)
             result = await db.execute(stmt)
             perms_count = len(result.scalars().all())
-            
-            print("\n" + "="*50)
+
+            print("\n" + "=" * 50)
             print("🎉 تم تهيئة قاعدة البيانات بنجاح!")
-            print("="*50)
+            print("=" * 50)
             print(f"\n📊 إحصائيات:")
             print(f"   🏫 مدرسة: 1")
             print(f"   👤 مستخدمين: {users_count}")
@@ -653,13 +653,14 @@ async def init_database():
             print("   👨‍🏫 deputy@school.edu / deputy123 (وكيل)")
             print("   🎯 activities@school.edu / activities123 (مسؤول أنشطة)")
             print("   📚 teacher@school.edu / teacher123 (معلم)")
-            print("="*50 + "\n")
-            
-            # ============= استعراض قاعدة البيانات بالكامل =============
+            print("=" * 50 + "\n")
+
             await display_database_schema()
-            
+
         except Exception as e:
             print(f"❌ خطأ في تهيئة قاعدة البيانات: {e}")
+            import traceback
+            traceback.print_exc()
             await db.rollback()
         break
 
@@ -672,51 +673,51 @@ async def init_database():
 async def lifespan(app: FastAPI):
     """
     Lifespan context manager for startup and shutdown events.
-    
-    يتم تشغيل هذا الكود عند بدء التطبيق وإيقافه.
-    الترتيب:
-    1. تشغيل ترحيلات Alembic (تحديث هيكل قاعدة البيانات)
-    2. التحقق من هيكل قاعدة البيانات (إضافة الأعمدة المفقودة)
-    3. تهيئة البيانات الأساسية (المستخدمين والصلاحيات)
-    4. إغلاق اتصال قاعدة البيانات عند الإيقاف
+
+    الترتيب الصحيح:
+    1. ✅ إنشاء الجداول مباشرةً من الـ models (create_all) — الحل المضمون.
+    2. تشغيل ترحيلات Alembic (اختياري، للترقيات المستقبلية).
+    3. إضافة الأعمدة المفقودة (ensure_database_schema).
+    4. تهيئة البيانات الأساسية (المستخدمين والصلاحيات).
     """
     print("🚀 Starting application...")
     print(f"📊 Database: {settings.DATABASE_URL}")
-    
-    # تعيين القوالب للتطبيق - يجب أن يكون قبل أي استخدام
+
     set_templates(templates)
     print("✅ تم تعيين القوالب للتطبيق")
-    
-    # التحقق من تعيين templates
+
     if get_templates() is None:
         print("❌ فشل تعيين templates!")
     else:
         print(f"✅ تم تأكيد تعيين templates: {get_templates() is not None}")
-    
+
     # ============================================================
-    # الخطوة 1: تشغيل ترحيلات Alembic
+    # الخطوة 1: ✅ إنشاء الجداول مباشرةً من الـ models (الحل المضمون)
+    # ============================================================
+    await create_tables_if_not_exist()
+
+    # ============================================================
+    # الخطوة 2: ترحيلات Alembic (اختياري)
     # ============================================================
     await run_migrations()
-    
+
     # ============================================================
-    # الخطوة 2: التحقق من هيكل قاعدة البيانات (إضافة الأعمدة المفقودة)
+    # الخطوة 3: إضافة الأعمدة المفقودة
     # ============================================================
     await ensure_database_schema()
-    
+
     # ============================================================
-    # الخطوة 3: تهيئة قاعدة البيانات (المستخدمين والصلاحيات)
+    # الخطوة 4: تهيئة البيانات
     # ============================================================
     await init_database()
-    
+
     print("✅ التطبيق جاهز للاستخدام!")
     yield
-    
+
     # ============================================================
     # إيقاف التطبيق
     # ============================================================
     print("🛑 Shutting down application...")
-    
-    # إغلاق اتصال قاعدة البيانات عند الإيقاف
     await engine.dispose()
     print("✅ Database connection closed.")
 
@@ -788,9 +789,7 @@ async def health():
 
 
 # ============================================================
-# Spec features (Sessions 1-12): dashboard, excused-leaves,
-# substitutes, student profile, attendance late/absent,
-# timetable alerts, session lifecycle API.
+# Spec features (Sessions 1-12)
 # ============================================================
 try:
     from app.routes.web.deputy_dashboard import router as web_deputy_dashboard
